@@ -1,1 +1,10 @@
+target/
+
+# IDE/editor metadata
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
 .vscode/
