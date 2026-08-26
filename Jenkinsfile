@@ -13,7 +13,7 @@ pipeline {
         }
         stage('Test') {
             steps {
-                sh 'mvn -B test'
+                sh 'docker run --rm -v "$PWD":/src -w /src maven:3.9-eclipse-temurin-21 mvn -B test'
             }
             post {
                 always {
