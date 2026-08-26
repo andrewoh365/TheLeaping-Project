@@ -11,8 +11,6 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
-<<<<<<< HEAD
-=======
     <dependencies>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -22,7 +20,6 @@
         </dependency>
     </dependencies>
 
->>>>>>> main
     <build>
         <finalName>team-skeleton</finalName>
         <plugins>
@@ -38,14 +35,11 @@
                     </archive>
                 </configuration>
             </plugin>
-<<<<<<< HEAD
-=======
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
             </plugin>
->>>>>>> main
         </plugins>
     </build>
 </project>
