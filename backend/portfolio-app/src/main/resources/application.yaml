@@ -1,3 +1,18 @@
 spring:
   application:
     name: portfolio-app
+  jpa:
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: false
+  datasource:
+    url: jdbc:h2:mem:test
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+jwt:
+  secret: "ThisIsAVeryLongSecretKeyThatIsAtLeast512BitsLongForHS512AlgorithmTokenGenerationAndValidationPurposeExactly64BytesLong1234567890"
+  expiration: 86400000  # 24 hours in milliseconds
+
