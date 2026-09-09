@@ -9,12 +9,11 @@ Trunk-based development works well for a short 12-week project because everyone 
 
 ```
 The Leaping Project/
-├── backend/                 # Backend services
+├── backend/
 │   └── portfolio-app/       # Main Spring Boot application
 ├── database/                # Database configuration and migrations
-├── docker/                  # Docker configurations
-├── frontend/                # Frontend application
-├── infrastructure/          # Infrastructure setup and configuration
+├── frontend/                # Frontend application (future)
+├── infrastructure/          # Infrastructure setup and configuration (future)
 ├── Jenkinsfile             # CI/CD pipeline definition
 └── README.md               # This file
 ```

@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class PortfolioAppApplication {
 
 	public static void main(String[] args) {
+		System.out.println("Portfolio App is running...");
 		SpringApplication.run(PortfolioAppApplication.class, args);
 	}
 
