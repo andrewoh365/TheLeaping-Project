@@ -2,6 +2,8 @@ package com.leaping.portfolio_app.auth.controller;
 
 import com.leaping.portfolio_app.auth.dto.AuthResponse;
 import com.leaping.portfolio_app.auth.dto.LoginRequest;
+import com.leaping.portfolio_app.auth.dto.RegisterRequest;
+import com.leaping.portfolio_app.auth.dto.RegisterResponse;
 import com.leaping.portfolio_app.auth.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +28,33 @@ public class AuthController {
             return ResponseEntity.ok(response);
         } else {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
+    }
+
+    /**
+     * Register endpoint - creates a new user account
+     * 
+     * Request body should contain:
+     * {
+     *   "email": "user@example.com",
+     *   "password": "SecurePassword123!",
+     *   "confirmPassword": "SecurePassword123!",
+     *   "firstName": "John",
+     *   "lastName": "Doe"
+     * }
+     * 
+     * Returns 201 CREATED if successful, 400 BAD REQUEST if validation fails
+     */
+    @PostMapping("/register")
+    public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest registerRequest) {
+        // Call the register logic in AuthService
+        RegisterResponse response = authService.register(registerRequest);
+        
+        // Return 201 CREATED if registration successful, 400 BAD REQUEST if failed
+        if (response.isSuccess()) {
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } else {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
 
