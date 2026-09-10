@@ -1,0 +1,5 @@
+#need to add this to .gitignore
+spring:
+    datasource:
+        username: #username here
+        password: #local password
