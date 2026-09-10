@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    show-sql: false
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  flyway:
+    enabled: false
+
+jwt:
+  secret: leaping-portfolio-jwt-secret-key-must-be-long-and-secure-at-least-256-bits-for-hs512-algorithm-encryption-very-long-key-here
+  expiration: 3600000      # 1 hour
+  refresh-expiration: 604800000 # 7 days
+
+server:
+  port: 8080
+

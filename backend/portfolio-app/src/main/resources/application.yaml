@@ -1,3 +1,32 @@
 spring:
   application:
     name: portfolio-app
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/leaping_portfolio
+    username: postgres
+    password: password
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQL10Dialect
+  
+  flyway:
+    enabled: false
+    locations: classpath:db/migration
+
+jwt:
+  secret: leaping-portfolio-jwt-secret-key-must-be-long-and-secure-at-least-256-bits-for-hs512-algorithm-encryption-very-long-key-here
+  expiration: 3600000      # 1 hour
+  refresh-expiration: 604800000 # 7 days
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
