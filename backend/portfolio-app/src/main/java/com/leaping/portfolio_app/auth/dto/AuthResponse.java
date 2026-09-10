@@ -5,6 +5,7 @@ public class AuthResponse {
     private String email;
     private String message;
     private boolean success;
+    private String role;  // User's role (ADMIN or CLIENT)
 
     public AuthResponse() {
     }
@@ -14,6 +15,15 @@ public class AuthResponse {
         this.email = email;
         this.message = message;
         this.success = success;
+        this.role = null;
+    }
+
+    public AuthResponse(String token, String email, String message, boolean success, String role) {
+        this.token = token;
+        this.email = email;
+        this.message = message;
+        this.success = success;
+        this.role = role;
     }
 
     public String getToken() {
@@ -46,5 +56,13 @@ public class AuthResponse {
 
     public void setSuccess(boolean success) {
         this.success = success;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 }

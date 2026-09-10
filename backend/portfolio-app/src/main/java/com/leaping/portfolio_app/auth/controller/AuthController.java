@@ -7,6 +7,9 @@ import com.leaping.portfolio_app.auth.dto.RegisterResponse;
 import com.leaping.portfolio_app.auth.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -86,5 +89,37 @@ public class AuthController {
     @GetMapping("/health")
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("Auth service is running");
+    }
+
+    /**
+     * TEST ENDPOINT: Verify RBAC - ADMIN access only
+     * Only users with ADMIN role can access this
+     * Shows the admin role in response
+     */
+    @GetMapping("/admin/test")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> adminTest() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String role = auth.getAuthorities().stream()
+                .findFirst()
+                .map(a -> a.getAuthority().replace("ROLE_", ""))
+                .orElse("UNKNOWN");
+        return ResponseEntity.ok(role + " access confirmed - RBAC is working!");
+    }
+
+    /**
+     * TEST ENDPOINT: Verify RBAC - CLIENT/ADMIN access
+     * Any authenticated user with CLIENT or ADMIN role can access this
+     * Shows which role was used to access the endpoint
+     */
+    @GetMapping("/client/test")
+    @PreAuthorize("hasRole('CLIENT') or hasRole('ADMIN')")
+    public ResponseEntity<String> clientTest() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String role = auth.getAuthorities().stream()
+                .findFirst()
+                .map(a -> a.getAuthority().replace("ROLE_", ""))
+                .orElse("UNKNOWN");
+        return ResponseEntity.ok(role + " access confirmed - RBAC is working!");
     }
 }

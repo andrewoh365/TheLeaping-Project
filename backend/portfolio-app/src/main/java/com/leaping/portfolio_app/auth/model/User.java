@@ -10,6 +10,7 @@ public class User {
     private String lastName;
     private LocalDateTime createdAt;
     private boolean active;
+    private UserRole role;  // User's role (ADMIN or CLIENT)
 
     public User() {
     }
@@ -22,6 +23,7 @@ public class User {
         this.lastName = lastName;
         this.createdAt = LocalDateTime.now();
         this.active = true;
+        this.role = UserRole.CLIENT;  // Default role is CLIENT
     }
 
     public String getId() {
@@ -78,5 +80,13 @@ public class User {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public UserRole getRole() {
+        return role;
+    }
+
+    public void setRole(UserRole role) {
+        this.role = role;
     }
 }

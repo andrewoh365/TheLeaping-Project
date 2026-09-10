@@ -50,7 +50,8 @@ public class AuthService {
 
         // Generate JWT token
         String token = jwtTokenProvider.generateToken(email);
-        return new AuthResponse(token, email, "Authentication successful", true);
+        // Return response with role included so frontend knows the user's role
+        return new AuthResponse(token, email, "Authentication successful", true, user.getRole().name());
     }
 
     public boolean validateToken(String token) {
