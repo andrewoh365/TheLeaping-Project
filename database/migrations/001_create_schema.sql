@@ -271,6 +271,7 @@ CREATE TABLE trade_order (
     submitted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     accepted_at TIMESTAMPTZ,
     rejected_at TIMESTAMPTZ,
+    rejection_reason TEXT,
     cancelled_at TIMESTAMPTZ,
     filled_at TIMESTAMPTZ,
 
@@ -322,6 +323,11 @@ CREATE TABLE execution_attempt (
     quoted_price_usd NUMERIC(20,8),
 
     quote_timestamp TIMESTAMPTZ,
+
+    source_type VARCHAR(10)
+        CHECK (source_type IN ('API', 'MOCK')),
+
+    provider_name VARCHAR(100),
 
     attempt_status VARCHAR(20) NOT NULL
         CHECK (
@@ -565,8 +571,10 @@ CREATE TABLE price (
 
     price_timestamp TIMESTAMPTZ NOT NULL,
 
-    source VARCHAR(20) NOT NULL
-        CHECK (source IN ('API', 'MOCK')),
+    source_type VARCHAR(10) NOT NULL
+        CHECK (source_type IN ('API', 'MOCK')),
+
+    provider_name VARCHAR(100) NOT NULL,
 
     CONSTRAINT fk_price_instrument
         FOREIGN KEY (instrument_id)
