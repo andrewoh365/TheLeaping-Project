@@ -15,10 +15,10 @@ INSERT INTO currency (
     exchange_rate_updated_at
 )
 VALUES
-    ('USD', 'US Dollar', '$', 'United States', 1.0000000000, CURRENT_TIMESTAMP),
-    ('GBP', 'British Pound', '£', 'United Kingdom', 1.3500000000, CURRENT_TIMESTAMP),
-    ('INR', 'Indian Rupee', '₹', 'India', 0.0120000000, CURRENT_TIMESTAMP),
-    ('EUR', 'Euro', '€', NULL, 1.1700000000, CURRENT_TIMESTAMP)
+    ('USD', 'US Dollar', '$', 1.0000000000, CURRENT_TIMESTAMP),
+    ('GBP', 'British Pound', '£', 1.3500000000, CURRENT_TIMESTAMP),
+    ('INR', 'Indian Rupee', '₹', 0.0120000000, CURRENT_TIMESTAMP),
+    ('EUR', 'Euro', '€', 1.1700000000, CURRENT_TIMESTAMP)
 ON CONFLICT (currency_code) DO NOTHING;
 
 

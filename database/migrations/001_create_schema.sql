@@ -83,7 +83,6 @@ CREATE TABLE currency (
 
     currency_name VARCHAR(100) NOT NULL,
     currency_symbol VARCHAR(10),
-    primary_country VARCHAR(100),
 
     current_exchange_rate_to_usd NUMERIC(20,10)
         CHECK (
