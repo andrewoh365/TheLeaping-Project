@@ -3,19 +3,19 @@ spring:
     name: portfolio-app
 
   datasource:
-    url: #need url here
+    url: jdbc:postgresql://localhost:5432/leaping_db
     driver-class-name: org.postgresql.Driver
+    username: 
+    password: 
 
   flyway:
     locations: classpath:db/migration 
     baseline-on-migrate: true
 
-  # jpa:
-  #   hibernate:
-  #     ddl-auto: validate
-  #   database-platform: org.hibernate.dialect.PostgreSQLDialect
-  # Not sure if we need this, something to do with Java and SQL
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
 
 
 
-    #Ask copilot to see if i did application, application.local correct and then continue from steps
