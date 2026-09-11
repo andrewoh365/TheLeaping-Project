@@ -35,14 +35,14 @@ pipeline {
             steps {
                 // Runs the Maven test suite inside the build environment.
                 // -B (batch mode) suppresses interactive prompts so output is clean in logs.
-                sh "mvn -B test"
+                sh "mvn -B test -f backend/portfolio-app/pom.xml"
             }
             post {
                 always {
                     // Publishes JUnit XML results to Jenkins regardless of pass/fail.
                     // This gives a test-trend chart in the Jenkins UI and lets branch
                     // protection rules check the test result as a status check.
-                    junit 'target/surefire-reports/*.xml'
+                    junit 'backend/portfolio-app/target/surefire-reports/*.xml'
                 }
             }
         }
