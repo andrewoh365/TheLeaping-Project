@@ -5,8 +5,9 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/leaping_db
     driver-class-name: org.postgresql.Driver
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    username: #username_here
+    password: #password_here
+
 
   flyway:
     locations: classpath:db/migration 
