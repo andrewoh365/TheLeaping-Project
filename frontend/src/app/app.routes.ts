@@ -4,11 +4,12 @@ import { RegisterComponent } from './components/register/register.component';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { AuthGuard } from './guards/auth.guard';
 import { NoAuthGuard } from './guards/no-auth.guard';
+import { InvestComponent } from './components/invest/invest.component';
 
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: '/dashboard',
+    redirectTo: '/invest',
     pathMatch: 'full'
   },
   {
@@ -23,8 +24,11 @@ export const routes: Routes = [
   },
   {
     path: 'dashboard',
-    component: DashboardComponent,
-    canActivate: [AuthGuard]
+    component: DashboardComponent
+  },
+  {
+    path: 'invest',
+    component: InvestComponent
   },
   {
     path: '**',

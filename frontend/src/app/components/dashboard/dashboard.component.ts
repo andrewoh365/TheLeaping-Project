@@ -35,6 +35,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private router: Router
   ) {}
 
+  navigateToInvest(): void {
+    this.router.navigate(['/invest']);
+  }
+
   ngOnInit(): void {
     this.authService.currentUser$
       .pipe(takeUntil(this.destroy$))
