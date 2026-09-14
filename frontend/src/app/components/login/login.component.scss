@@ -3,15 +3,18 @@
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
   padding: 20px;
 }
 
 .login-card {
   width: 100%;
   max-width: 450px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
+  background-color: #2f2f2f;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(26, 77, 58, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  border: 2px solid rgba(26, 77, 58, 0.4);
+  padding: 8px;
 }
 
 mat-card-header {
@@ -21,12 +24,12 @@ mat-card-header {
   mat-card-title {
     font-size: 28px;
     font-weight: 600;
-    color: #333;
+    color: #ffffff;
   }
 
   mat-card-subtitle {
     font-size: 14px;
-    color: #999;
+    color: #a0a9b8;
     margin-top: 8px;
   }
 }
@@ -42,9 +45,9 @@ form {
   gap: 10px;
   padding: 12px 16px;
   margin-bottom: 20px;
-  background-color: #ffebee;
-  color: #c62828;
-  border-left: 4px solid #c62828;
+  background-color: rgba(198, 40, 40, 0.15);
+  color: #ff6b6b;
+  border-left: 4px solid #ff6b6b;
   border-radius: 4px;
   font-size: 14px;
 
@@ -70,9 +73,20 @@ form {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  background-color: #1a4d3a !important;
+  color: #e0e0e0 !important;
+  border: none;
+  transition: all 0.3s ease;
+
+  &:hover:not(:disabled) {
+    background-color: #225a47 !important;
+    box-shadow: 0 0 20px rgba(26, 77, 58, 0.4);
+  }
 
   &:disabled {
-    opacity: 0.7;
+    opacity: 0.5;
+    background-color: #0f2f23 !important;
+    color: #6b9983 !important;
   }
 }
 
@@ -87,15 +101,17 @@ form {
   p {
     margin: 10px 0;
     font-size: 14px;
-    color: #666;
+    color: #a0a9b8;
 
     a {
-      color: #667eea;
+      color: #1a4d3a;
       text-decoration: none;
       font-weight: 600;
       cursor: pointer;
+      transition: all 0.3s ease;
 
       &:hover {
+        color: #225a47;
         text-decoration: underline;
       }
     }
