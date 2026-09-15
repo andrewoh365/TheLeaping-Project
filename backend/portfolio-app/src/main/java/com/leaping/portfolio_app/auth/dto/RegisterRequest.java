@@ -10,7 +10,9 @@ package com.leaping.portfolio_app.auth.dto;
  *   "password": "SecurePass123!",
  *   "confirmPassword": "SecurePass123!",
  *   "firstName": "John",
- *   "lastName": "Doe"
+ *   "lastName": "Doe",
+ *   "dateOfBirth": "1990-05-15",
+ *   "taxId": "123456789"
  * }
  */
 public class RegisterRequest {
@@ -19,6 +21,8 @@ public class RegisterRequest {
     private String confirmPassword;  // User types password twice to catch typos
     private String firstName;
     private String lastName;
+    private String dateOfBirth;      // Format: YYYY-MM-DD
+    private String taxId;            // Unique tax identifier
 
     // Empty constructor (Spring needs this for JSON parsing)
     public RegisterRequest() {
@@ -26,15 +30,16 @@ public class RegisterRequest {
 
     // Constructor with all fields
     public RegisterRequest(String email, String password, String confirmPassword, 
-                          String firstName, String lastName) {
+                          String firstName, String lastName, String dateOfBirth, String taxId) {
         this.email = email;
         this.password = password;
         this.confirmPassword = confirmPassword;
         this.firstName = firstName;
         this.lastName = lastName;
+        this.dateOfBirth = dateOfBirth;
+        this.taxId = taxId;
     }
 
-    // ========== GETTERS AND SETTERS ==========
     public String getEmail() {
         return email;
     }
@@ -73,5 +78,21 @@ public class RegisterRequest {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    public String getDateOfBirth() {
+        return dateOfBirth;
+    }
+
+    public void setDateOfBirth(String dateOfBirth) {
+        this.dateOfBirth = dateOfBirth;
+    }
+
+    public String getTaxId() {
+        return taxId;
+    }
+
+    public void setTaxId(String taxId) {
+        this.taxId = taxId;
     }
 }

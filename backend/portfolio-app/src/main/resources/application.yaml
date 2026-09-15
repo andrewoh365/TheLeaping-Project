@@ -5,8 +5,8 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/leaping_db
     driver-class-name: org.postgresql.Driver
-    username: #username_here
-    password: #password_here
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
 
 
   flyway:
@@ -20,6 +20,6 @@ spring:
 
 
 jwt:
-  secret: "ThisIsAVeryLongSecretKeyThatIsAtLeast512BitsLongForHS512AlgorithmTokenGenerationAndValidationPurposeExactly64BytesLong1234567890"
+  secret: ${JWT_SECRET}
   expiration: 86400000  # 24 hours in milliseconds
 
