@@ -108,12 +108,12 @@ public class AuthController {
     }
 
     /**
-     * TEST ENDPOINT: Verify RBAC - CLIENT/ADMIN access
-     * Any authenticated user with CLIENT or ADMIN role can access this
+     * TEST ENDPOINT: Verify RBAC - CUSTOMER/ADMIN access
+     * Any authenticated user with CUSTOMER or ADMIN role can access this
      * Shows which role was used to access the endpoint
      */
     @GetMapping("/client/test")
-    @PreAuthorize("hasRole('CLIENT') or hasRole('ADMIN')")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
     public ResponseEntity<String> clientTest() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String role = auth.getAuthorities().stream()

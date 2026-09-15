@@ -60,7 +60,7 @@ public class User {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
         this.role = UserRole.CUSTOMER;  // Default role is CUSTOMER (matches DB constraint)
-        this.status = "INACTIVE";  // Default status is INACTIVE
+        this.status = "ACTIVE";  // Default status is ACTIVE - users can login immediately after registration
     }
 
     public Long getId() {
