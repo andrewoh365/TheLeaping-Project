@@ -3,18 +3,16 @@
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+  background: #1a1a1a;
   padding: 20px;
 }
 
 .register-card {
   width: 100%;
   max-width: 500px;
-  background-color: #2f2f2f;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(26, 77, 58, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  border: 2px solid rgba(26, 77, 58, 0.4);
-  padding: 8px;
+  background-color: #2c2c2c;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
 }
 
 mat-card-header {
@@ -29,7 +27,7 @@ mat-card-header {
 
   mat-card-subtitle {
     font-size: 14px;
-    color: #a0a9b8;
+    color: #b0b0b0;
     margin-top: 8px;
   }
 }
@@ -45,9 +43,9 @@ form {
   gap: 10px;
   padding: 12px 16px;
   margin-bottom: 20px;
-  background-color: rgba(198, 40, 40, 0.15);
+  background-color: rgba(198, 40, 40, 0.2);
   color: #ff6b6b;
-  border-left: 4px solid #ff6b6b;
+  border-left: 4px solid #c62828;
   border-radius: 4px;
   font-size: 14px;
 
@@ -61,6 +59,21 @@ form {
 .full-width {
   width: 100%;
   margin-bottom: 20px;
+  
+  ::ng-deep {
+    .mat-mdc-form-field-label {
+      color: #d0d0d0 !important;
+    }
+    
+    .mdc-text-field__input {
+      color: #f5f5f5 !important;
+      caret-color: #167059 !important;
+    }
+    
+    .mdc-text-field__input::placeholder {
+      color: #888888 !important;
+    }
+  }
 }
 
 .submit-btn {
@@ -73,20 +86,17 @@ form {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background-color: #1a4d3a !important;
-  color: #e0e0e0 !important;
+  background-color: #167059 !important;
+  color: #ffffff !important;
   border: none;
   transition: all 0.3s ease;
 
   &:hover:not(:disabled) {
-    background-color: #225a47 !important;
-    box-shadow: 0 0 20px rgba(26, 77, 58, 0.4);
+    background-color: #1a8370 !important;
   }
 
   &:disabled {
-    opacity: 0.5;
-    background-color: #0f2f23 !important;
-    color: #6b9983 !important;
+    opacity: 0.7;
   }
 }
 
@@ -101,17 +111,17 @@ form {
   p {
     margin: 10px 0;
     font-size: 14px;
-    color: #a0a9b8;
+    color: #999;
 
     a {
-      color: #1a4d3a;
+      color: #00b386;
       text-decoration: none;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.3s ease;
 
       &:hover {
-        color: #225a47;
+        color: #00d4a2;
         text-decoration: underline;
       }
     }
