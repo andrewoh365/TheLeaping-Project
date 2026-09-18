@@ -3,7 +3,9 @@ package com.leaping.portfolio_app.entity;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
-import lombok.Data;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 
 import jakarta.persistence.Table;
 import jakarta.persistence.Column;
@@ -14,7 +16,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 
-@Data
+@Getter
+@Setter
 @Entity 
 @Table(name = "client")
 public class Client {
@@ -39,6 +42,8 @@ public class Client {
     @Column(name = "email", unique = true, length = 255)
     private String email;
     
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     @Column(name = "password_hash")
     private String passwordHash; 
 
@@ -75,6 +80,8 @@ public class Client {
     @Column(name = "last_login")
     private OffsetDateTime lastLogin;
 
-
-    
+    public void setPassword(String rawPassword) {
+        // TODO: Implement password hashing logic (e.g., BCrypt)
+        this.passwordHash = rawPassword;
+    }
 }
