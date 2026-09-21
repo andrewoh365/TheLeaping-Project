@@ -1,25 +1,23 @@
 BEGIN;
 
 -- =========================================================
--- CLIENT
--- Imported clients may initially have NULL email/password.
+-- USERS
+-- Parent table for all user types (customers and admins).
+-- Imported customers may initially have NULL email/password.
 -- Registration populates email + password_hash.
 -- =========================================================
 
-CREATE TABLE client (
-    client_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+CREATE TABLE users (
+    user_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
-    date_of_birth DATE NOT NULL,
-
-    tax_id VARCHAR(100) NOT NULL UNIQUE,
 
     email VARCHAR(255) UNIQUE,
     password_hash TEXT,
 
-    role VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER'
-        CHECK (role IN ('ADMIN', 'CUSTOMER')),
+    user_type VARCHAR(20) NOT NULL
+        CHECK (user_type IN ('ADMIN', 'CUSTOMER')),
 
     status VARCHAR(20) NOT NULL DEFAULT 'INACTIVE'
         CHECK (status IN ('ACTIVE', 'INACTIVE', 'LOCKED')),
@@ -31,15 +29,47 @@ CREATE TABLE client (
 
 
 -- =========================================================
--- PORTFOLIO
--- Exactly one portfolio per client.
--- Contains the client's one shared USD cash bank.
+-- CUSTOMERS
+-- Child of USERS (1:1). Holds fields specific to trading
+-- clients only
 -- =========================================================
 
-CREATE TABLE portfolio (
+CREATE TABLE customers (
+    user_id BIGINT PRIMARY KEY,
+
+    date_of_birth DATE NOT NULL,
+    tax_id VARCHAR(100) NOT NULL UNIQUE,
+
+    CONSTRAINT fk_customer_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+);
+
+
+-- =========================================================
+-- ADMINS
+-- Child of USERS (1:1). No admin-specific fields yet
+-- =========================================================
+
+CREATE TABLE admins (
+    user_id BIGINT PRIMARY KEY,
+
+    CONSTRAINT fk_admin_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+);
+
+
+-- =========================================================
+-- PORTFOLIOS
+-- Exactly one portfolio per customer.
+-- Contains the customer's one shared USD cash bank.
+-- =========================================================
+
+CREATE TABLE portfolios (
     portfolio_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
-    client_id BIGINT NOT NULL UNIQUE,
+    customer_id BIGINT NOT NULL UNIQUE,
 
     cash_balance_usd NUMERIC(20,2) NOT NULL DEFAULT 0
         CHECK (cash_balance_usd >= 0),
@@ -47,17 +77,17 @@ CREATE TABLE portfolio (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_portfolio_client
-        FOREIGN KEY (client_id)
-        REFERENCES client(client_id)
+    CONSTRAINT fk_portfolio_customer
+        FOREIGN KEY (customer_id)
+        REFERENCES customers(user_id)
 );
 
 
 -- =========================================================
--- MARKET
+-- MARKETS
 -- =========================================================
 
-CREATE TABLE market (
+CREATE TABLE markets (
     market_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     market_name VARCHAR(100) NOT NULL UNIQUE,
@@ -73,12 +103,12 @@ CREATE TABLE market (
 
 
 -- =========================================================
--- CURRENCY
+-- CURRENCIES
 -- Current exchange rate is mutable current-state data.
 -- Historical rates used for trades are captured separately.
 -- =========================================================
 
-CREATE TABLE currency (
+CREATE TABLE currencies (
     currency_code VARCHAR(10) PRIMARY KEY,
 
     currency_name VARCHAR(100) NOT NULL,
@@ -95,10 +125,10 @@ CREATE TABLE currency (
 
 
 -- =========================================================
--- INSTRUMENT
+-- INSTRUMENTS
 -- =========================================================
 
-CREATE TABLE instrument (
+CREATE TABLE instruments (
     instrument_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     market_id BIGINT NOT NULL,
@@ -121,11 +151,11 @@ CREATE TABLE instrument (
 
     CONSTRAINT fk_instrument_market
         FOREIGN KEY (market_id)
-        REFERENCES market(market_id),
+        REFERENCES markets(market_id),
 
     CONSTRAINT fk_instrument_currency
         FOREIGN KEY (price_currency_code)
-        REFERENCES currency(currency_code),
+        REFERENCES currencies(currency_code),
 
     CONSTRAINT uq_instrument_market_symbol
         UNIQUE (market_id, symbol)
@@ -138,7 +168,7 @@ CREATE TABLE instrument (
 -- relationship with Instrument.
 -- =========================================================
 
-CREATE TABLE stock (
+CREATE TABLE stocks (
     instrument_id BIGINT PRIMARY KEY,
 
     sector VARCHAR(100),
@@ -147,7 +177,7 @@ CREATE TABLE stock (
 
     CONSTRAINT fk_stock_instrument
         FOREIGN KEY (instrument_id)
-        REFERENCES instrument(instrument_id)
+        REFERENCES instruments(instrument_id)
 );
 
 
@@ -155,14 +185,14 @@ CREATE TABLE stock (
 -- CRYPTO DETAILS
 -- =========================================================
 
-CREATE TABLE crypto (
+CREATE TABLE cryptos (
     instrument_id BIGINT PRIMARY KEY,
 
     blockchain VARCHAR(100),
 
     CONSTRAINT fk_crypto_instrument
         FOREIGN KEY (instrument_id)
-        REFERENCES instrument(instrument_id)
+        REFERENCES instruments(instrument_id)
 );
 
 
@@ -170,7 +200,7 @@ CREATE TABLE crypto (
 -- FOREX DETAILS
 -- =========================================================
 
-CREATE TABLE forex (
+CREATE TABLE forexes (
     instrument_id BIGINT PRIMARY KEY,
 
     base_currency_code VARCHAR(10) NOT NULL,
@@ -178,15 +208,15 @@ CREATE TABLE forex (
 
     CONSTRAINT fk_forex_instrument
         FOREIGN KEY (instrument_id)
-        REFERENCES instrument(instrument_id),
+        REFERENCES instruments(instrument_id),
 
     CONSTRAINT fk_forex_base_currency
         FOREIGN KEY (base_currency_code)
-        REFERENCES currency(currency_code),
+        REFERENCES currencies(currency_code),
 
     CONSTRAINT fk_forex_quote_currency
         FOREIGN KEY (quote_currency_code)
-        REFERENCES currency(currency_code),
+        REFERENCES currencies(currency_code),
 
     CONSTRAINT chk_forex_different_currencies
         CHECK (base_currency_code <> quote_currency_code),
@@ -197,13 +227,13 @@ CREATE TABLE forex (
 
 
 -- =========================================================
--- HOLDING
+-- HOLDINGS
 -- One current position per portfolio + instrument.
 -- Quantity is decimal because crypto/forex may be fractional.
 -- Average cost is normalized to USD.
 -- =========================================================
 
-CREATE TABLE holding (
+CREATE TABLE holdings (
     holding_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     portfolio_id BIGINT NOT NULL,
@@ -219,11 +249,11 @@ CREATE TABLE holding (
 
     CONSTRAINT fk_holding_portfolio
         FOREIGN KEY (portfolio_id)
-        REFERENCES portfolio(portfolio_id),
+        REFERENCES portfolios(portfolio_id),
 
     CONSTRAINT fk_holding_instrument
         FOREIGN KEY (instrument_id)
-        REFERENCES instrument(instrument_id),
+        REFERENCES instruments(instrument_id),
 
     CONSTRAINT uq_holding_portfolio_instrument
         UNIQUE (portfolio_id, instrument_id)
@@ -231,12 +261,12 @@ CREATE TABLE holding (
 
 
 -- =========================================================
--- TRADE ORDER
+-- TRADE ORDERS
 -- Do not use a table literally named ORDER because ORDER
 -- is a SQL keyword.
 -- =========================================================
 
-CREATE TABLE trade_order (
+CREATE TABLE trade_orders (
     order_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     portfolio_id BIGINT NOT NULL,
@@ -279,11 +309,11 @@ CREATE TABLE trade_order (
 
     CONSTRAINT fk_order_portfolio
         FOREIGN KEY (portfolio_id)
-        REFERENCES portfolio(portfolio_id),
+        REFERENCES portfolios(portfolio_id),
 
     CONSTRAINT fk_order_instrument
         FOREIGN KEY (instrument_id)
-        REFERENCES instrument(instrument_id),
+        REFERENCES instruments(instrument_id),
 
     CONSTRAINT chk_limit_price
         CHECK (
@@ -297,12 +327,12 @@ CREATE TABLE trade_order (
 
 
 -- =========================================================
--- EXECUTION ATTEMPT
+-- EXECUTION ATTEMPTS
 -- Records the quote/pricing decision even if no trade occurs.
 -- Multiple attempts may exist for one accepted order.
 -- =========================================================
 
-CREATE TABLE execution_attempt (
+CREATE TABLE execution_attempts (
     execution_attempt_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     order_id BIGINT NOT NULL,
@@ -343,11 +373,11 @@ CREATE TABLE execution_attempt (
 
     CONSTRAINT fk_execution_order
         FOREIGN KEY (order_id)
-        REFERENCES trade_order(order_id),
+        REFERENCES trade_orders(order_id),
 
     CONSTRAINT fk_execution_currency
         FOREIGN KEY (price_currency_code)
-        REFERENCES currency(currency_code),
+        REFERENCES currencies(currency_code),
 
     CONSTRAINT uq_execution_order_attempt
         UNIQUE (order_id, attempt_number),
@@ -358,13 +388,13 @@ CREATE TABLE execution_attempt (
 
 
 -- =========================================================
--- TRADE
+-- TRADES
 -- One completed fill for an order in this phase.
 -- Native execution price + exchange rate are retained for
 -- audit, while total value is normalized to USD.
 -- =========================================================
 
-CREATE TABLE trade (
+CREATE TABLE trades (
     trade_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     order_id BIGINT NOT NULL UNIQUE,
@@ -391,21 +421,21 @@ CREATE TABLE trade (
 
     CONSTRAINT fk_trade_execution_attempt
         FOREIGN KEY (execution_attempt_id, order_id)
-        REFERENCES execution_attempt(execution_attempt_id, order_id),
+        REFERENCES execution_attempts(execution_attempt_id, order_id),
 
     CONSTRAINT fk_trade_currency
         FOREIGN KEY (execution_price_currency_code)
-        REFERENCES currency(currency_code)
+        REFERENCES currencies(currency_code)
 );
 
 
 -- =========================================================
--- CASH TRANSACTION
+-- CASH TRANSACTIONS
 -- Same table handles stocks, crypto and forex.
 -- Trade itself tells us which instrument was involved.
 -- =========================================================
 
-CREATE TABLE cash_transaction (
+CREATE TABLE cash_transactions (
     cash_transaction_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     portfolio_id BIGINT NOT NULL,
@@ -435,11 +465,11 @@ CREATE TABLE cash_transaction (
 
     CONSTRAINT fk_cash_transaction_portfolio
         FOREIGN KEY (portfolio_id)
-        REFERENCES portfolio(portfolio_id),
+        REFERENCES portfolios(portfolio_id),
 
     CONSTRAINT fk_cash_transaction_trade
         FOREIGN KEY (trade_id)
-        REFERENCES trade(trade_id),
+        REFERENCES trades(trade_id),
 
     CONSTRAINT chk_cash_balance_math
         CHECK (
@@ -474,28 +504,28 @@ CREATE TABLE cash_transaction (
 
 
 -- =========================================================
--- WATCHLIST
+-- WATCHLISTS
 -- =========================================================
 
-CREATE TABLE watchlist (
+CREATE TABLE watchlists (
     watchlist_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
-    client_id BIGINT NOT NULL,
+    customer_id BIGINT NOT NULL,
     watchlist_name VARCHAR(100) NOT NULL,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_watchlist_client
-        FOREIGN KEY (client_id)
-        REFERENCES client(client_id),
+    CONSTRAINT fk_watchlist_customer
+        FOREIGN KEY (customer_id)
+        REFERENCES customers(user_id),
 
-    CONSTRAINT uq_watchlist_client_name
-        UNIQUE (client_id, watchlist_name)
+    CONSTRAINT uq_watchlist_customer_name
+        UNIQUE (customer_id, watchlist_name)
 );
 
 
-CREATE TABLE watchlist_instrument (
+CREATE TABLE watchlist_instruments (
     watchlist_id BIGINT NOT NULL,
     instrument_id BIGINT NOT NULL,
 
@@ -503,23 +533,23 @@ CREATE TABLE watchlist_instrument (
 
     CONSTRAINT fk_watchlist_instrument_watchlist
         FOREIGN KEY (watchlist_id)
-        REFERENCES watchlist(watchlist_id),
+        REFERENCES watchlists(watchlist_id),
 
     CONSTRAINT fk_watchlist_instrument_instrument
         FOREIGN KEY (instrument_id)
-        REFERENCES instrument(instrument_id)
+        REFERENCES instruments(instrument_id)
 );
 
 
 -- =========================================================
--- AUDIT EVENT
+-- AUDIT EVENTS
 -- JSONB gives different event types flexible structured data.
 -- =========================================================
 
-CREATE TABLE audit_event (
+CREATE TABLE audit_events (
     audit_event_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
-    client_id BIGINT,
+    user_id BIGINT,
 
     order_id BIGINT,
     execution_attempt_id BIGINT,
@@ -532,33 +562,33 @@ CREATE TABLE audit_event (
 
     occurred_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_audit_client
-        FOREIGN KEY (client_id)
-        REFERENCES client(client_id),
+    CONSTRAINT fk_audit_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id),
 
     CONSTRAINT fk_audit_order
         FOREIGN KEY (order_id)
-        REFERENCES trade_order(order_id),
+        REFERENCES trade_orders(order_id),
 
     CONSTRAINT fk_audit_execution_attempt
         FOREIGN KEY (execution_attempt_id)
-        REFERENCES execution_attempt(execution_attempt_id),
+        REFERENCES execution_attempts(execution_attempt_id),
 
     CONSTRAINT fk_audit_trade
         FOREIGN KEY (trade_id)
-        REFERENCES trade(trade_id),
+        REFERENCES trades(trade_id),
 
     CONSTRAINT fk_audit_cash_transaction
         FOREIGN KEY (cash_transaction_id)
-        REFERENCES cash_transaction(cash_transaction_id)
+        REFERENCES cash_transactions(cash_transaction_id)
 );
 
 
 -- =========================================================
--- PRICE HISTORY
+-- PRICES
 -- =========================================================
 
-CREATE TABLE price (
+CREATE TABLE prices (
     price_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     instrument_id BIGINT NOT NULL,
@@ -577,11 +607,11 @@ CREATE TABLE price (
 
     CONSTRAINT fk_price_instrument
         FOREIGN KEY (instrument_id)
-        REFERENCES instrument(instrument_id),
+        REFERENCES instruments(instrument_id),
 
     CONSTRAINT fk_price_currency
         FOREIGN KEY (price_currency_code)
-        REFERENCES currency(currency_code)
+        REFERENCES currencies(currency_code)
 );
 
 
@@ -591,37 +621,37 @@ CREATE TABLE price (
 -- =========================================================
 
 CREATE INDEX idx_order_portfolio
-    ON trade_order(portfolio_id);
+    ON trade_orders(portfolio_id);
 
 CREATE INDEX idx_order_instrument
-    ON trade_order(instrument_id);
+    ON trade_orders(instrument_id);
 
 CREATE INDEX idx_order_status
-    ON trade_order(order_status);
+    ON trade_orders(order_status);
 
 CREATE INDEX idx_order_submitted_at
-    ON trade_order(submitted_at);
+    ON trade_orders(submitted_at);
 
 CREATE INDEX idx_execution_order
-    ON execution_attempt(order_id);
+    ON execution_attempts(order_id);
 
 CREATE INDEX idx_trade_executed_at
-    ON trade(executed_at);
+    ON trades(executed_at);
 
 CREATE INDEX idx_cash_transaction_portfolio_created
-    ON cash_transaction(portfolio_id, created_at);
+    ON cash_transactions(portfolio_id, created_at);
 
 CREATE INDEX idx_price_instrument_timestamp
-    ON price(instrument_id, price_timestamp DESC);
+    ON prices(instrument_id, price_timestamp DESC);
 
 CREATE INDEX idx_audit_order
-    ON audit_event(order_id);
+    ON audit_events(order_id);
 
 CREATE INDEX idx_audit_trade
-    ON audit_event(trade_id);
+    ON audit_events(trade_id);
 
 CREATE INDEX idx_audit_occurred_at
-    ON audit_event(occurred_at);
+    ON audit_events(occurred_at);
 
 
 -- =========================================================
@@ -639,33 +669,33 @@ END;
 $$;
 
 
-CREATE TRIGGER trg_client_updated_at
-BEFORE UPDATE ON client
+CREATE TRIGGER trg_users_updated_at
+BEFORE UPDATE ON users
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
-CREATE TRIGGER trg_portfolio_updated_at
-BEFORE UPDATE ON portfolio
+CREATE TRIGGER trg_portfolios_updated_at
+BEFORE UPDATE ON portfolios
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
-CREATE TRIGGER trg_instrument_updated_at
-BEFORE UPDATE ON instrument
+CREATE TRIGGER trg_instruments_updated_at
+BEFORE UPDATE ON instruments
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
-CREATE TRIGGER trg_holding_updated_at
-BEFORE UPDATE ON holding
+CREATE TRIGGER trg_holdings_updated_at
+BEFORE UPDATE ON holdings
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
-CREATE TRIGGER trg_order_updated_at
-BEFORE UPDATE ON trade_order
+CREATE TRIGGER trg_orders_updated_at
+BEFORE UPDATE ON trade_orders
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
-CREATE TRIGGER trg_watchlist_updated_at
-BEFORE UPDATE ON watchlist
+CREATE TRIGGER trg_watchlists_updated_at
+BEFORE UPDATE ON watchlists
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
@@ -688,23 +718,23 @@ END;
 $$;
 
 
-CREATE TRIGGER trg_execution_attempt_append_only
-BEFORE UPDATE OR DELETE ON execution_attempt
+CREATE TRIGGER trg_execution_attempts_append_only
+BEFORE UPDATE OR DELETE ON execution_attempts
 FOR EACH ROW
 EXECUTE FUNCTION prevent_append_only_mutation();
 
-CREATE TRIGGER trg_trade_append_only
-BEFORE UPDATE OR DELETE ON trade
+CREATE TRIGGER trg_trades_append_only
+BEFORE UPDATE OR DELETE ON trades
 FOR EACH ROW
 EXECUTE FUNCTION prevent_append_only_mutation();
 
-CREATE TRIGGER trg_cash_transaction_append_only
-BEFORE UPDATE OR DELETE ON cash_transaction
+CREATE TRIGGER trg_cash_transactions_append_only
+BEFORE UPDATE OR DELETE ON cash_transactions
 FOR EACH ROW
 EXECUTE FUNCTION prevent_append_only_mutation();
 
-CREATE TRIGGER trg_audit_event_append_only
-BEFORE UPDATE OR DELETE ON audit_event
+CREATE TRIGGER trg_audit_events_append_only
+BEFORE UPDATE OR DELETE ON audit_events
 FOR EACH ROW
 EXECUTE FUNCTION prevent_append_only_mutation();
 
