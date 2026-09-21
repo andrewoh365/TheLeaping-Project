@@ -3,7 +3,7 @@ BEGIN;
 -- =========================================================
 -- CURRENCIES
 -- Rates below are MOCK development values, not live rates.
--- The market-data layer can update these later.
+-- The market-data layer can update these later
 -- =========================================================
 
 INSERT INTO currencies (

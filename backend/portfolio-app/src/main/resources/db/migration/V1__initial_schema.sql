@@ -31,7 +31,7 @@ CREATE TABLE users (
 -- =========================================================
 -- CUSTOMERS
 -- Child of USERS (1:1). Holds fields specific to trading
--- clients only.
+-- clients only
 -- =========================================================
 
 CREATE TABLE customers (
@@ -48,7 +48,7 @@ CREATE TABLE customers (
 
 -- =========================================================
 -- ADMINS
--- Child of USERS (1:1). No admin-specific fields yet.
+-- Child of USERS (1:1). No admin-specific fields yet
 -- =========================================================
 
 CREATE TABLE admins (
