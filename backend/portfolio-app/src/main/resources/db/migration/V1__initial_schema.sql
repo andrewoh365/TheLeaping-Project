@@ -17,7 +17,7 @@ CREATE TABLE users (
     password_hash TEXT,
 
     user_type VARCHAR(20) NOT NULL
-        CHECK (user_type IN ('ADMIN', 'CUSTOMER')),
+        CHECK (user_type IN ('ADMIN', 'CUSTOMER', 'ANALYST')),
 
     status VARCHAR(20) NOT NULL DEFAULT 'INACTIVE'
         CHECK (status IN ('ACTIVE', 'INACTIVE', 'LOCKED')),
@@ -55,6 +55,20 @@ CREATE TABLE admins (
     user_id BIGINT PRIMARY KEY,
 
     CONSTRAINT fk_admin_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+);
+
+
+-- =========================================================
+-- ANALYSTS
+-- Child of USERS (1:1). No analyst-specific fields yet
+-- =========================================================
+
+CREATE TABLE analysts (
+    user_id BIGINT PRIMARY KEY,
+
+    CONSTRAINT fk_analyst_user
         FOREIGN KEY (user_id)
         REFERENCES users(user_id)
 );
