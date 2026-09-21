@@ -2,7 +2,6 @@ package com.leaping.portfolio_app.dto;
 
 public class RegisterRequest {
     private String email;
-    private String username;
     private String password;
 
     public String getEmail() {
@@ -13,13 +12,6 @@ public class RegisterRequest {
         this.email = email;
     }
 
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
 
     public String getPassword() {
         return password;

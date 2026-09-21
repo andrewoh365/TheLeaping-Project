@@ -1,15 +1,45 @@
 /* Global Styles */
+
+:root {
+  --primary-color: #167059;
+  --secondary-color: #00ab68;
+  --primary-accent-color: #26d07c;
+  --secondary-accent-color: #00b386;
+  --background-color: #1a1a1a;
+  --secondary-background-color: #2a2a2a;
+  --text-color: #fafafa;
+}
+
 html, body {
   height: 100%;
-  font-family: 'Roboto', sans-serif;
 }
 
 body {
   margin: 0;
-  background-color: #fafafa;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  font-family: 'Inter', sans-serif;}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
 }
+
 
 /* Material Icons */
 .mat-icon {
   vertical-align: middle;
 }
+
+/*
+
+COLORSCHEME
+  --primary-color: #167059;
+  --secondary-color: #00ab68;
+  --primary-accent-color: #26d07c;
+  --secondary-accent-color: #00b386;
+  --background-color: #1a1a1a;
+  --text-color: #fafafa;
+}
+
+*/

@@ -1,7 +1,7 @@
 package com.leaping.portfolio_app.controller;
 
 import com.leaping.portfolio_app.dto.*;
-import com.leaping.portfolio_app.entity.User;
+import com.leaping.portfolio_app.entity.client;
 import com.leaping.portfolio_app.service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -52,11 +52,11 @@ public class AuthController {
     public ResponseEntity<UserDto> getCurrentUser(@RequestHeader("Authorization") String authHeader) {
         try {
             String token = authHeader.replace("Bearer ", "");
-            Optional<User> user = authService.getCurrentUser(token);
-            
+            Optional<client> user = authService.getCurrentUser(token);
+
             if (user.isPresent()) {
-                User u = user.get();
-                return ResponseEntity.ok(new UserDto(u.getId(), u.getEmail(), u.getUsername()));
+                client u = user.get();
+                return ResponseEntity.ok(new UserDto(String.valueOf(u.getId()), u.getEmail()));
             }
             return ResponseEntity.status(401).build();
         } catch (Exception e) {

@@ -1,8 +1,8 @@
 package com.leaping.portfolio_app.service;
 
 import com.leaping.portfolio_app.dto.*;
-import com.leaping.portfolio_app.entity.User;
-import com.leaping.portfolio_app.repository.UserRepository;
+import com.leaping.portfolio_app.entity.client;
+import com.leaping.portfolio_app.repository.ClientRepository;
 import com.leaping.portfolio_app.security.JwtProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -11,49 +11,43 @@ import java.util.Optional;
 
 @Service
 public class AuthService {
-    private final UserRepository userRepository;
+    private final ClientRepository clientRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtProvider jwtProvider) {
-        this.userRepository = userRepository;
+    public AuthService(ClientRepository clientRepository, PasswordEncoder passwordEncoder, JwtProvider jwtProvider) {
+        this.clientRepository = clientRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtProvider = jwtProvider;
     }
 
     public AuthResponse register(RegisterRequest request) {
         // Check if email already exists
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (clientRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email already registered");
         }
 
-        // Check if username already exists
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new RuntimeException("Username already taken");
-        }
+        // Create new client
+        client client_obj = new client();
+        client_obj.setEmail(request.getEmail());
+        client_obj.setPassword(passwordEncoder.encode(request.getPassword()));
 
-        // Create new user
-        User user = new User();
-        user.setEmail(request.getEmail());
-        user.setUsername(request.getUsername());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-
-        User savedUser = userRepository.save(user);
+        client savedUser = clientRepository.save(client_obj);
 
         // Generate tokens
-        String accessToken = jwtProvider.generateToken(savedUser.getId(), savedUser.getEmail(), savedUser.getUsername());
-        String refreshToken = jwtProvider.generateRefreshToken(savedUser.getId());
+        String accessToken = jwtProvider.generateToken(String.valueOf(savedUser.getId()), savedUser.getEmail(), "");
+        String refreshToken = jwtProvider.generateRefreshToken(String.valueOf(savedUser.getId()));
 
         return new AuthResponse(
                 accessToken,
                 refreshToken,
                 3600L,
-                new UserDto(savedUser.getId(), savedUser.getEmail(), savedUser.getUsername())
+                new UserDto(String.valueOf(savedUser.getId()), savedUser.getEmail())
         );
     }
 
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        client user = clientRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Invalid email or password"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
@@ -61,14 +55,14 @@ public class AuthService {
         }
 
         // Generate tokens
-        String accessToken = jwtProvider.generateToken(user.getId(), user.getEmail(), user.getUsername());
-        String refreshToken = jwtProvider.generateRefreshToken(user.getId());
+        String accessToken = jwtProvider.generateToken(String.valueOf(user.getId()), user.getEmail(), "");
+        String refreshToken = jwtProvider.generateRefreshToken(String.valueOf(user.getId()));
 
         return new AuthResponse(
                 accessToken,
                 refreshToken,
                 3600L,
-                new UserDto(user.getId(), user.getEmail(), user.getUsername())
+                new UserDto(String.valueOf(user.getId()), user.getEmail())
         );
     }
 
@@ -78,26 +72,26 @@ public class AuthService {
         }
 
         String userId = jwtProvider.getUserIdFromToken(request.getRefreshToken());
-        User user = userRepository.findById(userId)
+        client user = clientRepository.findById(Long.parseLong(userId))
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String accessToken = jwtProvider.generateToken(user.getId(), user.getEmail(), user.getUsername());
-        String newRefreshToken = jwtProvider.generateRefreshToken(user.getId());
+        String accessToken = jwtProvider.generateToken(String.valueOf(user.getId()), user.getEmail(), "");
+        String newRefreshToken = jwtProvider.generateRefreshToken(String.valueOf(user.getId()));
 
         return new AuthResponse(
                 accessToken,
                 newRefreshToken,
                 3600L,
-                new UserDto(user.getId(), user.getEmail(), user.getUsername())
+                new UserDto(String.valueOf(user.getId()), user.getEmail())
         );
     }
 
-    public Optional<User> getCurrentUser(String token) {
+    public Optional<client> getCurrentUser(String token) {
         if (!jwtProvider.validateToken(token)) {
             return Optional.empty();
         }
 
         String userId = jwtProvider.getUserIdFromToken(token);
-        return userRepository.findById(userId);
+        return clientRepository.findById(Long.parseLong(userId));
     }
 }
