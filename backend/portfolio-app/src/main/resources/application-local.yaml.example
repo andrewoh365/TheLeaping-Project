@@ -1,0 +1,23 @@
+# Local Development Configuration Template
+# ============================================
+# INSTRUCTIONS:
+# 1. Copy this file: cp application-local.yaml.example application-local.yaml
+# 2. Edit application-local.yaml with your local values
+# 3. Make sure application-local.yaml is in .gitignore (it should be automatically)
+# 4. Run: mvn spring-boot:run
+#
+# This file is COMMITTED to git as documentation.
+# The actual application-local.yaml is .gitignored for security.
+
+spring:
+  datasource:
+    username: postgres
+    password: YOUR_LOCAL_DB_PASSWORD_HERE  # Replace with your local PostgreSQL password
+
+jwt:
+  secret: "YOUR_JWT_SECRET_KEY_HERE_AT_LEAST_256_BITS_LONG_PREFERABLY_512_BITS_FOR_HS512_ALGORITHM_VERY_LONG_KEY_NEEDED_HERE_SO_MAKE_IT_LONG"
+
+# Optional: Override other settings for local development
+# server:
+#   cors:
+#     allowed-origins: http://localhost:4200,http://localhost:3000
