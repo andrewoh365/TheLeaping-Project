@@ -57,10 +57,13 @@ export class RegisterComponent implements OnInit {
 
   private initializeForm(): void {
     this.registerForm = this.formBuilder.group({
-      username: ['', [Validators.required, Validators.minLength(3)]],
+      firstName: ['', [Validators.required, Validators.minLength(2)]],
+      lastName: ['', [Validators.required, Validators.minLength(2)]],
       email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required, Validators.minLength(8)]],
-      confirmPassword: ['', Validators.required]
+      confirmPassword: ['', Validators.required],
+      dateOfBirth: ['', Validators.required],
+      taxId: ['', [Validators.required, Validators.minLength(5)]]
     }, {
       validators: this.passwordMatchValidator
     });
@@ -91,9 +94,9 @@ export class RegisterComponent implements OnInit {
     }
 
     this.loading = true;
-    const { username, email, password } = this.registerForm.value;
+    const { firstName, lastName, email, password, confirmPassword, dateOfBirth, taxId } = this.registerForm.value;
 
-    this.authService.register(email, password, username).subscribe({
+    this.authService.register(firstName, lastName, email, password, confirmPassword, dateOfBirth, taxId).subscribe({
       next: () => {
         this.snackBar.open('Registration successful! Redirecting to dashboard...', 'Close', { duration: 3000 });
         setTimeout(() => {

@@ -38,8 +38,8 @@ export class AuthService {
   /**
    * Register a new user
    */
-  register(email: string, password: string, username: string): Observable<AuthResponse> {
-    const body = { email, password, username };
+  register(firstName: string, lastName: string, email: string, password: string, confirmPassword: string, dateOfBirth: string, taxId: string): Observable<AuthResponse> {
+    const body = { firstName, lastName, email, password, confirmPassword, dateOfBirth, taxId };
     return this.http.post<AuthResponse>(`${this.API_URL}/auth/register`, body).pipe(
       tap(response => {
         this.storeToken(response.token, response.refreshToken);

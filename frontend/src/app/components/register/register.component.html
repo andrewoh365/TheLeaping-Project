@@ -13,20 +13,37 @@
           <span>{{ errorMessage }}</span>
         </div>
 
-        <!-- Username Field -->
+        <!-- First Name Field -->
         <mat-form-field class="full-width">
-          <mat-label>Username</mat-label>
+          <mat-label>First Name</mat-label>
           <input
             matInput
             type="text"
-            formControlName="username"
-            placeholder="Choose a username"
+            formControlName="firstName"
+            placeholder="Enter your first name"
           />
-          <mat-error *ngIf="f['username'].hasError('required')">
-            Username is required
+          <mat-error *ngIf="f['firstName'].hasError('required')">
+            First name is required
           </mat-error>
-          <mat-error *ngIf="f['username'].hasError('minlength')">
-            Username must be at least 3 characters
+          <mat-error *ngIf="f['firstName'].hasError('minlength')">
+            First name must be at least 2 characters
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Last Name Field -->
+        <mat-form-field class="full-width">
+          <mat-label>Last Name</mat-label>
+          <input
+            matInput
+            type="text"
+            formControlName="lastName"
+            placeholder="Enter your last name"
+          />
+          <mat-error *ngIf="f['lastName'].hasError('required')">
+            Last name is required
+          </mat-error>
+          <mat-error *ngIf="f['lastName'].hasError('minlength')">
+            Last name must be at least 2 characters
           </mat-error>
         </mat-form-field>
 
@@ -94,6 +111,36 @@
           </mat-error>
           <mat-error *ngIf="registerForm.hasError('passwordMismatch') && f['confirmPassword'].touched">
             Passwords do not match
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Date of Birth Field -->
+        <mat-form-field class="full-width">
+          <mat-label>Date of Birth</mat-label>
+          <input
+            matInput
+            type="date"
+            formControlName="dateOfBirth"
+          />
+          <mat-error *ngIf="f['dateOfBirth'].hasError('required')">
+            Date of birth is required
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Tax ID Field -->
+        <mat-form-field class="full-width">
+          <mat-label>Tax ID</mat-label>
+          <input
+            matInput
+            type="text"
+            formControlName="taxId"
+            placeholder="Enter your tax ID (e.g., SSN, EIN)"
+          />
+          <mat-error *ngIf="f['taxId'].hasError('required')">
+            Tax ID is required
+          </mat-error>
+          <mat-error *ngIf="f['taxId'].hasError('minlength')">
+            Tax ID must be at least 5 characters
           </mat-error>
         </mat-form-field>
 
