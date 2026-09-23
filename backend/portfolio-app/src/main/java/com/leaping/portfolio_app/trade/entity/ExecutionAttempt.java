@@ -2,6 +2,7 @@ package com.leaping.portfolio_app.trade.entity;
 
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.trade.enums.ExecutionAttemptStatus;
+import com.leaping.portfolio_app.market.enums.PriceSourceType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -63,6 +64,7 @@ public class ExecutionAttempt {
     @Column(name = "quote_timestamp")
     private OffsetDateTime quoteTimestamp;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "source_type", length = 10)
     private PriceSourceType sourceType;
 
@@ -167,11 +169,11 @@ public class ExecutionAttempt {
         this.quoteTimestamp = quoteTimestamp;
     }
 
-    public String getSourceType() {
+    public PriceSourceType getSourceType() {
         return sourceType;
     }
 
-    public void setSourceType(String sourceType) {
+public void setSourceType(PriceSourceType sourceType) {
         this.sourceType = sourceType;
     }
 

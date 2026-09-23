@@ -212,12 +212,12 @@ SELECT
     'Technology',
     'Consumer Electronics',
     'United States'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'AAPL'
 AND NOT EXISTS (
     SELECT 1
     FROM stocks s
-    WHERE s.instrument_id = instruments.instrument_id
+    WHERE s.instrument_id = i.instrument_id
 );
 
 
@@ -232,12 +232,12 @@ SELECT
     'Communication Services',
     'Telecommunications',
     'United Kingdom'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'VOD'
 AND NOT EXISTS (
     SELECT 1
     FROM stocks s
-    WHERE s.instrument_id = instruments.instrument_id
+    WHERE s.instrument_id = i.instrument_id
 );
 
 
@@ -252,12 +252,12 @@ SELECT
     'Energy',
     'Diversified',
     'India'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'RELIANCE'
 AND NOT EXISTS (
     SELECT 1
     FROM stocks s
-    WHERE s.instrument_id = instruments.instrument_id
+    WHERE s.instrument_id = i.instrument_id
 );
 
 
@@ -272,12 +272,12 @@ INSERT INTO cryptos (
 SELECT
     i.instrument_id,
     'Bitcoin'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'BTC-USD'
 AND NOT EXISTS (
     SELECT 1
     FROM cryptos c
-    WHERE c.instrument_id = instruments.instrument_id
+    WHERE c.instrument_id = i.instrument_id
 );
 
 
@@ -288,12 +288,12 @@ INSERT INTO cryptos (
 SELECT
     i.instrument_id,
     'Ethereum'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'ETH-USD'
 AND NOT EXISTS (
     SELECT 1
     FROM cryptos c
-    WHERE c.instrument_id = instruments.instrument_id
+    WHERE c.instrument_id = i.instrument_id
 );
 
 
@@ -310,12 +310,12 @@ SELECT
     i.instrument_id,
     'EUR',
     'USD'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'EUR/USD'
 AND NOT EXISTS (
     SELECT 1
     FROM forexes f
-    WHERE f.instrument_id = instruments.instrument_id
+    WHERE f.instrument_id = i.instrument_id
 );
 
 
@@ -328,12 +328,12 @@ SELECT
     i.instrument_id,
     'GBP',
     'USD'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'GBP/USD'
 AND NOT EXISTS (
     SELECT 1
     FROM forexes f
-    WHERE f.instrument_id = instruments.instrument_id
+    WHERE f.instrument_id = i.instrument_id
 );
 
 
@@ -433,12 +433,12 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'AAPL'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -459,12 +459,12 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'VOD'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -485,12 +485,12 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'RELIANCE'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -511,12 +511,12 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'BTC-USD'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -537,12 +537,12 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'ETH-USD'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -563,12 +563,12 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'EUR/USD'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -589,12 +589,12 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'GBP/USD'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );

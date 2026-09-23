@@ -70,7 +70,7 @@ public class TradeOrder {
         precision = 20,
         scale = 8
     )
-    private BigDecimal limitPrice;
+    private BigDecimal limitPriceUsd;
 
     @Column(name = "submitted_at", nullable = false)
     private OffsetDateTime submittedAt;
