@@ -20,7 +20,7 @@ export interface User {
   providedIn: 'root'
 })
 export class AuthService {
-  private readonly API_URL = 'http://localhost:8080/api'; // Change this based on your backend
+  private readonly API_URL = 'http://localhost:8080'; // Change this based on your backend
   private readonly TOKEN_KEY = 'jwt_token';
   private readonly REFRESH_TOKEN_KEY = 'refresh_token';
   private readonly USER_KEY = 'user';

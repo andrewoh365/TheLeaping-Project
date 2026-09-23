@@ -28,4 +28,9 @@ Thumbs.db
 .env.development
 
 backend/portfolio-app/src/main/resources/application.yaml
+backend\portfolio-app\src\main\resources\application.yaml
 backend/portfolio-app/src/main/resources/application-*.yaml
+backend/portfolio-app/src/test/resources/application-test.yaml
+
+.env
+backend/portfolio-app/src/main/java/com/leaping/portfolio_app/.env

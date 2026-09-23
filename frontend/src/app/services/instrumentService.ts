@@ -16,7 +16,7 @@ export interface Instrument {
   providedIn: 'root'
 })
 export class InstrumentService {
-  private readonly API_URL = 'http://localhost:8080/api/instruments';
+  private readonly API_URL = 'http://localhost:8080/instrument';
 
   constructor(private http: HttpClient) {}
 

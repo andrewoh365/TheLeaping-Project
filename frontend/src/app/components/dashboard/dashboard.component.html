@@ -32,11 +32,21 @@
         class="search-input" 
         [(ngModel)]="searchQuery" 
         (input)="onSearchInput()"
-        placeholder="Search portfolios, instruments..."
+        placeholder="Enter a symbol or name"
         aria-label="Search"
       />
       <mat-icon class="search-icon">search</mat-icon>
+      <div class="search-results-container" *ngIf="searchResults.length > 0">
+        <div *ngFor="let result of searchResults" class="search-result-item">
+          {{ result?.symbol }}
+        </div>
+      </div>
     </div>
+
+   
+
+
+
   </div>
 
   <div class="dashboard-content">
@@ -46,10 +56,10 @@
           <button mat-raised-button class="dashboard-button">Individual</button>
           <button mat-raised-button class="dashboard-button">ForEx</button>
           <button mat-raised-button class="dashboard-button">Crypto</button>  
+          <mat-card-header>
+            <mat-card-title>CHART </mat-card-title>
+          </mat-card-header>
         </div>
-        <mat-card-header>
-          <mat-card-title>CHART </mat-card-title>
-        </mat-card-header>
       </mat-card>
     <!--
 

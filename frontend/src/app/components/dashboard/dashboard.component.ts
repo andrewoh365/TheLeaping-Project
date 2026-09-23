@@ -44,9 +44,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private instrumentService: InstrumentService
   ) {}
 
-  navigateToInvest(): void {
-    this.router.navigate(['/invest']);
-  }
+
 
   onSearchInput(): void {
     this.searchSubject$.next(this.searchQuery);
@@ -66,6 +64,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
         }
       });
   }
+
+
   ngOnInit(): void {
     this.authService.currentUser$
       .pipe(takeUntil(this.destroy$))
