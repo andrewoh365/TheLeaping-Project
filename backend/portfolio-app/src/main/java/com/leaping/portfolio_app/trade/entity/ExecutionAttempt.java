@@ -64,7 +64,7 @@ public class ExecutionAttempt {
     private OffsetDateTime quoteTimestamp;
 
     @Column(name = "source_type", length = 10)
-    private String sourceType;
+    private PriceSourceType sourceType;
 
     @Column(name = "provider_name", length = 100)
     private String providerName;

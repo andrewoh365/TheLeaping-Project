@@ -57,7 +57,7 @@ public class Trade {
     )
     private BigDecimal executionPrice;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
         name = "execution_price_currency_code",
         nullable = false

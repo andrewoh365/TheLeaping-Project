@@ -66,11 +66,11 @@ public class TradeOrder {
     private BigDecimal quantity;
 
     @Column(
-        name = "limit_price_usd",
+        name = "limit_price",
         precision = 20,
         scale = 8
     )
-    private BigDecimal limitPriceUsd;
+    private BigDecimal limitPrice;
 
     @Column(name = "submitted_at", nullable = false)
     private OffsetDateTime submittedAt;

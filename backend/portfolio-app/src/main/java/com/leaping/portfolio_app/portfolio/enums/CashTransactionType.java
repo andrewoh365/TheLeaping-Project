@@ -4,6 +4,5 @@ public enum CashTransactionType {
     DEPOSIT,
     WITHDRAWAL,
     TRADE_BUY,
-    TRADE_SELL,
-    ADMIN_ADJUSTMENT
+    TRADE_SELL
 }

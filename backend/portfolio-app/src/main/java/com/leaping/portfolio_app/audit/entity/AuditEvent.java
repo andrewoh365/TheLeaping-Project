@@ -1,10 +1,19 @@
 package com.leaping.portfolio_app.audit.entity;
 
+import com.leaping.portfolio_app.auth.model.User;
+import com.leaping.portfolio_app.portfolio.entity.CashTransaction;
+import com.leaping.portfolio_app.trade.entity.ExecutionAttempt;
+import com.leaping.portfolio_app.trade.entity.Trade;
+import com.leaping.portfolio_app.trade.entity.TradeOrder;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -15,7 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Entity
-@Table(name = "audit_event")
+@Table(name = "audit_events")
 public class AuditEvent {
 
     @Id
@@ -23,20 +32,25 @@ public class AuditEvent {
     @Column(name = "audit_event_id")
     private Long auditEventId;
 
-    @Column(name = "client_id")
-    private Long clientId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
 
-    @Column(name = "order_id")
-    private Long orderId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id")
+    private TradeOrder order;
 
-    @Column(name = "execution_attempt_id")
-    private Long executionAttemptId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "execution_attempt_id")
+    private ExecutionAttempt executionAttempt;
 
-    @Column(name = "trade_id")
-    private Long tradeId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "trade_id")
+    private Trade trade;
 
-    @Column(name = "cash_transaction_id")
-    private Long cashTransactionId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cash_transaction_id")
+    private CashTransaction cashTransaction;
 
     @Column(
         name = "event_type",
@@ -56,12 +70,34 @@ public class AuditEvent {
 
     @Column(
         name = "occurred_at",
+        nullable = false,
         insertable = false,
         updatable = false
     )
     private OffsetDateTime occurredAt;
 
     public AuditEvent() {
+    }
+
+    public AuditEvent(
+            User user,
+            TradeOrder order,
+            ExecutionAttempt executionAttempt,
+            Trade trade,
+            CashTransaction cashTransaction,
+            String eventType,
+            Map<String, Object> eventDetails
+    ) {
+        this.user = user;
+        this.order = order;
+        this.executionAttempt = executionAttempt;
+        this.trade = trade;
+        this.cashTransaction = cashTransaction;
+        this.eventType = eventType;
+
+        if (eventDetails != null) {
+            this.eventDetails = eventDetails;
+        }
     }
 
     public Long getAuditEventId() {
@@ -72,50 +108,48 @@ public class AuditEvent {
         this.auditEventId = auditEventId;
     }
 
-    public Long getClientId() {
-        return clientId;
+    public User getUser() {
+        return user;
     }
 
-    public void setClientId(Long clientId) {
-        this.clientId = clientId;
+    public void setUser(User user) {
+        this.user = user;
     }
 
-    public Long getOrderId() {
-        return orderId;
+    public TradeOrder getOrder() {
+        return order;
     }
 
-    public void setOrderId(Long orderId) {
-        this.orderId = orderId;
+    public void setOrder(TradeOrder order) {
+        this.order = order;
     }
 
-    public Long getExecutionAttemptId() {
-        return executionAttemptId;
+    public ExecutionAttempt getExecutionAttempt() {
+        return executionAttempt;
     }
 
-    public void setExecutionAttemptId(
-            Long executionAttemptId) {
-
-        this.executionAttemptId =
-                executionAttemptId;
+    public void setExecutionAttempt(
+            ExecutionAttempt executionAttempt
+    ) {
+        this.executionAttempt = executionAttempt;
     }
 
-    public Long getTradeId() {
-        return tradeId;
+    public Trade getTrade() {
+        return trade;
     }
 
-    public void setTradeId(Long tradeId) {
-        this.tradeId = tradeId;
+    public void setTrade(Trade trade) {
+        this.trade = trade;
     }
 
-    public Long getCashTransactionId() {
-        return cashTransactionId;
+    public CashTransaction getCashTransaction() {
+        return cashTransaction;
     }
 
-    public void setCashTransactionId(
-            Long cashTransactionId) {
-
-        this.cashTransactionId =
-                cashTransactionId;
+    public void setCashTransaction(
+            CashTransaction cashTransaction
+    ) {
+        this.cashTransaction = cashTransaction;
     }
 
     public String getEventType() {
@@ -131,8 +165,8 @@ public class AuditEvent {
     }
 
     public void setEventDetails(
-            Map<String, Object> eventDetails) {
-
+            Map<String, Object> eventDetails
+    ) {
         this.eventDetails = eventDetails;
     }
 
