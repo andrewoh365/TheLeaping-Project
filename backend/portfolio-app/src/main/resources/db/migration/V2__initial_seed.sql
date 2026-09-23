@@ -4,7 +4,7 @@ BEGIN;
 -- CURRENCIES
 --
 -- Rates below are MOCK development values, not live rates.
--- The market-data layer can update these later.
+-- The market-data layer can update these later
 -- =========================================================
 
 INSERT INTO currencies (
@@ -132,11 +132,7 @@ INSERT INTO instruments (
 )
 VALUES
     (
-        (
-            SELECT market_id
-            FROM markets
-            WHERE market_name = 'NASDAQ'
-        ),
+        (SELECT market_id FROM markets WHERE market_name = 'NASDAQ'),
         'AAPL',
         'Apple Inc.',
         'STOCK',
@@ -145,11 +141,7 @@ VALUES
         TRUE
     ),
     (
-        (
-            SELECT market_id
-            FROM markets
-            WHERE market_name = 'LSE'
-        ),
+        (SELECT market_id FROM markets WHERE market_name = 'LSE'),
         'VOD',
         'Vodafone Group',
         'STOCK',
@@ -158,11 +150,7 @@ VALUES
         TRUE
     ),
     (
-        (
-            SELECT market_id
-            FROM markets
-            WHERE market_name = 'NSE'
-        ),
+        (SELECT market_id FROM markets WHERE market_name = 'NSE'),
         'RELIANCE',
         'Reliance Industries',
         'STOCK',
@@ -171,11 +159,7 @@ VALUES
         TRUE
     ),
     (
-        (
-            SELECT market_id
-            FROM markets
-            WHERE market_name = 'CRYPTO'
-        ),
+        (SELECT market_id FROM markets WHERE market_name = 'CRYPTO'),
         'BTC-USD',
         'Bitcoin',
         'CRYPTO',
@@ -184,11 +168,7 @@ VALUES
         TRUE
     ),
     (
-        (
-            SELECT market_id
-            FROM markets
-            WHERE market_name = 'CRYPTO'
-        ),
+        (SELECT market_id FROM markets WHERE market_name = 'CRYPTO'),
         'ETH-USD',
         'Ethereum',
         'CRYPTO',
@@ -197,11 +177,7 @@ VALUES
         TRUE
     ),
     (
-        (
-            SELECT market_id
-            FROM markets
-            WHERE market_name = 'FOREX'
-        ),
+        (SELECT market_id FROM markets WHERE market_name = 'FOREX'),
         'EUR/USD',
         'Euro / US Dollar',
         'FOREX',
@@ -210,11 +186,7 @@ VALUES
         TRUE
     ),
     (
-        (
-            SELECT market_id
-            FROM markets
-            WHERE market_name = 'FOREX'
-        ),
+        (SELECT market_id FROM markets WHERE market_name = 'FOREX'),
         'GBP/USD',
         'British Pound / US Dollar',
         'FOREX',
@@ -240,12 +212,13 @@ SELECT
     'Technology',
     'Consumer Electronics',
     'United States'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'AAPL'
-  AND m.market_name = 'NASDAQ'
-ON CONFLICT (instrument_id) DO NOTHING;
+FROM instruments
+WHERE symbol = 'AAPL'
+AND NOT EXISTS (
+    SELECT 1
+    FROM stocks s
+    WHERE s.instrument_id = instruments.instrument_id
+);
 
 
 INSERT INTO stocks (
@@ -259,12 +232,13 @@ SELECT
     'Communication Services',
     'Telecommunications',
     'United Kingdom'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'VOD'
-  AND m.market_name = 'LSE'
-ON CONFLICT (instrument_id) DO NOTHING;
+FROM instruments
+WHERE symbol = 'VOD'
+AND NOT EXISTS (
+    SELECT 1
+    FROM stocks s
+    WHERE s.instrument_id = instruments.instrument_id
+);
 
 
 INSERT INTO stocks (
@@ -278,12 +252,13 @@ SELECT
     'Energy',
     'Diversified',
     'India'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'RELIANCE'
-  AND m.market_name = 'NSE'
-ON CONFLICT (instrument_id) DO NOTHING;
+FROM instruments
+WHERE symbol = 'RELIANCE'
+AND NOT EXISTS (
+    SELECT 1
+    FROM stocks s
+    WHERE s.instrument_id = instruments.instrument_id
+);
 
 
 -- =========================================================
@@ -297,12 +272,13 @@ INSERT INTO cryptos (
 SELECT
     i.instrument_id,
     'Bitcoin'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'BTC-USD'
-  AND m.market_name = 'CRYPTO'
-ON CONFLICT (instrument_id) DO NOTHING;
+FROM instruments
+WHERE symbol = 'BTC-USD'
+AND NOT EXISTS (
+    SELECT 1
+    FROM cryptos c
+    WHERE c.instrument_id = instruments.instrument_id
+);
 
 
 INSERT INTO cryptos (
@@ -312,12 +288,13 @@ INSERT INTO cryptos (
 SELECT
     i.instrument_id,
     'Ethereum'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'ETH-USD'
-  AND m.market_name = 'CRYPTO'
-ON CONFLICT (instrument_id) DO NOTHING;
+FROM instruments
+WHERE symbol = 'ETH-USD'
+AND NOT EXISTS (
+    SELECT 1
+    FROM cryptos c
+    WHERE c.instrument_id = instruments.instrument_id
+);
 
 
 -- =========================================================
@@ -333,12 +310,13 @@ SELECT
     i.instrument_id,
     'EUR',
     'USD'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'EUR/USD'
-  AND m.market_name = 'FOREX'
-ON CONFLICT DO NOTHING;
+FROM instruments
+WHERE symbol = 'EUR/USD'
+AND NOT EXISTS (
+    SELECT 1
+    FROM forexes f
+    WHERE f.instrument_id = instruments.instrument_id
+);
 
 
 INSERT INTO forexes (
@@ -350,86 +328,59 @@ SELECT
     i.instrument_id,
     'GBP',
     'USD'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'GBP/USD'
-  AND m.market_name = 'FOREX'
-ON CONFLICT DO NOTHING;
+FROM instruments
+WHERE symbol = 'GBP/USD'
+AND NOT EXISTS (
+    SELECT 1
+    FROM forexes f
+    WHERE f.instrument_id = instruments.instrument_id
+);
 
 
 -- =========================================================
--- DEVELOPMENT USERS
+-- IMPORTED CUSTOMER FIXTURE
 --
--- These are development/testing fixtures only.
+-- Represents:
+-- imported customer exists
+-- -> email/password not registered yet
+-- -> customer later completes registration
 --
--- Password for all three development accounts:
---   DevPassword123!
---
--- users contains every authenticated account.
---
--- CLIENT gets an additional clients row.
--- OPERATIONS and ANALYST do not.
+-- Inserted as USERS + CUSTOMERS together via a single CTE so
+-- the two rows stay in sync: tax_id (on customers) is the
+-- idempotency key, since email is NULL until registration.
 -- =========================================================
 
-INSERT INTO users (
-    first_name,
-    last_name,
-    email,
-    password_hash,
-    role,
-    status
-)
-VALUES
-    (
+WITH new_user AS (
+    INSERT INTO users (
+        first_name,
+        last_name,
+        email,
+        password_hash,
+        user_type,
+        status
+    )
+    SELECT
         'Test',
         'Investor',
-        'client.test@leap.local',
-        '$2a$10$M0wjUzjz39GiE13s.IBTxerHSEYq7zJ4kEJ7rSittbiALpdeR7t1W',
-        'CLIENT',
-        'ACTIVE'
-    ),
-    (
-        'Test',
-        'Operations',
-        'operations.test@leap.local',
-        '$2a$10$M0wjUzjz39GiE13s.IBTxerHSEYq7zJ4kEJ7rSittbiALpdeR7t1W',
-        'OPERATIONS',
-        'ACTIVE'
-    ),
-    (
-        'Test',
-        'Analyst',
-        'analyst.test@leap.local',
-        '$2a$10$M0wjUzjz39GiE13s.IBTxerHSEYq7zJ4kEJ7rSittbiALpdeR7t1W',
-        'ANALYST',
-        'ACTIVE'
+        NULL,
+        NULL,
+        'CUSTOMER',
+        'INACTIVE'
+    WHERE NOT EXISTS (
+        SELECT 1 FROM customers WHERE tax_id = 'TEST-TAX-001'
     )
-ON CONFLICT (email) DO NOTHING;
-
-
--- =========================================================
--- CLIENT PROFILE
---
--- Only the CLIENT user receives a clients row.
---
--- clients.client_id is a shared primary key with
--- users.user_id.
--- =========================================================
-
-INSERT INTO clients (
-    client_id,
+    RETURNING user_id
+)
+INSERT INTO customers (
+    user_id,
     date_of_birth,
     tax_id
 )
 SELECT
-    u.user_id,
+    user_id,
     '1995-01-15',
     'TEST-TAX-001'
-FROM users u
-WHERE u.email = 'client.test@leap.local'
-  AND u.role = 'CLIENT'
-ON CONFLICT DO NOTHING;
+FROM new_user;
 
 
 -- =========================================================
@@ -439,52 +390,19 @@ ON CONFLICT DO NOTHING;
 -- =========================================================
 
 INSERT INTO portfolios (
-    client_id,
+    customer_id,
     cash_balance_usd
 )
 SELECT
-    c.client_id,
+    user_id,
     25000.00
-FROM clients c
-WHERE c.tax_id = 'TEST-TAX-001'
-ON CONFLICT (client_id) DO NOTHING;
-
-
--- =========================================================
--- INITIAL CASH LEDGER ENTRY
---
--- Records the development client's starting $25,000 as an
--- initial modeled deposit so the cash ledger agrees with the
--- portfolio's starting cash balance.
--- =========================================================
-
-INSERT INTO cash_transactions (
-    portfolio_id,
-    trade_id,
-    transaction_type,
-    amount_usd,
-    balance_before_usd,
-    balance_after_usd
-)
-SELECT
-    p.portfolio_id,
-    NULL,
-    'DEPOSIT',
-    25000.00,
-    0.00,
-    25000.00
-FROM portfolios p
-JOIN clients c
-    ON c.client_id = p.client_id
-WHERE c.tax_id = 'TEST-TAX-001'
-  AND NOT EXISTS (
-        SELECT 1
-        FROM cash_transactions ct
-        WHERE ct.portfolio_id = p.portfolio_id
-          AND ct.transaction_type = 'DEPOSIT'
-          AND ct.balance_before_usd = 0.00
-          AND ct.balance_after_usd = 25000.00
-    );
+FROM customers
+WHERE tax_id = 'TEST-TAX-001'
+AND NOT EXISTS (
+    SELECT 1
+    FROM portfolios p
+    WHERE p.customer_id = customers.user_id
+);
 
 
 -- =========================================================
@@ -515,18 +433,15 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'AAPL'
-  AND m.market_name = 'NASDAQ'
-  AND NOT EXISTS (
-        SELECT 1
-        FROM prices p
-        WHERE p.instrument_id = i.instrument_id
-          AND p.source_type = 'MOCK'
-          AND p.provider_name = 'INTERNAL_MOCK'
-    );
+FROM instruments
+WHERE symbol = 'AAPL'
+AND NOT EXISTS (
+    SELECT 1
+    FROM prices p
+    WHERE p.instrument_id = instruments.instrument_id
+      AND p.source_type = 'MOCK'
+      AND p.provider_name = 'INTERNAL_MOCK'
+);
 
 
 INSERT INTO prices (
@@ -544,18 +459,15 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'VOD'
-  AND m.market_name = 'LSE'
-  AND NOT EXISTS (
-        SELECT 1
-        FROM prices p
-        WHERE p.instrument_id = i.instrument_id
-          AND p.source_type = 'MOCK'
-          AND p.provider_name = 'INTERNAL_MOCK'
-    );
+FROM instruments
+WHERE symbol = 'VOD'
+AND NOT EXISTS (
+    SELECT 1
+    FROM prices p
+    WHERE p.instrument_id = instruments.instrument_id
+      AND p.source_type = 'MOCK'
+      AND p.provider_name = 'INTERNAL_MOCK'
+);
 
 
 INSERT INTO prices (
@@ -573,18 +485,15 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'RELIANCE'
-  AND m.market_name = 'NSE'
-  AND NOT EXISTS (
-        SELECT 1
-        FROM prices p
-        WHERE p.instrument_id = i.instrument_id
-          AND p.source_type = 'MOCK'
-          AND p.provider_name = 'INTERNAL_MOCK'
-    );
+FROM instruments
+WHERE symbol = 'RELIANCE'
+AND NOT EXISTS (
+    SELECT 1
+    FROM prices p
+    WHERE p.instrument_id = instruments.instrument_id
+      AND p.source_type = 'MOCK'
+      AND p.provider_name = 'INTERNAL_MOCK'
+);
 
 
 INSERT INTO prices (
@@ -602,18 +511,15 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'BTC-USD'
-  AND m.market_name = 'CRYPTO'
-  AND NOT EXISTS (
-        SELECT 1
-        FROM prices p
-        WHERE p.instrument_id = i.instrument_id
-          AND p.source_type = 'MOCK'
-          AND p.provider_name = 'INTERNAL_MOCK'
-    );
+FROM instruments
+WHERE symbol = 'BTC-USD'
+AND NOT EXISTS (
+    SELECT 1
+    FROM prices p
+    WHERE p.instrument_id = instruments.instrument_id
+      AND p.source_type = 'MOCK'
+      AND p.provider_name = 'INTERNAL_MOCK'
+);
 
 
 INSERT INTO prices (
@@ -631,18 +537,15 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'ETH-USD'
-  AND m.market_name = 'CRYPTO'
-  AND NOT EXISTS (
-        SELECT 1
-        FROM prices p
-        WHERE p.instrument_id = i.instrument_id
-          AND p.source_type = 'MOCK'
-          AND p.provider_name = 'INTERNAL_MOCK'
-    );
+FROM instruments
+WHERE symbol = 'ETH-USD'
+AND NOT EXISTS (
+    SELECT 1
+    FROM prices p
+    WHERE p.instrument_id = instruments.instrument_id
+      AND p.source_type = 'MOCK'
+      AND p.provider_name = 'INTERNAL_MOCK'
+);
 
 
 INSERT INTO prices (
@@ -660,18 +563,15 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'EUR/USD'
-  AND m.market_name = 'FOREX'
-  AND NOT EXISTS (
-        SELECT 1
-        FROM prices p
-        WHERE p.instrument_id = i.instrument_id
-          AND p.source_type = 'MOCK'
-          AND p.provider_name = 'INTERNAL_MOCK'
-    );
+FROM instruments
+WHERE symbol = 'EUR/USD'
+AND NOT EXISTS (
+    SELECT 1
+    FROM prices p
+    WHERE p.instrument_id = instruments.instrument_id
+      AND p.source_type = 'MOCK'
+      AND p.provider_name = 'INTERNAL_MOCK'
+);
 
 
 INSERT INTO prices (
@@ -689,18 +589,15 @@ SELECT
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments i
-JOIN markets m
-    ON m.market_id = i.market_id
-WHERE i.symbol = 'GBP/USD'
-  AND m.market_name = 'FOREX'
-  AND NOT EXISTS (
-        SELECT 1
-        FROM prices p
-        WHERE p.instrument_id = i.instrument_id
-          AND p.source_type = 'MOCK'
-          AND p.provider_name = 'INTERNAL_MOCK'
-    );
+FROM instruments
+WHERE symbol = 'GBP/USD'
+AND NOT EXISTS (
+    SELECT 1
+    FROM prices p
+    WHERE p.instrument_id = instruments.instrument_id
+      AND p.source_type = 'MOCK'
+      AND p.provider_name = 'INTERNAL_MOCK'
+);
 
 
 COMMIT;

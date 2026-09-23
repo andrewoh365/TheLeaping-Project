@@ -1,0 +1,70 @@
+<div class="dashboard-container">
+  <mat-toolbar color="primary" class="toolbar">
+    <span class="toolbar-title">Leaping Portfolio</span>
+    <span class="spacer"></span>
+    <button mat-icon-button [matMenuTriggerFor]="menu">
+      <mat-icon>account_circle</mat-icon>
+    </button>
+    <mat-menu #menu="matMenu">
+      <button mat-menu-item disabled>
+        <mat-icon>person</mat-icon>
+        <span>{{ currentUser?.email || 'User' }}</span>
+      </button>
+      <mat-divider></mat-divider>
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Logout</span>
+      </button>
+    </mat-menu>
+  </mat-toolbar>
+
+  <div class="dashboard-content">
+    <mat-card class="welcome-card">
+      <mat-card-header>
+        <mat-card-title>Welcome to Leaping Portfolio! 👋</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p>You have successfully authenticated and accessed the dashboard.</p>
+        <p>
+          Your JWT token is securely stored and will be automatically included
+          in all API requests. The token will refresh automatically when needed.
+        </p>
+        <p class="user-info">
+          <strong>Logged in as:</strong> {{ currentUser?.email || 'User' }}
+        </p>
+      </mat-card-content>
+    </mat-card>
+
+    <div class="features-grid">
+      <mat-card class="feature-card">
+        <mat-card-header>
+          <mat-icon class="feature-icon">security</mat-icon>
+          <mat-card-title>Secure Authentication</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          Your login is protected with JWT tokens and automatic token refresh.
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="feature-card">
+        <mat-card-header>
+          <mat-icon class="feature-icon">trending_up</mat-icon>
+          <mat-card-title>Portfolio Tracking</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          Monitor your investments and portfolio performance in real-time.
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="feature-card">
+        <mat-card-header>
+          <mat-icon class="feature-icon">notifications_active</mat-icon>
+          <mat-card-title>Real-time Updates</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          Get instant notifications on market changes and your holdings.
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </div>
+</div>

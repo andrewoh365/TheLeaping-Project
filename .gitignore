@@ -1,7 +1,26 @@
+# IDE
 .vscode/
-
-target/
 .idea/
-*.class
+*.swp
+*.swo
 
+# Backend
+target/
+*.class
+*.log
+build*.log
+debug.log
+
+# Frontend
+node_modules/
+.angular/
+dist/
+*.ngcc.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
 .env
+application-local.yaml

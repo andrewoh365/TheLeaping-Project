@@ -1,6 +1,7 @@
 package com.leaping.portfolio_app.auth.security;
 
 import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -11,11 +12,16 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity  // Enable @PreAuthorize annotations on methods
 public class SecurityConfig {
+
+    @Value("${server.cors.allowed-origins:http://localhost:4200,http://localhost:3000}")
+    private String allowedOrigins;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -40,6 +46,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/api/auth/**").permitAll()      // Login, register, validate endpoints
                         .requestMatchers("/api/public/**").permitAll()    // Public endpoints
+                        .requestMatchers("/auth/**").permitAll()          // Auth endpoints without /api prefix
                         .anyRequest().authenticated()                     // Everything else requires authentication
                 )
                 // Add JWT filter BEFORE the standard username/password filter
@@ -49,5 +56,36 @@ public class SecurityConfig {
                 .formLogin(formLogin -> formLogin.disable());
 
         return http.build();
+    }
+
+    @Bean
+    public WebMvcConfigurer corsConfigurer() {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+                // Parse origins from config, filter out wildcards when credentials are enabled
+                String[] origins = allowedOrigins.trim().split(",\\s*");
+                
+                // Remove wildcard if present (incompatible with allowCredentials=true)
+                java.util.List<String> originList = new java.util.ArrayList<>();
+                for (String origin : origins) {
+                    if (!"*".equals(origin.trim())) {
+                        originList.add(origin.trim());
+                    }
+                }
+                
+                String[] finalOrigins = originList.isEmpty() 
+                    ? new String[]{"http://localhost:4200", "http://localhost:3000"}
+                    : originList.toArray(new String[0]);
+                
+                registry.addMapping("/**")
+                        .allowedOrigins(finalOrigins)
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
+                        .allowedHeaders("Content-Type", "Authorization", "X-Requested-With")
+                        .exposedHeaders("Authorization")
+                        .allowCredentials(true)
+                        .maxAge(3600);
+            }
+        };
     }
 }

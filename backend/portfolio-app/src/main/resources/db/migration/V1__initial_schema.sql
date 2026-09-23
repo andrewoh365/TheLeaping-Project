@@ -2,18 +2,9 @@ BEGIN;
 
 -- =========================================================
 -- USERS
---
--- Represents every authenticated account in the platform.
---
--- Roles:
---   CLIENT     -> retail client who can trade/view own account
---   OPERATIONS -> internal trading operations user
---   ANALYST    -> internal reporting/analytics user
---
--- A CLIENT additionally has a row in clients.
--- OPERATIONS and ANALYST users do not require separate
--- profile tables because they currently have no additional
--- role-specific persistent data.
+-- Parent table for all user types (customers and admins).
+-- Imported customers may initially have NULL email/password.
+-- Registration populates email + password_hash.
 -- =========================================================
 
 CREATE TABLE users (
@@ -22,17 +13,11 @@ CREATE TABLE users (
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
 
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE,
+    password_hash TEXT,
 
-    role VARCHAR(20) NOT NULL
-        CHECK (
-            role IN (
-                'CLIENT',
-                'OPERATIONS',
-                'ANALYST'
-            )
-        ),
+    user_type VARCHAR(20) NOT NULL
+        CHECK (user_type IN ('ADMIN', 'CUSTOMER', 'ANALYST')),
 
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
         CHECK (
@@ -50,45 +35,61 @@ CREATE TABLE users (
 
 
 -- =========================================================
--- CLIENTS
---
--- Client-specific business profile.
---
--- This is a shared-primary-key 1:1 relationship with users:
---
--- users.user_id = clients.client_id
---
--- Only users whose role is CLIENT should have a row here.
--- That role/profile consistency will also be enforced by the
--- application service layer.
+-- CUSTOMERS
+-- Child of USERS (1:1). Holds fields specific to trading
+-- clients only
 -- =========================================================
 
-CREATE TABLE clients (
-    client_id BIGINT PRIMARY KEY,
+CREATE TABLE customers (
+    user_id BIGINT PRIMARY KEY,
 
     date_of_birth DATE NOT NULL,
     tax_id VARCHAR(100) NOT NULL UNIQUE,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_customer_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+);
 
-    CONSTRAINT fk_client_user
-        FOREIGN KEY (client_id)
+
+-- =========================================================
+-- ADMINS
+-- Child of USERS (1:1). No admin-specific fields yet
+-- =========================================================
+
+CREATE TABLE admins (
+    user_id BIGINT PRIMARY KEY,
+
+    CONSTRAINT fk_admin_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+);
+
+
+-- =========================================================
+-- ANALYSTS
+-- Child of USERS (1:1). No analyst-specific fields yet
+-- =========================================================
+
+CREATE TABLE analysts (
+    user_id BIGINT PRIMARY KEY,
+
+    CONSTRAINT fk_analyst_user
+        FOREIGN KEY (user_id)
         REFERENCES users(user_id)
 );
 
 
 -- =========================================================
 -- PORTFOLIOS
---
--- Exactly one portfolio per client.
--- Contains the client's shared USD cash balance.
+-- Exactly one portfolio per customer.
+-- Contains the customer's one shared USD cash bank.
 -- =========================================================
 
 CREATE TABLE portfolios (
     portfolio_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
-    client_id BIGINT NOT NULL UNIQUE,
+    customer_id BIGINT NOT NULL UNIQUE,
 
     cash_balance_usd NUMERIC(20,2) NOT NULL DEFAULT 0
         CHECK (cash_balance_usd >= 0),
@@ -96,9 +97,9 @@ CREATE TABLE portfolios (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_portfolio_client
-        FOREIGN KEY (client_id)
-        REFERENCES clients(client_id)
+    CONSTRAINT fk_portfolio_customer
+        FOREIGN KEY (customer_id)
+        REFERENCES customers(user_id)
 );
 
 
@@ -123,12 +124,8 @@ CREATE TABLE markets (
 
 -- =========================================================
 -- CURRENCIES
---
--- current_exchange_rate_to_usd represents mutable current
--- state.
---
--- Historical rates used during executions are stored
--- separately with the execution/trade records.
+-- Current exchange rate is mutable current-state data.
+-- Historical rates used for trades are captured separately.
 -- =========================================================
 
 CREATE TABLE currencies (
@@ -262,7 +259,6 @@ CREATE TABLE forexes (
 
 -- =========================================================
 -- HOLDINGS
---
 -- One current position per portfolio + instrument.
 --
 -- Quantity uses decimal precision because crypto and forex
@@ -303,19 +299,8 @@ CREATE TABLE holdings (
 
 -- =========================================================
 -- TRADE ORDERS
---
--- Represents the client's instruction/intent to trade.
---
--- This exists independently from execution so that an
--- accepted order remains recorded even if later execution
--- fails.
---
--- limit_price is expressed in the instrument's native
--- price_currency_code, NOT automatically in USD.
---
--- Example:
---   VOD priced in GBP -> limit_price is GBP
---   AAPL priced in USD -> limit_price is USD
+-- Do not use a table literally named ORDER because ORDER
+-- is a SQL keyword.
 -- =========================================================
 
 CREATE TABLE trade_orders (
@@ -400,16 +385,8 @@ CREATE TABLE trade_orders (
 
 -- =========================================================
 -- EXECUTION ATTEMPTS
---
--- Records each attempt to execute an accepted order.
---
--- Multiple execution attempts may exist for an order.
---
--- FILLED or REJECTED means a pricing decision was made, so
--- quote information must be available.
---
--- FAILED may represent failure before a valid quote could be
--- obtained, so pricing fields may be NULL in that case.
+-- Records the quote/pricing decision even if no trade occurs.
+-- Multiple attempts may exist for one accepted order.
 -- =========================================================
 
 CREATE TABLE execution_attempts (
@@ -506,13 +483,9 @@ CREATE TABLE execution_attempts (
 
 -- =========================================================
 -- TRADES
---
--- Permanent completed execution record.
---
--- One completed fill per order for this project phase.
---
--- Native execution price and exchange rate are retained for
--- historical/audit reconstruction.
+-- One completed fill for an order in this phase.
+-- Native execution price + exchange rate are retained for
+-- audit, while total value is normalized to USD.
 -- =========================================================
 
 CREATE TABLE trades (
@@ -547,38 +520,19 @@ CREATE TABLE trades (
     executed_at TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT fk_trade_execution_attempt
-        FOREIGN KEY (
-            execution_attempt_id,
-            order_id
-        )
-        REFERENCES execution_attempts(
-            execution_attempt_id,
-            order_id
-        ),
+        FOREIGN KEY (execution_attempt_id, order_id)
+        REFERENCES execution_attempts(execution_attempt_id, order_id),
 
     CONSTRAINT fk_trade_currency
-        FOREIGN KEY (
-            execution_price_currency_code
-        )
-        REFERENCES currencies(
-            currency_code
-        )
+        FOREIGN KEY (execution_price_currency_code)
+        REFERENCES currencies(currency_code)
 );
 
 
 -- =========================================================
 -- CASH TRANSACTIONS
---
--- Append-only cash ledger.
---
--- Cash balances settle to two decimal places.
--- Trade calculations may have greater precision; the
--- application layer must apply one consistent USD settlement
--- rounding rule when creating the cash transaction.
---
--- Payment/banking integration is outside the current phase,
--- but cash movements are still represented within the
--- platform.
+-- Same table handles stocks, crypto and forex.
+-- Trade itself tells us which instrument was involved.
 -- =========================================================
 
 CREATE TABLE cash_transactions (
@@ -670,34 +624,25 @@ CREATE TABLE cash_transactions (
 
 -- =========================================================
 -- WATCHLISTS
---
--- Client-facing optional capability.
 -- =========================================================
 
 CREATE TABLE watchlists (
     watchlist_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
-    client_id BIGINT NOT NULL,
+    customer_id BIGINT NOT NULL,
     watchlist_name VARCHAR(100) NOT NULL,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_watchlist_client
-        FOREIGN KEY (client_id)
-        REFERENCES clients(client_id),
+    CONSTRAINT fk_watchlist_customer
+        FOREIGN KEY (customer_id)
+        REFERENCES customers(user_id),
 
-    CONSTRAINT uq_watchlist_client_name
-        UNIQUE (
-            client_id,
-            watchlist_name
-        )
+    CONSTRAINT uq_watchlist_customer_name
+        UNIQUE (customer_id, watchlist_name)
 );
 
-
--- =========================================================
--- WATCHLIST INSTRUMENTS
--- =========================================================
 
 CREATE TABLE watchlist_instruments (
     watchlist_id BIGINT NOT NULL,
@@ -720,25 +665,13 @@ CREATE TABLE watchlist_instruments (
 
 -- =========================================================
 -- AUDIT EVENTS
---
--- actor_user_id identifies the authenticated user responsible
--- for an action when there is one.
---
--- It may be NULL for system-generated events.
---
--- For client trading events, the affected client can be
--- determined through:
---
--- order -> portfolio -> client
---
--- JSONB allows event-specific structured information without
--- requiring a new table structure for every event type.
+-- JSONB gives different event types flexible structured data.
 -- =========================================================
 
 CREATE TABLE audit_events (
     audit_event_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
-    actor_user_id BIGINT,
+    user_id BIGINT,
 
     order_id BIGINT,
     execution_attempt_id BIGINT,
@@ -751,8 +684,8 @@ CREATE TABLE audit_events (
 
     occurred_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_audit_actor_user
-        FOREIGN KEY (actor_user_id)
+    CONSTRAINT fk_audit_user
+        FOREIGN KEY (user_id)
         REFERENCES users(user_id),
 
     CONSTRAINT fk_audit_order
@@ -775,12 +708,6 @@ CREATE TABLE audit_events (
 
 -- =========================================================
 -- PRICES
---
--- Market-price observations.
---
--- Current execution pricing is captured again on the
--- execution_attempt so historical executions do not depend
--- on the latest value in this table.
 -- =========================================================
 
 CREATE TABLE prices (
@@ -843,19 +770,10 @@ CREATE INDEX idx_trade_executed_at
     ON trades(executed_at);
 
 CREATE INDEX idx_cash_transaction_portfolio_created
-    ON cash_transactions(
-        portfolio_id,
-        created_at
-    );
+    ON cash_transactions(portfolio_id, created_at);
 
 CREATE INDEX idx_price_instrument_timestamp
-    ON prices(
-        instrument_id,
-        price_timestamp DESC
-    );
-
-CREATE INDEX idx_audit_actor_user
-    ON audit_events(actor_user_id);
+    ON prices(instrument_id, price_timestamp DESC);
 
 CREATE INDEX idx_audit_order
     ON audit_events(order_id);
@@ -887,36 +805,25 @@ BEFORE UPDATE ON users
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
-
-CREATE TRIGGER trg_clients_updated_at
-BEFORE UPDATE ON clients
-FOR EACH ROW
-EXECUTE FUNCTION set_updated_at();
-
-
 CREATE TRIGGER trg_portfolios_updated_at
 BEFORE UPDATE ON portfolios
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
-
 
 CREATE TRIGGER trg_instruments_updated_at
 BEFORE UPDATE ON instruments
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
-
 CREATE TRIGGER trg_holdings_updated_at
 BEFORE UPDATE ON holdings
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
-
 CREATE TRIGGER trg_orders_updated_at
 BEFORE UPDATE ON trade_orders
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
-
 
 CREATE TRIGGER trg_watchlists_updated_at
 BEFORE UPDATE ON watchlists
@@ -950,18 +857,15 @@ BEFORE UPDATE OR DELETE ON execution_attempts
 FOR EACH ROW
 EXECUTE FUNCTION prevent_append_only_mutation();
 
-
 CREATE TRIGGER trg_trades_append_only
 BEFORE UPDATE OR DELETE ON trades
 FOR EACH ROW
 EXECUTE FUNCTION prevent_append_only_mutation();
 
-
 CREATE TRIGGER trg_cash_transactions_append_only
 BEFORE UPDATE OR DELETE ON cash_transactions
 FOR EACH ROW
 EXECUTE FUNCTION prevent_append_only_mutation();
-
 
 CREATE TRIGGER trg_audit_events_append_only
 BEFORE UPDATE OR DELETE ON audit_events
