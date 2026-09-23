@@ -1,7 +1,17 @@
 /* Global Styles */
+
+:root {
+  --primary-color: #167059;
+  --secondary-color: #00ab68;
+  --primary-accent-color: #26d07c;
+  --secondary-accent-color: #00b386;
+  --background-color: #1a1a1a;
+  --secondary-background-color: #2a2a2a;
+  --text-color: #fafafa;
+}
+
 html, body {
   height: 100%;
-  font-family: 'Roboto', sans-serif;
 }
 
 body {
@@ -9,6 +19,7 @@ body {
   background-color: #1a1a1a;
   color: #ffffff;
 }
+
 
 /* Material Icons */
 .mat-icon {
