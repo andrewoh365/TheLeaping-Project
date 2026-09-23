@@ -1,17 +1,26 @@
-package com.leaping.portfolio_app.entity;
+package com.leaping.portfolio_app.trade.entity;
+
+import com.leaping.portfolio_app.market.entity.Currency;
+import com.leaping.portfolio_app.trade.enums.ExecutionAttemptStatus;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "execution_attempt")
+@Table(name = "execution_attempts")
 public class ExecutionAttempt {
 
     @Id
@@ -19,11 +28,12 @@ public class ExecutionAttempt {
     @Column(name = "execution_attempt_id")
     private Long executionAttemptId;
 
-    @Column(name = "order_id", nullable = false)
-    private Long orderId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "order_id", nullable = false)
+    private TradeOrder order;
 
     @Column(name = "attempt_number", nullable = false)
-    private Integer attemptNumber = 1;
+    private Integer attemptNumber;
 
     @Column(
         name = "quoted_price",
@@ -32,8 +42,9 @@ public class ExecutionAttempt {
     )
     private BigDecimal quotedPrice;
 
-    @Column(name = "price_currency_code", length = 10)
-    private String priceCurrencyCode;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "price_currency_code")
+    private Currency priceCurrency;
 
     @Column(
         name = "exchange_rate_to_usd",
@@ -58,20 +69,38 @@ public class ExecutionAttempt {
     @Column(name = "provider_name", length = 100)
     private String providerName;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "attempt_status", nullable = false, length = 20)
-    private String attemptStatus;
+    private ExecutionAttemptStatus attemptStatus;
 
-    @Column(name = "reason", columnDefinition = "TEXT")
+    @Column(name = "reason")
     private String reason;
 
-    @Column(
-        name = "attempted_at",
-        insertable = false,
-        updatable = false
-    )
+    @Column(name = "attempted_at", nullable = false)
     private OffsetDateTime attemptedAt;
 
     public ExecutionAttempt() {
+    }
+
+    public ExecutionAttempt(
+            TradeOrder order,
+            Integer attemptNumber,
+            ExecutionAttemptStatus attemptStatus
+    ) {
+        this.order = order;
+        this.attemptNumber = attemptNumber;
+        this.attemptStatus = attemptStatus;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (attemptNumber == null) {
+            attemptNumber = 1;
+        }
+
+        if (attemptedAt == null) {
+            attemptedAt = OffsetDateTime.now();
+        }
     }
 
     public Long getExecutionAttemptId() {
@@ -82,12 +111,12 @@ public class ExecutionAttempt {
         this.executionAttemptId = executionAttemptId;
     }
 
-    public Long getOrderId() {
-        return orderId;
+    public TradeOrder getOrder() {
+        return order;
     }
 
-    public void setOrderId(Long orderId) {
-        this.orderId = orderId;
+    public void setOrder(TradeOrder order) {
+        this.order = order;
     }
 
     public Integer getAttemptNumber() {
@@ -106,12 +135,12 @@ public class ExecutionAttempt {
         this.quotedPrice = quotedPrice;
     }
 
-    public String getPriceCurrencyCode() {
-        return priceCurrencyCode;
+    public Currency getPriceCurrency() {
+        return priceCurrency;
     }
 
-    public void setPriceCurrencyCode(String priceCurrencyCode) {
-        this.priceCurrencyCode = priceCurrencyCode;
+    public void setPriceCurrency(Currency priceCurrency) {
+        this.priceCurrency = priceCurrency;
     }
 
     public BigDecimal getExchangeRateToUsd() {
@@ -154,11 +183,11 @@ public class ExecutionAttempt {
         this.providerName = providerName;
     }
 
-    public String getAttemptStatus() {
+    public ExecutionAttemptStatus getAttemptStatus() {
         return attemptStatus;
     }
 
-    public void setAttemptStatus(String attemptStatus) {
+    public void setAttemptStatus(ExecutionAttemptStatus attemptStatus) {
         this.attemptStatus = attemptStatus;
     }
 
@@ -172,5 +201,9 @@ public class ExecutionAttempt {
 
     public OffsetDateTime getAttemptedAt() {
         return attemptedAt;
+    }
+
+    public void setAttemptedAt(OffsetDateTime attemptedAt) {
+        this.attemptedAt = attemptedAt;
     }
 }

@@ -1,16 +1,20 @@
-package com.leaping.portfolio_app.entity;
+package com.leaping.portfolio_app.watchlist.entity;
 
+import com.leaping.portfolio_app.auth.model.Customer;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "watchlist")
+@Table(name = "watchlists")
 public class Watchlist {
 
     @Id
@@ -18,31 +22,32 @@ public class Watchlist {
     @Column(name = "watchlist_id")
     private Long watchlistId;
 
-    @Column(name = "client_id", nullable = false)
-    private Long clientId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "customer_id", nullable = false)
+    private Customer customer;
 
-    @Column(
-        name = "watchlist_name",
-        nullable = false,
-        length = 100
-    )
+    @Column(name = "watchlist_name", nullable = false, length = 100)
     private String watchlistName;
 
-    @Column(
-        name = "created_at",
-        insertable = false,
-        updatable = false
-    )
+    @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
-    @Column(
-        name = "updated_at",
-        insertable = false,
-        updatable = false
-    )
+    @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
     public Watchlist() {
+    }
+
+    public Watchlist(
+            Customer customer,
+            String watchlistName,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt
+    ) {
+        this.customer = customer;
+        this.watchlistName = watchlistName;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
 
     public Long getWatchlistId() {
@@ -53,12 +58,12 @@ public class Watchlist {
         this.watchlistId = watchlistId;
     }
 
-    public Long getClientId() {
-        return clientId;
+    public Customer getCustomer() {
+        return customer;
     }
 
-    public void setClientId(Long clientId) {
-        this.clientId = clientId;
+    public void setCustomer(Customer customer) {
+        this.customer = customer;
     }
 
     public String getWatchlistName() {
@@ -73,7 +78,15 @@ public class Watchlist {
         return createdAt;
     }
 
+    public void setCreatedAt(OffsetDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
     public OffsetDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public void setUpdatedAt(OffsetDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

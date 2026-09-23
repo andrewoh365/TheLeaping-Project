@@ -1,16 +1,36 @@
-package com.leaping.portfolio_app.entity;
+package com.leaping.portfolio_app.instrument.entity;
+
+import com.leaping.portfolio_app.instrument.enums.InstrumentType;
+import com.leaping.portfolio_app.market.entity.Currency;
+import com.leaping.portfolio_app.market.entity.Market;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "instrument")
+@Table(
+    name = "instruments",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uq_instrument_market_symbol",
+            columnNames = {"market_id", "symbol"}
+        )
+    }
+)
 public class Instrument {
 
     @Id
@@ -18,26 +38,32 @@ public class Instrument {
     @Column(name = "instrument_id")
     private Long instrumentId;
 
-    @Column(name = "market_id", nullable = false)
-    private Long marketId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "market_id", nullable = false)
+    private Market market;
 
-    @Column(name = "symbol", nullable = false)
+    @Column(name = "symbol", nullable = false, length = 50)
     private String symbol;
 
-    @Column(name = "name", nullable = false)
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column(name = "instrument_type", nullable = false)
-    private String instrumentType;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "instrument_type", nullable = false, length = 20)
+    private InstrumentType instrumentType;
 
-    @Column(name = "price_currency_code", nullable = false)
-    private String priceCurrencyCode;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+        name = "price_currency_code",
+        nullable = false
+    )
+    private Currency priceCurrency;
 
     @Column(name = "is_tradeable", nullable = false)
-    private boolean tradeable;
+    private Boolean isTradeable = true;
 
     @Column(name = "is_active", nullable = false)
-    private boolean active;
+    private Boolean isActive = true;
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
@@ -48,6 +74,43 @@ public class Instrument {
     public Instrument() {
     }
 
+    public Instrument(
+            Market market,
+            String symbol,
+            String name,
+            InstrumentType instrumentType,
+            Currency priceCurrency
+    ) {
+        this.market = market;
+        this.symbol = symbol;
+        this.name = name;
+        this.instrumentType = instrumentType;
+        this.priceCurrency = priceCurrency;
+        this.isTradeable = true;
+        this.isActive = true;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        if (isTradeable == null) {
+            isTradeable = true;
+        }
+
+        if (isActive == null) {
+            isActive = true;
+        }
+
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = OffsetDateTime.now();
+    }
+
     public Long getInstrumentId() {
         return instrumentId;
     }
@@ -56,12 +119,12 @@ public class Instrument {
         this.instrumentId = instrumentId;
     }
 
-    public Long getMarketId() {
-        return marketId;
+    public Market getMarket() {
+        return market;
     }
 
-    public void setMarketId(Long marketId) {
-        this.marketId = marketId;
+    public void setMarket(Market market) {
+        this.market = market;
     }
 
     public String getSymbol() {
@@ -80,36 +143,38 @@ public class Instrument {
         this.name = name;
     }
 
-    public String getInstrumentType() {
+    public InstrumentType getInstrumentType() {
         return instrumentType;
     }
 
-    public void setInstrumentType(String instrumentType) {
+    public void setInstrumentType(
+            InstrumentType instrumentType
+    ) {
         this.instrumentType = instrumentType;
     }
 
-    public String getPriceCurrencyCode() {
-        return priceCurrencyCode;
+    public Currency getPriceCurrency() {
+        return priceCurrency;
     }
 
-    public void setPriceCurrencyCode(String priceCurrencyCode) {
-        this.priceCurrencyCode = priceCurrencyCode;
+    public void setPriceCurrency(Currency priceCurrency) {
+        this.priceCurrency = priceCurrency;
     }
 
-    public boolean isTradeable() {
-        return tradeable;
+    public Boolean getIsTradeable() {
+        return isTradeable;
     }
 
-    public void setTradeable(boolean tradeable) {
-        this.tradeable = tradeable;
+    public void setIsTradeable(Boolean isTradeable) {
+        this.isTradeable = isTradeable;
     }
 
-    public boolean isActive() {
-        return active;
+    public Boolean getIsActive() {
+        return isActive;
     }
 
-    public void setActive(boolean active) {
-        this.active = active;
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
     }
 
     public OffsetDateTime getCreatedAt() {

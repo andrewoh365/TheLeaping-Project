@@ -1,4 +1,4 @@
-package com.leaping.portfolio_app.entity;
+package com.leaping.portfolio_app.market.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,7 +10,7 @@ import jakarta.persistence.Table;
 import java.time.LocalTime;
 
 @Entity
-@Table(name = "market")
+@Table(name = "markets")
 public class Market {
 
     @Id
@@ -21,14 +21,15 @@ public class Market {
     @Column(
         name = "market_name",
         nullable = false,
-        unique = true
+        unique = true,
+        length = 100
     )
     private String marketName;
 
-    @Column(name = "country")
+    @Column(name = "country", length = 100)
     private String country;
 
-    @Column(name = "timezone", nullable = false)
+    @Column(name = "timezone", nullable = false, length = 100)
     private String timezone;
 
     @Column(name = "open_time")
@@ -38,9 +39,24 @@ public class Market {
     private LocalTime closeTime;
 
     @Column(name = "is_active", nullable = false)
-    private boolean active = true;
+    private Boolean isActive = true;
 
     public Market() {
+    }
+
+    public Market(
+            String marketName,
+            String country,
+            String timezone,
+            LocalTime openTime,
+            LocalTime closeTime
+    ) {
+        this.marketName = marketName;
+        this.country = country;
+        this.timezone = timezone;
+        this.openTime = openTime;
+        this.closeTime = closeTime;
+        this.isActive = true;
     }
 
     public Long getMarketId() {
@@ -91,11 +107,11 @@ public class Market {
         this.closeTime = closeTime;
     }
 
-    public boolean isActive() {
-        return active;
+    public Boolean getIsActive() {
+        return isActive;
     }
 
-    public void setActive(boolean active) {
-        this.active = active;
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
     }
 }

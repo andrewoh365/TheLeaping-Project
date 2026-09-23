@@ -1,17 +1,23 @@
-package com.leaping.portfolio_app.entity;
+package com.leaping.portfolio_app.trade.entity;
+
+import com.leaping.portfolio_app.market.entity.Currency;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "trade")
+@Table(name = "trades")
 public class Trade {
 
     @Id
@@ -19,15 +25,21 @@ public class Trade {
     @Column(name = "trade_id")
     private Long tradeId;
 
-    @Column(name = "order_id", nullable = false, unique = true)
-    private Long orderId;
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+        name = "order_id",
+        nullable = false,
+        unique = true
+    )
+    private TradeOrder order;
 
-    @Column(
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
         name = "execution_attempt_id",
         nullable = false,
         unique = true
     )
-    private Long executionAttemptId;
+    private ExecutionAttempt executionAttempt;
 
     @Column(
         name = "quantity",
@@ -45,12 +57,12 @@ public class Trade {
     )
     private BigDecimal executionPrice;
 
-    @Column(
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
         name = "execution_price_currency_code",
-        nullable = false,
-        length = 10
+        nullable = false
     )
-    private String executionPriceCurrencyCode;
+    private Currency executionPriceCurrency;
 
     @Column(
         name = "exchange_rate_to_usd_at_execution",
@@ -82,6 +94,34 @@ public class Trade {
     public Trade() {
     }
 
+    public Trade(
+            TradeOrder order,
+            ExecutionAttempt executionAttempt,
+            BigDecimal quantity,
+            BigDecimal executionPrice,
+            Currency executionPriceCurrency,
+            BigDecimal exchangeRateToUsdAtExecution,
+            BigDecimal executionPriceUsd,
+            BigDecimal totalUsdValue
+    ) {
+        this.order = order;
+        this.executionAttempt = executionAttempt;
+        this.quantity = quantity;
+        this.executionPrice = executionPrice;
+        this.executionPriceCurrency = executionPriceCurrency;
+        this.exchangeRateToUsdAtExecution =
+                exchangeRateToUsdAtExecution;
+        this.executionPriceUsd = executionPriceUsd;
+        this.totalUsdValue = totalUsdValue;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (executedAt == null) {
+            executedAt = OffsetDateTime.now();
+        }
+    }
+
     public Long getTradeId() {
         return tradeId;
     }
@@ -90,20 +130,22 @@ public class Trade {
         this.tradeId = tradeId;
     }
 
-    public Long getOrderId() {
-        return orderId;
+    public TradeOrder getOrder() {
+        return order;
     }
 
-    public void setOrderId(Long orderId) {
-        this.orderId = orderId;
+    public void setOrder(TradeOrder order) {
+        this.order = order;
     }
 
-    public Long getExecutionAttemptId() {
-        return executionAttemptId;
+    public ExecutionAttempt getExecutionAttempt() {
+        return executionAttempt;
     }
 
-    public void setExecutionAttemptId(Long executionAttemptId) {
-        this.executionAttemptId = executionAttemptId;
+    public void setExecutionAttempt(
+            ExecutionAttempt executionAttempt
+    ) {
+        this.executionAttempt = executionAttempt;
     }
 
     public BigDecimal getQuantity() {
@@ -122,13 +164,14 @@ public class Trade {
         this.executionPrice = executionPrice;
     }
 
-    public String getExecutionPriceCurrencyCode() {
-        return executionPriceCurrencyCode;
+    public Currency getExecutionPriceCurrency() {
+        return executionPriceCurrency;
     }
 
-    public void setExecutionPriceCurrencyCode(
-            String executionPriceCurrencyCode) {
-        this.executionPriceCurrencyCode = executionPriceCurrencyCode;
+    public void setExecutionPriceCurrency(
+            Currency executionPriceCurrency
+    ) {
+        this.executionPriceCurrency = executionPriceCurrency;
     }
 
     public BigDecimal getExchangeRateToUsdAtExecution() {
@@ -136,7 +179,8 @@ public class Trade {
     }
 
     public void setExchangeRateToUsdAtExecution(
-            BigDecimal exchangeRateToUsdAtExecution) {
+            BigDecimal exchangeRateToUsdAtExecution
+    ) {
         this.exchangeRateToUsdAtExecution =
                 exchangeRateToUsdAtExecution;
     }
@@ -145,7 +189,9 @@ public class Trade {
         return executionPriceUsd;
     }
 
-    public void setExecutionPriceUsd(BigDecimal executionPriceUsd) {
+    public void setExecutionPriceUsd(
+            BigDecimal executionPriceUsd
+    ) {
         this.executionPriceUsd = executionPriceUsd;
     }
 

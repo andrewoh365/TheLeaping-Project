@@ -1,4 +1,4 @@
-package com.leaping.portfolio_app.entity;
+package com.leaping.portfolio_app.audit.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
