@@ -12,6 +12,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -39,9 +42,41 @@ public class SecurityConfig {
     }
 
     @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        String[] origins = allowedOrigins.trim().split(",\\s*");
+        
+        // Remove wildcard if present
+        java.util.List<String> originList = new java.util.ArrayList<>();
+        for (String origin : origins) {
+            String trimmedOrigin = origin.trim();
+            if (!"*".equals(trimmedOrigin)) {
+                originList.add(trimmedOrigin);
+            }
+        }
+        
+        String[] finalOrigins = originList.isEmpty() 
+            ? new String[]{"http://localhost:4200", "http://localhost:3000", "http://localhost:58261"}
+            : originList.toArray(new String[0]);
+        
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(java.util.Arrays.asList(finalOrigins));
+        configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(java.util.Arrays.asList("Content-Type", "Authorization", "X-Requested-With"));
+        configuration.setExposedHeaders(java.util.Arrays.asList("Authorization"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+        
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+                                                   JwtAuthenticationFilter jwtAuthenticationFilter,
+                                                   CorsConfigurationSource corsConfigurationSource) throws Exception {
         http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/api/auth/**").permitAll()      // Login, register, validate endpoints
@@ -69,13 +104,14 @@ public class SecurityConfig {
                 // Remove wildcard if present (incompatible with allowCredentials=true)
                 java.util.List<String> originList = new java.util.ArrayList<>();
                 for (String origin : origins) {
-                    if (!"*".equals(origin.trim())) {
-                        originList.add(origin.trim());
+                    String trimmedOrigin = origin.trim();
+                    if (!"*".equals(trimmedOrigin)) {
+                        originList.add(trimmedOrigin);
                     }
                 }
                 
                 String[] finalOrigins = originList.isEmpty() 
-                    ? new String[]{"http://localhost:4200", "http://localhost:3000"}
+                    ? new String[]{"http://localhost:4200", "http://localhost:3000", "http://localhost:58261"}
                     : originList.toArray(new String[0]);
                 
                 registry.addMapping("/**")
