@@ -19,8 +19,14 @@ CREATE TABLE users (
     user_type VARCHAR(20) NOT NULL
         CHECK (user_type IN ('ADMIN', 'CUSTOMER', 'ANALYST')),
 
-    status VARCHAR(20) NOT NULL DEFAULT 'INACTIVE'
-        CHECK (status IN ('ACTIVE', 'INACTIVE', 'LOCKED')),
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
+        CHECK (
+            status IN (
+                'ACTIVE',
+                'INACTIVE',
+                'LOCKED'
+            )
+        ),
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -152,7 +158,11 @@ CREATE TABLE instruments (
 
     instrument_type VARCHAR(20) NOT NULL
         CHECK (
-            instrument_type IN ('STOCK', 'CRYPTO', 'FOREX')
+            instrument_type IN (
+                'STOCK',
+                'CRYPTO',
+                'FOREX'
+            )
         ),
 
     price_currency_code VARCHAR(10) NOT NULL,
@@ -177,9 +187,11 @@ CREATE TABLE instruments (
 
 
 -- =========================================================
--- STOCK DETAILS
--- instrument_id is both PK and FK, creating a true 1:1
--- relationship with Instrument.
+-- STOCKS
+--
+-- instrument_id is both PK and FK.
+-- Creates a 1:1 extension of instruments for stock-specific
+-- information.
 -- =========================================================
 
 CREATE TABLE stocks (
@@ -196,7 +208,7 @@ CREATE TABLE stocks (
 
 
 -- =========================================================
--- CRYPTO DETAILS
+-- CRYPTOS
 -- =========================================================
 
 CREATE TABLE cryptos (
@@ -211,7 +223,7 @@ CREATE TABLE cryptos (
 
 
 -- =========================================================
--- FOREX DETAILS
+-- FOREXES
 -- =========================================================
 
 CREATE TABLE forexes (
@@ -233,18 +245,26 @@ CREATE TABLE forexes (
         REFERENCES currencies(currency_code),
 
     CONSTRAINT chk_forex_different_currencies
-        CHECK (base_currency_code <> quote_currency_code),
+        CHECK (
+            base_currency_code <> quote_currency_code
+        ),
 
     CONSTRAINT uq_forex_pair
-        UNIQUE (base_currency_code, quote_currency_code)
+        UNIQUE (
+            base_currency_code,
+            quote_currency_code
+        )
 );
 
 
 -- =========================================================
 -- HOLDINGS
 -- One current position per portfolio + instrument.
--- Quantity is decimal because crypto/forex may be fractional.
--- Average cost is normalized to USD.
+--
+-- Quantity uses decimal precision because crypto and forex
+-- positions may be fractional.
+--
+-- average_cost_usd is normalized to USD.
 -- =========================================================
 
 CREATE TABLE holdings (
@@ -270,7 +290,10 @@ CREATE TABLE holdings (
         REFERENCES instruments(instrument_id),
 
     CONSTRAINT uq_holding_portfolio_instrument
-        UNIQUE (portfolio_id, instrument_id)
+        UNIQUE (
+            portfolio_id,
+            instrument_id
+        )
 );
 
 
@@ -287,10 +310,20 @@ CREATE TABLE trade_orders (
     instrument_id BIGINT NOT NULL,
 
     order_action VARCHAR(10) NOT NULL
-        CHECK (order_action IN ('BUY', 'SELL')),
+        CHECK (
+            order_action IN (
+                'BUY',
+                'SELL'
+            )
+        ),
 
     order_type VARCHAR(10) NOT NULL
-        CHECK (order_type IN ('MARKET', 'LIMIT')),
+        CHECK (
+            order_type IN (
+                'MARKET',
+                'LIMIT'
+            )
+        ),
 
     order_status VARCHAR(20) NOT NULL DEFAULT 'SUBMITTED'
         CHECK (
@@ -304,12 +337,17 @@ CREATE TABLE trade_orders (
         ),
 
     time_in_force VARCHAR(10) NOT NULL
-        CHECK (time_in_force IN ('DAY', 'GTC')),
+        CHECK (
+            time_in_force IN (
+                'DAY',
+                'GTC'
+            )
+        ),
 
     quantity NUMERIC(30,10) NOT NULL
         CHECK (quantity > 0),
 
-    limit_price_usd NUMERIC(20,8),
+    limit_price NUMERIC(20,8),
 
     submitted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     accepted_at TIMESTAMPTZ,
@@ -331,11 +369,16 @@ CREATE TABLE trade_orders (
 
     CONSTRAINT chk_limit_price
         CHECK (
-            (order_type = 'MARKET' AND limit_price_usd IS NULL)
+            (
+                order_type = 'MARKET'
+                AND limit_price IS NULL
+            )
             OR
-            (order_type = 'LIMIT'
-             AND limit_price_usd IS NOT NULL
-             AND limit_price_usd > 0)
+            (
+                order_type = 'LIMIT'
+                AND limit_price IS NOT NULL
+                AND limit_price > 0
+            )
         )
 );
 
@@ -354,7 +397,12 @@ CREATE TABLE execution_attempts (
     attempt_number INTEGER NOT NULL DEFAULT 1
         CHECK (attempt_number > 0),
 
-    quoted_price NUMERIC(20,8),
+    quoted_price NUMERIC(20,8)
+        CHECK (
+            quoted_price IS NULL
+            OR quoted_price > 0
+        ),
+
     price_currency_code VARCHAR(10),
 
     exchange_rate_to_usd NUMERIC(20,10)
@@ -363,12 +411,21 @@ CREATE TABLE execution_attempts (
             OR exchange_rate_to_usd > 0
         ),
 
-    quoted_price_usd NUMERIC(20,8),
+    quoted_price_usd NUMERIC(20,8)
+        CHECK (
+            quoted_price_usd IS NULL
+            OR quoted_price_usd > 0
+        ),
 
     quote_timestamp TIMESTAMPTZ,
 
     source_type VARCHAR(10)
-        CHECK (source_type IN ('API', 'MOCK')),
+        CHECK (
+            source_type IN (
+                'API',
+                'MOCK'
+            )
+        ),
 
     provider_name VARCHAR(100),
 
@@ -394,10 +451,33 @@ CREATE TABLE execution_attempts (
         REFERENCES currencies(currency_code),
 
     CONSTRAINT uq_execution_order_attempt
-        UNIQUE (order_id, attempt_number),
+        UNIQUE (
+            order_id,
+            attempt_number
+        ),
 
+    -- Required so Trade can reference the attempt together
+    -- with the order and guarantee they belong together.
     CONSTRAINT uq_execution_attempt_order
-        UNIQUE (execution_attempt_id, order_id)
+        UNIQUE (
+            execution_attempt_id,
+            order_id
+        ),
+
+    CONSTRAINT chk_execution_pricing
+        CHECK (
+            attempt_status = 'FAILED'
+            OR
+            (
+                quoted_price IS NOT NULL
+                AND price_currency_code IS NOT NULL
+                AND exchange_rate_to_usd IS NOT NULL
+                AND quoted_price_usd IS NOT NULL
+                AND quote_timestamp IS NOT NULL
+                AND source_type IS NOT NULL
+                AND provider_name IS NOT NULL
+            )
+        )
 );
 
 
@@ -423,13 +503,19 @@ CREATE TABLE trades (
     execution_price_currency_code VARCHAR(10) NOT NULL,
 
     exchange_rate_to_usd_at_execution NUMERIC(20,10) NOT NULL
-        CHECK (exchange_rate_to_usd_at_execution > 0),
+        CHECK (
+            exchange_rate_to_usd_at_execution > 0
+        ),
 
     execution_price_usd NUMERIC(20,8) NOT NULL
-        CHECK (execution_price_usd > 0),
+        CHECK (
+            execution_price_usd > 0
+        ),
 
     total_usd_value NUMERIC(30,8) NOT NULL
-        CHECK (total_usd_value > 0),
+        CHECK (
+            total_usd_value > 0
+        ),
 
     executed_at TIMESTAMPTZ NOT NULL,
 
@@ -461,19 +547,24 @@ CREATE TABLE cash_transactions (
                 'DEPOSIT',
                 'WITHDRAWAL',
                 'TRADE_BUY',
-                'TRADE_SELL',
-                'ADMIN_ADJUSTMENT'
+                'TRADE_SELL'
             )
         ),
 
     amount_usd NUMERIC(20,2) NOT NULL
-        CHECK (amount_usd <> 0),
+        CHECK (
+            amount_usd <> 0
+        ),
 
     balance_before_usd NUMERIC(20,2) NOT NULL
-        CHECK (balance_before_usd >= 0),
+        CHECK (
+            balance_before_usd >= 0
+        ),
 
     balance_after_usd NUMERIC(20,2) NOT NULL
-        CHECK (balance_after_usd >= 0),
+        CHECK (
+            balance_after_usd >= 0
+        ),
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -494,25 +585,39 @@ CREATE TABLE cash_transactions (
     CONSTRAINT chk_cash_transaction_trade_link
         CHECK (
             (
-                transaction_type IN ('TRADE_BUY', 'TRADE_SELL')
+                transaction_type IN (
+                    'TRADE_BUY',
+                    'TRADE_SELL'
+                )
                 AND trade_id IS NOT NULL
             )
             OR
             (
-                transaction_type NOT IN ('TRADE_BUY', 'TRADE_SELL')
+                transaction_type NOT IN (
+                    'TRADE_BUY',
+                    'TRADE_SELL'
+                )
                 AND trade_id IS NULL
             )
         ),
 
     CONSTRAINT chk_cash_transaction_direction
         CHECK (
-            (transaction_type IN ('DEPOSIT', 'TRADE_SELL')
-                AND amount_usd > 0)
+            (
+                transaction_type IN (
+                    'DEPOSIT',
+                    'TRADE_SELL'
+                )
+                AND amount_usd > 0
+            )
             OR
-            (transaction_type IN ('WITHDRAWAL', 'TRADE_BUY')
-                AND amount_usd < 0)
-            OR
-            (transaction_type = 'ADMIN_ADJUSTMENT')
+            (
+                transaction_type IN (
+                    'WITHDRAWAL',
+                    'TRADE_BUY'
+                )
+                AND amount_usd < 0
+            )
         )
 );
 
@@ -543,7 +648,10 @@ CREATE TABLE watchlist_instruments (
     watchlist_id BIGINT NOT NULL,
     instrument_id BIGINT NOT NULL,
 
-    PRIMARY KEY (watchlist_id, instrument_id),
+    PRIMARY KEY (
+        watchlist_id,
+        instrument_id
+    ),
 
     CONSTRAINT fk_watchlist_instrument_watchlist
         FOREIGN KEY (watchlist_id)
@@ -608,14 +716,21 @@ CREATE TABLE prices (
     instrument_id BIGINT NOT NULL,
 
     price NUMERIC(20,8) NOT NULL
-        CHECK (price > 0),
+        CHECK (
+            price > 0
+        ),
 
     price_currency_code VARCHAR(10) NOT NULL,
 
     price_timestamp TIMESTAMPTZ NOT NULL,
 
     source_type VARCHAR(10) NOT NULL
-        CHECK (source_type IN ('API', 'MOCK')),
+        CHECK (
+            source_type IN (
+                'API',
+                'MOCK'
+            )
+        ),
 
     provider_name VARCHAR(100) NOT NULL,
 
@@ -631,7 +746,9 @@ CREATE TABLE prices (
 
 -- =========================================================
 -- INDEXES
--- Foreign keys are not automatically indexed by PostgreSQL.
+--
+-- PostgreSQL does not automatically create indexes for
+-- ordinary foreign-key columns.
 -- =========================================================
 
 CREATE INDEX idx_order_portfolio
@@ -716,8 +833,11 @@ EXECUTE FUNCTION set_updated_at();
 
 -- =========================================================
 -- APPEND-ONLY PROTECTION
+--
 -- Execution attempts, trades, cash ledger records and audit
--- events cannot be updated or deleted after creation.
+-- events represent historical facts.
+--
+-- They may not be updated or deleted after creation.
 -- =========================================================
 
 CREATE OR REPLACE FUNCTION prevent_append_only_mutation()

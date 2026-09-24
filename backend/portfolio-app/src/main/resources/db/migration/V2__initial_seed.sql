@@ -2,6 +2,7 @@ BEGIN;
 
 -- =========================================================
 -- CURRENCIES
+--
 -- Rates below are MOCK development values, not live rates.
 -- The market-data layer can update these later
 -- =========================================================
@@ -14,10 +15,34 @@ INSERT INTO currencies (
     exchange_rate_updated_at
 )
 VALUES
-    ('USD', 'US Dollar', '$', 1.0000000000, CURRENT_TIMESTAMP),
-    ('GBP', 'British Pound', '£', 1.3500000000, CURRENT_TIMESTAMP),
-    ('INR', 'Indian Rupee', '₹', 0.0120000000, CURRENT_TIMESTAMP),
-    ('EUR', 'Euro', '€', 1.1700000000, CURRENT_TIMESTAMP)
+    (
+        'USD',
+        'US Dollar',
+        '$',
+        1.0000000000,
+        CURRENT_TIMESTAMP
+    ),
+    (
+        'GBP',
+        'British Pound',
+        '£',
+        1.3500000000,
+        CURRENT_TIMESTAMP
+    ),
+    (
+        'INR',
+        'Indian Rupee',
+        '₹',
+        0.0120000000,
+        CURRENT_TIMESTAMP
+    ),
+    (
+        'EUR',
+        'Euro',
+        '€',
+        1.1700000000,
+        CURRENT_TIMESTAMP
+    )
 ON CONFLICT (currency_code) DO NOTHING;
 
 
@@ -87,7 +112,13 @@ ON CONFLICT (market_name) DO NOTHING;
 
 -- =========================================================
 -- INSTRUMENTS
--- At least one example from each major market/asset class.
+--
+-- Includes examples covering:
+--   US equity
+--   UK equity
+--   Indian equity
+--   Crypto
+--   Forex
 -- =========================================================
 
 INSERT INTO instruments (
@@ -100,7 +131,6 @@ INSERT INTO instruments (
     is_active
 )
 VALUES
-
     (
         (SELECT market_id FROM markets WHERE market_name = 'NASDAQ'),
         'AAPL',
@@ -110,7 +140,6 @@ VALUES
         TRUE,
         TRUE
     ),
-
     (
         (SELECT market_id FROM markets WHERE market_name = 'LSE'),
         'VOD',
@@ -120,7 +149,6 @@ VALUES
         TRUE,
         TRUE
     ),
-
     (
         (SELECT market_id FROM markets WHERE market_name = 'NSE'),
         'RELIANCE',
@@ -130,7 +158,6 @@ VALUES
         TRUE,
         TRUE
     ),
-
     (
         (SELECT market_id FROM markets WHERE market_name = 'CRYPTO'),
         'BTC-USD',
@@ -140,7 +167,6 @@ VALUES
         TRUE,
         TRUE
     ),
-
     (
         (SELECT market_id FROM markets WHERE market_name = 'CRYPTO'),
         'ETH-USD',
@@ -150,7 +176,6 @@ VALUES
         TRUE,
         TRUE
     ),
-
     (
         (SELECT market_id FROM markets WHERE market_name = 'FOREX'),
         'EUR/USD',
@@ -160,7 +185,6 @@ VALUES
         TRUE,
         TRUE
     ),
-
     (
         (SELECT market_id FROM markets WHERE market_name = 'FOREX'),
         'GBP/USD',
@@ -170,7 +194,6 @@ VALUES
         TRUE,
         TRUE
     )
-
 ON CONFLICT (market_id, symbol) DO NOTHING;
 
 
@@ -185,16 +208,16 @@ INSERT INTO stocks (
     country
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     'Technology',
     'Consumer Electronics',
     'United States'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'AAPL'
 AND NOT EXISTS (
     SELECT 1
     FROM stocks s
-    WHERE s.instrument_id = instruments.instrument_id
+    WHERE s.instrument_id = i.instrument_id
 );
 
 
@@ -205,16 +228,16 @@ INSERT INTO stocks (
     country
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     'Communication Services',
     'Telecommunications',
     'United Kingdom'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'VOD'
 AND NOT EXISTS (
     SELECT 1
     FROM stocks s
-    WHERE s.instrument_id = instruments.instrument_id
+    WHERE s.instrument_id = i.instrument_id
 );
 
 
@@ -225,16 +248,16 @@ INSERT INTO stocks (
     country
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     'Energy',
     'Diversified',
     'India'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'RELIANCE'
 AND NOT EXISTS (
     SELECT 1
     FROM stocks s
-    WHERE s.instrument_id = instruments.instrument_id
+    WHERE s.instrument_id = i.instrument_id
 );
 
 
@@ -247,14 +270,14 @@ INSERT INTO cryptos (
     blockchain
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     'Bitcoin'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'BTC-USD'
 AND NOT EXISTS (
     SELECT 1
     FROM cryptos c
-    WHERE c.instrument_id = instruments.instrument_id
+    WHERE c.instrument_id = i.instrument_id
 );
 
 
@@ -263,14 +286,14 @@ INSERT INTO cryptos (
     blockchain
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     'Ethereum'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'ETH-USD'
 AND NOT EXISTS (
     SELECT 1
     FROM cryptos c
-    WHERE c.instrument_id = instruments.instrument_id
+    WHERE c.instrument_id = i.instrument_id
 );
 
 
@@ -284,15 +307,15 @@ INSERT INTO forexes (
     quote_currency_code
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     'EUR',
     'USD'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'EUR/USD'
 AND NOT EXISTS (
     SELECT 1
     FROM forexes f
-    WHERE f.instrument_id = instruments.instrument_id
+    WHERE f.instrument_id = i.instrument_id
 );
 
 
@@ -302,15 +325,15 @@ INSERT INTO forexes (
     quote_currency_code
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     'GBP',
     'USD'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'GBP/USD'
 AND NOT EXISTS (
     SELECT 1
     FROM forexes f
-    WHERE f.instrument_id = instruments.instrument_id
+    WHERE f.instrument_id = i.instrument_id
 );
 
 
@@ -361,7 +384,9 @@ FROM new_user;
 
 
 -- =========================================================
--- ONE PORTFOLIO / SHARED USD CASH BANK
+-- CLIENT PORTFOLIO
+--
+-- Exactly one portfolio for the development client.
 -- =========================================================
 
 INSERT INTO portfolios (
@@ -383,9 +408,14 @@ AND NOT EXISTS (
 -- =========================================================
 -- INITIAL MOCK PRICES
 --
--- These only bootstrap development.
--- Future mock-price updates should come from the application's
--- MockMarketDataProvider.
+-- These bootstrap development only.
+--
+-- Future mock price updates should come from the
+-- application's MockMarketDataProvider.
+--
+-- Each query identifies both symbol and market because
+-- instrument symbols are only guaranteed unique within a
+-- market, not globally.
 -- =========================================================
 
 INSERT INTO prices (
@@ -397,18 +427,18 @@ INSERT INTO prices (
     provider_name
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     220.00,
     'USD',
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'AAPL'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -423,18 +453,18 @@ INSERT INTO prices (
     provider_name
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     0.75,
     'GBP',
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'VOD'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -449,18 +479,18 @@ INSERT INTO prices (
     provider_name
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     1500.00,
     'INR',
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'RELIANCE'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -475,18 +505,18 @@ INSERT INTO prices (
     provider_name
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     60000.00,
     'USD',
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'BTC-USD'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -501,18 +531,18 @@ INSERT INTO prices (
     provider_name
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     2500.00,
     'USD',
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'ETH-USD'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -527,18 +557,18 @@ INSERT INTO prices (
     provider_name
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     1.10,
     'USD',
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'EUR/USD'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
@@ -553,18 +583,18 @@ INSERT INTO prices (
     provider_name
 )
 SELECT
-    instrument_id,
+    i.instrument_id,
     1.35,
     'USD',
     CURRENT_TIMESTAMP,
     'MOCK',
     'INTERNAL_MOCK'
-FROM instruments
+FROM instruments i
 WHERE symbol = 'GBP/USD'
 AND NOT EXISTS (
     SELECT 1
     FROM prices p
-    WHERE p.instrument_id = instruments.instrument_id
+    WHERE p.instrument_id = i.instrument_id
       AND p.source_type = 'MOCK'
       AND p.provider_name = 'INTERNAL_MOCK'
 );
