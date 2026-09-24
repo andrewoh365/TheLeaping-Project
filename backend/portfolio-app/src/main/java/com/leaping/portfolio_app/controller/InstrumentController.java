@@ -1,4 +1,6 @@
-import com.leaping.portfolio_app.entity.instrument;
+package com.leaping.portfolio_app.controller;
+
+import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.service.InstrumentService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -8,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/instruments")
@@ -21,13 +22,13 @@ public class InstrumentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<instrument>> getAllInstruments() {
-        List<instrument> instruments = instrumentService.getAllInstruments();
+    public ResponseEntity<List<Instrument>> getAllInstruments() {
+        List<Instrument> instruments = instrumentService.getAllInstruments();
         return ResponseEntity.ok(instruments);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<instrument> getInstrumentById(@PathVariable Long id) {
+    public ResponseEntity<Instrument> getInstrumentById(@PathVariable Long id) {
         return instrumentService.getInstrumentById(id)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
