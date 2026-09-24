@@ -3,15 +3,13 @@ package com.leaping.portfolio_app.dto;
 public class UserDto {
     private String id;
     private String email;
-    private String username;
 
     public UserDto() {
     }
 
-    public UserDto(String id, String email, String username) {
+    public UserDto(String id, String email) {
         this.id = id;
         this.email = email;
-        this.username = username;
     }
 
     public String getId() {
@@ -30,11 +28,4 @@ public class UserDto {
         this.email = email;
     }
 
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
 }

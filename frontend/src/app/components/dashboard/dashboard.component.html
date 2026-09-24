@@ -1,8 +1,15 @@
 <div class="dashboard-container">
-  <mat-toolbar color="primary" class="toolbar">
-    <span class="toolbar-title">Leaping Portfolio</span>
+  <mat-toolbar class="toolbar">
+    <button mat-icon-button class="hamburger">
+      <mat-icon>menu</mat-icon>
+    </button>
     <span class="spacer"></span>
-    <button mat-icon-button [matMenuTriggerFor]="menu">
+    <div class="logo-container">
+      <mat-icon class="logo-icon">eject</mat-icon>
+      <span class="toolbar-title">MIGUELITY</span>
+    </div>
+    <span class="spacer"></span>
+    <button mat-icon-button class="user-icon-button" [matMenuTriggerFor]="menu">
       <mat-icon>account_circle</mat-icon>
     </button>
     <mat-menu #menu="matMenu">
@@ -18,22 +25,33 @@
     </mat-menu>
   </mat-toolbar>
 
+  <div class="searchbar-section">
+    <div class="search-wrapper">
+      <input 
+        type="text" 
+        class="search-input" 
+        [(ngModel)]="searchQuery" 
+        (input)="onSearchInput()"
+        placeholder="Search portfolios, instruments..."
+        aria-label="Search"
+      />
+      <mat-icon class="search-icon">search</mat-icon>
+    </div>
+  </div>
+
   <div class="dashboard-content">
-    <mat-card class="welcome-card">
-      <mat-card-header>
-        <mat-card-title>Welcome to Leaping Portfolio! 👋</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <p>You have successfully authenticated and accessed the dashboard.</p>
-        <p>
-          Your JWT token is securely stored and will be automatically included
-          in all API requests. The token will refresh automatically when needed.
-        </p>
-        <p class="user-info">
-          <strong>Logged in as:</strong> {{ currentUser?.email || 'User' }}
-        </p>
-      </mat-card-content>
-    </mat-card>
+    <div>
+      <mat-card class="portfolio-card">
+        <div >
+          <button mat-raised-button class="dashboard-button">Individual</button>
+          <button mat-raised-button class="dashboard-button">ForEx</button>
+          <button mat-raised-button class="dashboard-button">Crypto</button>  
+        </div>
+        <mat-card-header>
+          <mat-card-title>CHART </mat-card-title>
+        </mat-card-header>
+      </mat-card>
+    <!--
 
     <div class="features-grid">
       <mat-card class="feature-card">
@@ -65,6 +83,18 @@
           Get instant notifications on market changes and your holdings.
         </mat-card-content>
       </mat-card>
+
+      <mat-card class="feature-card" (click)="navigateToInvest()">
+        <mat-card-header>
+          <mat-icon class="feature-icon">invest-instrument</mat-icon>
+          <mat-card-title>Invest</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          Find an instrument
+        </mat-card-content>
+        
+      </mat-card>
+    </div> -->
     </div>
   </div>
 </div>
