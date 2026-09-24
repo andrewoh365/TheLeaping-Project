@@ -33,13 +33,24 @@ A full-stack online trading platform application for portfolio management and ma
 - **Backend**: Java 21, Maven 3.6+, MySQL 8.0+
 - **Frontend**: Node.js v18+, npm or yarn
 
-### Backend Setup
+### Backend Setup (Local Development)
 ```bash
 cd backend/portfolio-app
-mvn clean install
+
+# 1. Copy and configure local secrets
+cp src/main/resources/application-local.yaml.example src/main/resources/application-local.yaml
+# Edit application-local.yaml with your DB password and JWT secret
+
+# 2. Build and run
+mvn clean compile
 mvn spring-boot:run
 # Backend runs on http://localhost:8080
 ```
+
+**What You Need:**
+- PostgreSQL running with `leaping_db` database
+- `application-local.yaml` with your DB password (auto .gitignored, never committed)
+- Java 21+, Maven 3.9+
 
 ### Frontend Setup
 ```bash

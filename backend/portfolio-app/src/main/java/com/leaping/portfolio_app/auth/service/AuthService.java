@@ -5,7 +5,9 @@ import com.leaping.portfolio_app.auth.dto.LoginRequest;
 import com.leaping.portfolio_app.auth.dto.RegisterRequest;
 import com.leaping.portfolio_app.auth.dto.RegisterResponse;
 import com.leaping.portfolio_app.auth.model.User;
+import com.leaping.portfolio_app.auth.model.Customer;
 import com.leaping.portfolio_app.auth.repository.UserRepository;
+import com.leaping.portfolio_app.auth.repository.CustomerRepository;
 import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -14,11 +16,14 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final CustomerRepository customerRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
 
-    public AuthService(UserRepository userRepository, JwtTokenProvider jwtTokenProvider, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, CustomerRepository customerRepository,
+                      JwtTokenProvider jwtTokenProvider, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.customerRepository = customerRepository;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
     }
@@ -112,8 +117,8 @@ public class AuthService {
                 "Email already exists", false);
         }
 
-        // STEP 5: Check tax ID doesn't already exist
-        if (userRepository.existsByTaxId(registerRequest.getTaxId())) {
+        // STEP 5: Check tax ID doesn't already exist (now in CustomerRepository)
+        if (customerRepository.existsByTaxId(registerRequest.getTaxId())) {
             return new RegisterResponse(null, null, null, null, 
                 "Tax ID already exists", false);
         }
@@ -130,23 +135,29 @@ public class AuthService {
                 "Invalid date format. Use YYYY-MM-DD", false);
         }
         
-        // STEP 8: Create new User object with all fields
+        // STEP 8: Create new User object (without dateOfBirth/taxId - those go in Customer)
         User newUser = new User(
             registerRequest.getEmail(),
             hashedPassword,  // Use the HASHED password, not plain text
             registerRequest.getFirstName(),
-            registerRequest.getLastName(),
-            dateOfBirth,
-            registerRequest.getTaxId()
+            registerRequest.getLastName()
         );
         
         // STEP 9: Save the new user to the database
         User savedUser = userRepository.save(newUser);
         
-        // STEP 10: Generate JWT token for the new user
+        // STEP 10: Create Customer record linked to the User via user_id
+        // NOTE: With @MapsId, don't manually set userId. Let Hibernate derive it from User relationship
+        Customer newCustomer = new Customer();
+        newCustomer.setUser(savedUser);  // @MapsId will automatically set user_id from savedUser.id
+        newCustomer.setDateOfBirth(dateOfBirth);
+        newCustomer.setTaxId(registerRequest.getTaxId());
+        customerRepository.save(newCustomer);
+        
+        // STEP 11: Generate JWT token for the new user
         String token = jwtTokenProvider.generateToken(savedUser.getEmail());
         
-        // STEP 11: Return success response with token and user info
+        // STEP 12: Return success response with token and user info
         return new RegisterResponse(
             token,
             savedUser.getEmail(),

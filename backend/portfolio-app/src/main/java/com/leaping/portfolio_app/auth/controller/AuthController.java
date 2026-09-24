@@ -13,8 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/auth")
-@CrossOrigin(origins = "*", allowedHeaders = "*")
+@RequestMapping("/api/auth")
 public class AuthController {
 
     private final AuthService authService;

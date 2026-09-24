@@ -1,15 +1,14 @@
 package com.leaping.portfolio_app.auth.model;
 
 import jakarta.persistence.*;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "client")
+@Table(name = "users")
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "client_id")
+    @Column(name = "user_id")
     private Long id;
 
     @Column(name = "email", unique = true)
@@ -24,13 +23,7 @@ public class User {
     @Column(name = "last_name")
     private String lastName;
 
-    @Column(name = "date_of_birth")
-    private LocalDate dateOfBirth;
-
-    @Column(name = "tax_id", unique = true)
-    private String taxId;
-
-    @Column(name = "role")
+    @Column(name = "user_type")
     @Enumerated(EnumType.STRING)
     private UserRole role;  // User's role (ADMIN or CUSTOMER)
 
@@ -49,14 +42,11 @@ public class User {
     public User() {
     }
 
-    public User(String email, String password, String firstName, String lastName, 
-                LocalDate dateOfBirth, String taxId) {
+    public User(String email, String password, String firstName, String lastName) {
         this.email = email;
         this.password = password;
         this.firstName = firstName;
         this.lastName = lastName;
-        this.dateOfBirth = dateOfBirth;
-        this.taxId = taxId;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
         this.role = UserRole.CUSTOMER;  // Default role is CUSTOMER (matches DB constraint)
@@ -101,22 +91,6 @@ public class User {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
-    }
-
-    public LocalDate getDateOfBirth() {
-        return dateOfBirth;
-    }
-
-    public void setDateOfBirth(LocalDate dateOfBirth) {
-        this.dateOfBirth = dateOfBirth;
-    }
-
-    public String getTaxId() {
-        return taxId;
-    }
-
-    public void setTaxId(String taxId) {
-        this.taxId = taxId;
     }
 
     public LocalDateTime getCreatedAt() {

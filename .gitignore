@@ -32,5 +32,9 @@ backend\portfolio-app\src\main\resources\application.yaml
 backend/portfolio-app/src/main/resources/application-*.yaml
 backend/portfolio-app/src/test/resources/application-test.yaml
 
+backend\portfolio-app\src\main\resources\application-local.yaml
+backend/portfolio-app/src/main/resources/application-local.yaml
+
+
 .env
 backend/portfolio-app/src/main/java/com/leaping/portfolio_app/.env

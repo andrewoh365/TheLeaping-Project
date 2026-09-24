@@ -6,5 +6,6 @@ package com.leaping.portfolio_app.auth.model;
  */
 public enum UserRole {
     ADMIN,      // Full system access - can manage users, view all data
-    CUSTOMER    // Limited access - can only access own data
+    CUSTOMER,   // Limited access - can only access own data
+    ANALYST     // Analytics access - can view reports and data analysis
 }

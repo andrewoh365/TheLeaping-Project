@@ -38,9 +38,9 @@ export class AuthService {
   /**
    * Register a new user
    */
-  register(email: string, password: string, username: string): Observable<AuthResponse> {
-    const body = { email, password, username };
-    return this.http.post<AuthResponse>(`${this.API_URL}/auth/register`, body).pipe(
+  register(firstName: string, lastName: string, email: string, password: string, confirmPassword: string, dateOfBirth: string, taxId: string): Observable<AuthResponse> {
+    const body = { firstName, lastName, email, password, confirmPassword, dateOfBirth, taxId };
+    return this.http.post<AuthResponse>(`${this.API_URL}/api/auth/register`, body).pipe(
       tap(response => {
         this.storeToken(response.token, response.refreshToken);
         // After registration, you might want to fetch user details
@@ -57,7 +57,7 @@ export class AuthService {
    */
   login(email: string, password: string): Observable<AuthResponse> {
     const body = { email, password };
-    return this.http.post<AuthResponse>(`${this.API_URL}/auth/login`, body).pipe(
+    return this.http.post<AuthResponse>(`${this.API_URL}/api/auth/login`, body).pipe(
       tap(response => {
         this.storeToken(response.token, response.refreshToken);
         this.isAuthenticatedSubject.next(true);
@@ -116,7 +116,7 @@ export class AuthService {
     }
 
     const body = { refreshToken };
-    return this.http.post<AuthResponse>(`${this.API_URL}/auth/refresh`, body).pipe(
+    return this.http.post<AuthResponse>(`${this.API_URL}/api/auth/refresh`, body).pipe(
       tap(response => {
         this.storeToken(response.token, response.refreshToken);
       }),
@@ -131,7 +131,7 @@ export class AuthService {
    * Fetch user details from the backend
    */
   private fetchUserDetails(): void {
-    this.http.get<User>(`${this.API_URL}/auth/me`).subscribe({
+    this.http.get<User>(`${this.API_URL}/api/auth/me`).subscribe({
       next: (user) => {
         this.currentUserSubject.next(user);
         this.storeUser(user);
