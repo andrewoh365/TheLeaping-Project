@@ -4,6 +4,7 @@ import com.leaping.portfolio_app.auth.dto.AuthResponse;
 import com.leaping.portfolio_app.auth.dto.LoginRequest;
 import com.leaping.portfolio_app.auth.dto.RegisterRequest;
 import com.leaping.portfolio_app.auth.dto.RegisterResponse;
+import com.leaping.portfolio_app.auth.dto.RefreshRequest;
 import com.leaping.portfolio_app.auth.model.User;
 import com.leaping.portfolio_app.auth.model.Customer;
 import com.leaping.portfolio_app.auth.repository.UserRepository;
@@ -53,10 +54,12 @@ public class AuthService {
             return new AuthResponse(null, null, "Invalid email or password", false);
         }
 
-        // Generate JWT token
+        // Generate JWT access token and refresh token
         String token = jwtTokenProvider.generateToken(email);
-        // Return response with role included so frontend knows the user's role
-        return new AuthResponse(token, email, "Authentication successful", true, user.getRole().name());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(email);
+        
+        // Return response with role and refresh token included
+        return new AuthResponse(token, email, "Authentication successful", true, user.getRole().name(), refreshToken);
     }
 
     public boolean validateToken(String token) {
@@ -154,18 +157,52 @@ public class AuthService {
         newCustomer.setTaxId(registerRequest.getTaxId());
         customerRepository.save(newCustomer);
         
-        // STEP 11: Generate JWT token for the new user
+        // STEP 11: Generate JWT access token and refresh token for the new user
         String token = jwtTokenProvider.generateToken(savedUser.getEmail());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(savedUser.getEmail());
         
-        // STEP 12: Return success response with token and user info
+        // STEP 12: Return success response with token, refresh token, and user info
         return new RegisterResponse(
             token,
             savedUser.getEmail(),
             savedUser.getFirstName(),
             savedUser.getLastName(),
             "User created successfully",
-            true
+            true,
+            refreshToken
         );
+    }
+
+    public AuthResponse refreshToken(RefreshRequest refreshRequest) {
+        // Validate refresh token is provided
+        if (refreshRequest == null || refreshRequest.getRefreshToken() == null || 
+            refreshRequest.getRefreshToken().trim().isEmpty()) {
+            return new AuthResponse(null, null, "Refresh token is required", false);
+        }
+
+        String refreshToken = refreshRequest.getRefreshToken();
+        
+        // Validate refresh token
+        if (!jwtTokenProvider.validateRefreshToken(refreshToken)) {
+            return new AuthResponse(null, null, "Invalid or expired refresh token", false);
+        }
+
+        // Extract email from refresh token
+        String email = jwtTokenProvider.getEmailFromRefreshToken(refreshToken);
+        
+        // Verify user still exists and is active
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null || !user.isActive()) {
+            return new AuthResponse(null, null, "User account is inactive or not found", false);
+        }
+
+        // Generate new access token and optionally new refresh token
+        String newAccessToken = jwtTokenProvider.generateToken(email);
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(email);
+        
+        // Return response with new tokens
+        return new AuthResponse(newAccessToken, email, "Token refreshed successfully", true, 
+                               user.getRole().name(), newRefreshToken);
     }
 
     public AuthResponse logout() {

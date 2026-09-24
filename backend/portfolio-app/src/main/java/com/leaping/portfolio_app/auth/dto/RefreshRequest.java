@@ -1,7 +1,14 @@
-package com.leaping.portfolio_app.dto;
+package com.leaping.portfolio_app.auth.dto;
 
-public class RefreshTokenRequest {
+public class RefreshRequest {
     private String refreshToken;
+
+    public RefreshRequest() {
+    }
+
+    public RefreshRequest(String refreshToken) {
+        this.refreshToken = refreshToken;
+    }
 
     public String getRefreshToken() {
         return refreshToken;

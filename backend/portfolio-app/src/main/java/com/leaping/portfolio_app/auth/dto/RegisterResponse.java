@@ -31,12 +31,13 @@ public class RegisterResponse {
     private String lastName;   // User's last name
     private String message;    // Status message (success or error)
     private boolean success;   // true = registration successful, false = failed
+    private String refreshToken;  // Refresh token for token renewal
 
     // Empty constructor
     public RegisterResponse() {
     }
 
-    // Full constructor
+    // Full constructor (without refresh token)
     public RegisterResponse(String token, String email, String firstName, 
                            String lastName, String message, boolean success) {
         this.token = token;
@@ -45,6 +46,19 @@ public class RegisterResponse {
         this.lastName = lastName;
         this.message = message;
         this.success = success;
+        this.refreshToken = null;
+    }
+
+    // Full constructor (with refresh token)
+    public RegisterResponse(String token, String email, String firstName, 
+                           String lastName, String message, boolean success, String refreshToken) {
+        this.token = token;
+        this.email = email;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.message = message;
+        this.success = success;
+        this.refreshToken = refreshToken;
     }
 
     // ========== GETTERS AND SETTERS ==========
@@ -94,5 +108,13 @@ public class RegisterResponse {
 
     public void setSuccess(boolean success) {
         this.success = success;
+    }
+
+    public String getRefreshToken() {
+        return refreshToken;
+    }
+
+    public void setRefreshToken(String refreshToken) {
+        this.refreshToken = refreshToken;
     }
 }
