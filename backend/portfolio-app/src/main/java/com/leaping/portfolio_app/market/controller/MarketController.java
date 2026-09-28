@@ -76,17 +76,19 @@ public class MarketController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/instruments/{symbol}/price/latest")
-    public ResponseEntity<PricePointDto> getLatestPrice(@PathVariable String symbol) {
+    @GetMapping("/instruments/price/latest")
+    public ResponseEntity<PricePointDto> getLatestPriceByQuery(
+            @RequestParam String symbol
+    ) {
         return pricingService.getLatestPriceBySymbol(symbol)
                 .map(this::toPriceDto)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/instruments/{symbol}/price/history")
-    public ResponseEntity<List<PricePointDto>> getPriceHistory(
-            @PathVariable String symbol,
+    @GetMapping("/instruments/price/history")
+    public ResponseEntity<List<PricePointDto>> getPriceHistoryByQuery(
+            @RequestParam String symbol,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to
     ) {
@@ -107,28 +109,32 @@ public class MarketController {
         return ResponseEntity.ok(currencies);
     }
 
-        @GetMapping("/instruments/{symbol}/quote")
-        public ResponseEntity<QuoteDto> getQuote(@PathVariable String symbol) {
-                return preTradeMarketService.getQuote(symbol)
-                                .map(ResponseEntity::ok)
-                                .orElse(ResponseEntity.notFound().build());
-        }
+    @GetMapping("/instruments/quote")
+    public ResponseEntity<QuoteDto> getQuoteByQuery(
+            @RequestParam String symbol
+    ) {
+        return preTradeMarketService.getQuote(symbol)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 
-        @GetMapping("/quotes")
-        public ResponseEntity<List<QuoteDto>> getQuotes(
-                        @RequestParam List<String> symbols
-        ) {
-                List<QuoteDto> quotes = symbols.stream()
-                                .map(preTradeMarketService::getQuote)
-                                .flatMap(Optional::stream)
-                                .collect(Collectors.toList());
-                return ResponseEntity.ok(quotes);
-        }
+    @GetMapping("/quotes")
+    public ResponseEntity<List<QuoteDto>> getQuotes(
+            @RequestParam List<String> symbols
+    ) {
+        List<QuoteDto> quotes = symbols.stream()
+                .map(preTradeMarketService::getQuote)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(quotes);
+    }
 
-        @GetMapping("/instruments/{symbol}/tradability")
-        public ResponseEntity<TradabilityDto> getTradability(@PathVariable String symbol) {
-                return ResponseEntity.ok(preTradeMarketService.getTradability(symbol));
-        }
+    @GetMapping("/instruments/tradability")
+    public ResponseEntity<TradabilityDto> getTradabilityByQuery(
+            @RequestParam String symbol
+    ) {
+        return ResponseEntity.ok(preTradeMarketService.getTradability(symbol));
+    }
 
     private PricePointDto toPriceDto(Price price) {
         return new PricePointDto(
