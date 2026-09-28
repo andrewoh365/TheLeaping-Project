@@ -4,6 +4,7 @@ import com.leaping.portfolio_app.auth.dto.AuthResponse;
 import com.leaping.portfolio_app.auth.dto.LoginRequest;
 import com.leaping.portfolio_app.auth.dto.RegisterRequest;
 import com.leaping.portfolio_app.auth.dto.RegisterResponse;
+import com.leaping.portfolio_app.auth.dto.RefreshRequest;
 import com.leaping.portfolio_app.auth.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +15,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*", allowedHeaders = "*")
 public class AuthController {
 
     private final AuthService authService;
@@ -65,6 +65,17 @@ public class AuthController {
     public ResponseEntity<AuthResponse> logout() {
         AuthResponse response = authService.logout();
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(@RequestBody RefreshRequest refreshRequest) {
+        AuthResponse response = authService.refreshToken(refreshRequest);
+        
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
     }
 
     @GetMapping("/validate")

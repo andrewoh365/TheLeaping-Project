@@ -1,15 +1,14 @@
 package com.leaping.portfolio_app.auth.model;
 
 import jakarta.persistence.*;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "client")
+@Table(name = "users")
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "client_id")
+    @Column(name = "user_id")
     private Long id;
 
     @Column(name = "email", unique = true)
@@ -24,13 +23,7 @@ public class User {
     @Column(name = "last_name")
     private String lastName;
 
-    @Column(name = "date_of_birth")
-    private LocalDate dateOfBirth;
-
-    @Column(name = "tax_id", unique = true)
-    private String taxId;
-
-    @Column(name = "role")
+    @Column(name = "user_type")
     @Enumerated(EnumType.STRING)
     private UserRole role;  // User's role (ADMIN or CUSTOMER)
 
@@ -38,27 +31,24 @@ public class User {
     private String status;  // ACTIVE, INACTIVE, LOCKED
 
     @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private OffsetDateTime updatedAt;
 
     @Column(name = "last_login")
-    private LocalDateTime lastLogin;
+    private OffsetDateTime lastLogin;
 
     public User() {
     }
 
-    public User(String email, String password, String firstName, String lastName, 
-                LocalDate dateOfBirth, String taxId) {
+    public User(String email, String password, String firstName, String lastName) {
         this.email = email;
         this.password = password;
         this.firstName = firstName;
         this.lastName = lastName;
-        this.dateOfBirth = dateOfBirth;
-        this.taxId = taxId;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+        this.createdAt = OffsetDateTime.now();
+        this.updatedAt = OffsetDateTime.now();
         this.role = UserRole.CUSTOMER;  // Default role is CUSTOMER (matches DB constraint)
         this.status = "ACTIVE";  // Default status is ACTIVE - users can login immediately after registration
     }
@@ -103,43 +93,27 @@ public class User {
         this.lastName = lastName;
     }
 
-    public LocalDate getDateOfBirth() {
-        return dateOfBirth;
-    }
-
-    public void setDateOfBirth(LocalDate dateOfBirth) {
-        this.dateOfBirth = dateOfBirth;
-    }
-
-    public String getTaxId() {
-        return taxId;
-    }
-
-    public void setTaxId(String taxId) {
-        this.taxId = taxId;
-    }
-
-    public LocalDateTime getCreatedAt() {
+    public OffsetDateTime getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
+    public void setCreatedAt(OffsetDateTime createdAt) {
         this.createdAt = createdAt;
     }
 
-    public LocalDateTime getUpdatedAt() {
+    public OffsetDateTime getUpdatedAt() {
         return updatedAt;
     }
 
-    public void setUpdatedAt(LocalDateTime updatedAt) {
+    public void setUpdatedAt(OffsetDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
 
-    public LocalDateTime getLastLogin() {
+    public OffsetDateTime getLastLogin() {
         return lastLogin;
     }
 
-    public void setLastLogin(LocalDateTime lastLogin) {
+    public void setLastLogin(OffsetDateTime lastLogin) {
         this.lastLogin = lastLogin;
     }
 
