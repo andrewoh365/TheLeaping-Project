@@ -3,11 +3,14 @@ package com.leaping.portfolio_app.market.controller;
 import com.leaping.portfolio_app.market.dto.MarketDto;
 import com.leaping.portfolio_app.market.dto.MarketStatusDto;
 import com.leaping.portfolio_app.market.dto.PricePointDto;
+import com.leaping.portfolio_app.market.dto.QuoteDto;
+import com.leaping.portfolio_app.market.dto.TradabilityDto;
 import com.leaping.portfolio_app.market.entity.Market;
 import com.leaping.portfolio_app.market.entity.Price;
 import com.leaping.portfolio_app.market.repository.CurrencyRepository;
 import com.leaping.portfolio_app.market.repository.MarketRepository;
 import com.leaping.portfolio_app.market.service.MarketHoursService;
+import com.leaping.portfolio_app.market.service.PreTradeMarketService;
 import com.leaping.portfolio_app.market.service.MarketStatus;
 import com.leaping.portfolio_app.market.service.PricingService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
@@ -30,17 +34,20 @@ public class MarketController {
     private final CurrencyRepository currencyRepository;
     private final MarketHoursService marketHoursService;
     private final PricingService pricingService;
+        private final PreTradeMarketService preTradeMarketService;
 
     public MarketController(
             MarketRepository marketRepository,
             CurrencyRepository currencyRepository,
             MarketHoursService marketHoursService,
-            PricingService pricingService
+                        PricingService pricingService,
+                        PreTradeMarketService preTradeMarketService
     ) {
         this.marketRepository = marketRepository;
         this.currencyRepository = currencyRepository;
         this.marketHoursService = marketHoursService;
         this.pricingService = pricingService;
+                this.preTradeMarketService = preTradeMarketService;
     }
 
     @GetMapping("/exchanges")
@@ -99,6 +106,29 @@ public class MarketController {
                 .collect(Collectors.toList());
         return ResponseEntity.ok(currencies);
     }
+
+        @GetMapping("/instruments/{symbol}/quote")
+        public ResponseEntity<QuoteDto> getQuote(@PathVariable String symbol) {
+                return preTradeMarketService.getQuote(symbol)
+                                .map(ResponseEntity::ok)
+                                .orElse(ResponseEntity.notFound().build());
+        }
+
+        @GetMapping("/quotes")
+        public ResponseEntity<List<QuoteDto>> getQuotes(
+                        @RequestParam List<String> symbols
+        ) {
+                List<QuoteDto> quotes = symbols.stream()
+                                .map(preTradeMarketService::getQuote)
+                                .flatMap(Optional::stream)
+                                .collect(Collectors.toList());
+                return ResponseEntity.ok(quotes);
+        }
+
+        @GetMapping("/instruments/{symbol}/tradability")
+        public ResponseEntity<TradabilityDto> getTradability(@PathVariable String symbol) {
+                return ResponseEntity.ok(preTradeMarketService.getTradability(symbol));
+        }
 
     private PricePointDto toPriceDto(Price price) {
         return new PricePointDto(

@@ -14,6 +14,8 @@ public interface InstrumentRepository extends JpaRepository<Instrument, Long> {
 
     List<Instrument> findByIsActiveTrueAndIsTradeableTrue();
 
+    Optional<Instrument> findBySymbolIgnoreCase(String symbol);
+
     Optional<Instrument> findBySymbolIgnoreCaseAndIsActiveTrue(String symbol);
 
 }
