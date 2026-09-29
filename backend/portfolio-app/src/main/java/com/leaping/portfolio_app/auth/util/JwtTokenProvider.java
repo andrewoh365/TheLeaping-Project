@@ -16,8 +16,11 @@ public class JwtTokenProvider {
     @Value("${jwt.secret:mySecretKeyForJWTTokenGenerationAndValidationPurpose123}")
     private String jwtSecret;
 
-    @Value("${jwt.expiration:86400000}")
+    @Value("${jwt.expiration:3600000}")  // 1 hour for access token
     private long jwtExpirationMs;
+
+    @Value("${jwt.refresh-expiration:604800000}")  // 7 days for refresh token
+    private long refreshTokenExpirationMs;
 
     public String generateToken(String email) {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
@@ -50,5 +53,43 @@ public class JwtTokenProvider {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    public String generateRefreshToken(String email) {
+        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        return Jwts.builder()
+                .subject(email)
+                .claim("type", "refresh")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + refreshTokenExpirationMs))
+                .signWith(key, SignatureAlgorithm.HS512)
+                .compact();
+    }
+
+    public boolean validateRefreshToken(String token) {
+        try {
+            SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
+            Claims claims = Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            
+            // Verify it's a refresh token
+            Object type = claims.get("type");
+            return type != null && type.equals("refresh");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public String getEmailFromRefreshToken(String token) {
+        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        Claims claims = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return claims.getSubject();
     }
 }

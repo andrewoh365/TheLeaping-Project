@@ -21,11 +21,9 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Environment
 .env
-.env.local
-.env.production
-.env.test
-.env.development
+application-local.yaml
 
 backend/portfolio-app/src/main/resources/application.yaml
 backend\portfolio-app\src\main\resources\application.yaml

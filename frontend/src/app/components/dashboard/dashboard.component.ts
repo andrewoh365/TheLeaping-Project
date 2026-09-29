@@ -51,12 +51,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private performSearch(query: string): void {
+    if (!this.searchQuery.trim()) {
+      this.searchResults = [];
+      return;
+    }
+
     this.instrumentService.searchInstruments(query)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (results) => {
           this.searchResults = results;
-          console.log('Search results:', results);
+          
         },
         error: (error) => {
           console.error('Search error:', error);
@@ -85,6 +90,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+
     this.destroy$.next();
     this.destroy$.complete();
   }

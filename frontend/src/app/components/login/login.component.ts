@@ -74,9 +74,11 @@ export class LoginComponent implements OnInit {
     const { email, password } = this.loginForm.value;
 
     this.authService.login(email, password).subscribe({
-      next: () => {
+      next: (response) => {
+        localStorage.setItem('token', response.token);
         this.snackBar.open('Login successful!', 'Close', { duration: 3000 });
         this.router.navigateByUrl(this.returnUrl);
+
       },
       error: (error) => {
         this.loading = false;

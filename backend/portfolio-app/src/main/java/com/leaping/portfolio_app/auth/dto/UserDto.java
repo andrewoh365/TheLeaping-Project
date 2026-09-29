@@ -1,4 +1,4 @@
-package com.leaping.portfolio_app.dto;
+package com.leaping.portfolio_app.auth.dto;
 
 public class UserDto {
     private String id;

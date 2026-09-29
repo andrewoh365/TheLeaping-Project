@@ -2,12 +2,13 @@
 
 :root {
   --primary-color: #167059;
+  --secondary-color: #00ab68;
   --primary-accent-color: #26d07c;
+  --secondary-accent-color: #00b386;
   --background-color: #1a1a1a;
-  --secondary-background-color: #3a3a3a;
-  --third-background-color: #4c4c4c;
-  --fourth-background-color: #cc1f2d;
+  --secondary-background-color: #2a2a2a;
   --text-color: #fafafa;
+  font-family: 'Inter', sans-serif;
 }
 
 html, body {
@@ -16,13 +17,8 @@ html, body {
 
 body {
   margin: 0;
-  background-color: var(--background-color);
-  color: var(--text-color);
-  font-family: 'Inter', sans-serif;}
-
-h1, h2, h3, h4, h5, h6 {
-  font-family: 'Poppins', sans-serif;
-  font-weight: 600;
+  background-color: #1a1a1a;
+  color: #ffffff;
 }
 
 
@@ -159,7 +155,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Dark Mode Button Icons */
 .mat-icon-button {
-  color: #5a7c70 !important; 
+  color: #5a7c70 !important;
   transition: all 0.2s ease;
   font-weight: 500;
 
@@ -180,16 +176,3 @@ h1, h2, h3, h4, h5, h6 {
     height: 24px !important;
   }
 }
-
-/*
-
-COLORSCHEME
-  --primary-color: #167059;
-  --secondary-color: #00ab68;
-  --primary-accent-color: #26d07c;
-  --secondary-accent-color: #00b386;
-  --background-color: #1a1a1a;
-  --text-color: #fafafa;
-}
-
-*/
