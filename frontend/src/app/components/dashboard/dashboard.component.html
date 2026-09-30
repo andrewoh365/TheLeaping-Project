@@ -13,15 +13,18 @@
       <mat-icon>account_circle</mat-icon>
     </button>
     <mat-menu #menu="matMenu">
-      <button mat-menu-item disabled>
+      <div class="user-info-header" *ngIf="currentUser">
         <mat-icon>person</mat-icon>
-        <span>{{ currentUser?.email || 'User' }}</span>
-      </button>
+        <div class="user-info">
+          <span class="user-name">{{ currentUser.firstName }} {{ currentUser.lastName }}</span>
+        </div>
+      </div>
       <mat-divider></mat-divider>
-      <button mat-menu-item (click)="logout()">
+      <button mat-menu-item class="logout-button" (click)="logout()">
         <mat-icon>logout</mat-icon>
-        <span>Logout</span>
-      </button>
+        <span class="logout-text">Logout</span>
+      </button>   
+      
     </mat-menu>
   </mat-toolbar>
 

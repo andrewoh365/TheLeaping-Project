@@ -32,7 +32,7 @@ import { InstrumentService, Instrument } from '../../services/instrumentService'
   styleUrls: ['./dashboard.component.scss']
 })
 export class DashboardComponent implements OnInit, OnDestroy {
-  currentUser: User | null = null;
+  currentUser = null as User | null;
   searchQuery: string = '';
   searchResults: Instrument[] = [];
   private destroy$ = new Subject<void>();
