@@ -4,6 +4,7 @@ import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -17,7 +18,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
 
 @Configuration
 @EnableWebSecurity
@@ -40,6 +40,18 @@ public class SecurityConfig {
     public JwtAuthenticationFilter jwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
                                                            UserDetailsService userDetailsService) {
         return new JwtAuthenticationFilter(jwtTokenProvider, userDetailsService);
+    }
+
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> jwtAuthenticationFilterRegistration(
+            JwtAuthenticationFilter jwtAuthenticationFilter) {
+
+        FilterRegistrationBean<JwtAuthenticationFilter> registration =
+                new FilterRegistrationBean<>(jwtAuthenticationFilter);
+
+        registration.setEnabled(false);
+
+        return registration;
     }
 
     @Bean
@@ -80,15 +92,10 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/auth/login").permitAll()        // Login endpoint
-                        .requestMatchers("/api/auth/register").permitAll()     // Register endpoint
-                        .requestMatchers("/api/auth/validate").permitAll()     // Token validation
-                        .requestMatchers("/api/auth/refresh").permitAll()      // Token refresh
-                        .requestMatchers("/api/auth/health").permitAll()       // Health check
-                        .requestMatchers("/api/auth/instrument/**").permitAll() // Instrument endpoints - temporarily allowed
-                        .requestMatchers("/api/public/**").permitAll()         // Public endpoints
-                        .requestMatchers("/auth/**").permitAll()               // Auth endpoints without /api prefix
-                        .anyRequest().authenticated()                          // Everything else requires authentication
+                        .requestMatchers("/api/auth/**").permitAll()      // Login, register, validate endpoints
+                        .requestMatchers("/api/public/**").permitAll()    // Public endpoints
+                        .requestMatchers("/auth/**").permitAll()          // Auth endpoints without /api prefix
+                        .anyRequest().authenticated()                     // Everything else requires authentication
                 )
                 // Add JWT filter BEFORE the standard username/password filter
                 // This way, JWT tokens are validated first

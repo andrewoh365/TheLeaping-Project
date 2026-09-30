@@ -97,7 +97,7 @@ export class RegisterComponent implements OnInit {
     const { firstName, lastName, email, password, confirmPassword, dateOfBirth, taxId } = this.registerForm.value;
 
     this.authService.register(firstName, lastName, email, password, confirmPassword, dateOfBirth, taxId).subscribe({
-      next: (response) => {
+      next: () => {
         this.snackBar.open('Registration successful! Redirecting to dashboard...', 'Close', { duration: 3000 });
         setTimeout(() => {
           this.router.navigate(['/dashboard']);

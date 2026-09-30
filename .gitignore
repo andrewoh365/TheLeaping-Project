@@ -22,7 +22,9 @@ dist/
 Thumbs.db
 
 # Environment
+# Environment
 .env
+application-local.yaml
 application-local.yaml
 
 backend/portfolio-app/src/main/resources/application.yaml
