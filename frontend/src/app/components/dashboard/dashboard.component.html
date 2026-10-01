@@ -1,67 +1,232 @@
-<div class="dashboard-container">
-  <mat-toolbar class="toolbar">
-    <button mat-icon-button class="hamburger">
-      <mat-icon>menu</mat-icon>
-    </button>
-    <span class="spacer"></span>
-    <div class="logo-container">
-      <mat-icon class="logo-icon">eject</mat-icon>
-      <span class="toolbar-title">MIGUELITY</span>
-    </div>
-    <span class="spacer"></span>
-    <button mat-icon-button class="user-icon-button" [matMenuTriggerFor]="menu">
-      <mat-icon>account_circle</mat-icon>
-    </button>
-    <mat-menu #menu="matMenu">
-      <div class="user-info-header" *ngIf="currentUser">
-        <mat-icon>person</mat-icon>
-        <div class="user-info">
-          <span class="user-name">{{ currentUser.firstName }} {{ currentUser.lastName }}</span>
-        </div>
+<div class="dashboard-shell">
+  <mat-toolbar class="topbar">
+    <div class="brand">
+      <button mat-icon-button class="mobile-nav-toggle" (click)="mobileNavOpen = !mobileNavOpen">
+        <mat-icon>menu</mat-icon>
+      </button>
+      <div>
+        <p class="brand-kicker">LEAP Direct Trading</p>
+        <h1>Client Trading Workspace</h1>
       </div>
-      <mat-divider></mat-divider>
-      <button mat-menu-item class="logout-button" (click)="logout()">
-        <mat-icon>logout</mat-icon>
-        <span class="logout-text">Logout</span>
-      </button>   
-      
-    </mat-menu>
+    </div>
+
+    <div class="topbar-actions">
+      <button mat-stroked-button class="outline-btn">Market Hours</button>
+      <button mat-stroked-button class="outline-btn">Audit Ready</button>
+
+      <button class="avatar-btn" [matMenuTriggerFor]="menu">
+        <span>{{ getInitials(currentUser) }}</span>
+      </button>
+      <mat-menu #menu="matMenu">
+        <div class="menu-header" *ngIf="currentUser">
+          <strong>{{ currentUser.firstName || 'Client' }} {{ currentUser.lastName || '' }}</strong>
+          <small>{{ currentUser.email }}</small>
+        </div>
+        <mat-divider></mat-divider>
+        <button mat-menu-item (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          <span>Sign out</span>
+        </button>
+      </mat-menu>
+    </div>
   </mat-toolbar>
 
-  <div class="searchbar-section">
-    <div class="search-wrapper">
-      <input 
-        type="text" 
-        class="search-input" 
-        [(ngModel)]="searchQuery" 
-        (input)="onSearchInput()"
-        placeholder="Enter a symbol or name"
-        aria-label="Search"
-      />
-      <mat-icon class="search-icon">search</mat-icon>
-    </div>
-    <div class="search-results">
-      <div *ngFor="let result of searchResults" class="search-result-item"> 
-        <div class="result-header">
-          <h3>{{ result?.symbol }}</h3>
-        </div>
+  <div class="terminal-surface">
+    <aside class="left-rail" [class.open]="mobileNavOpen">
+      <div class="rail-header">
+        <h2>Watchlists</h2>
+        <p>Live + editable</p>
       </div>
-    </div>
 
-  </div>
+      <div class="watchlist-create-row">
+        <input
+          type="text"
+          [(ngModel)]="newWatchlistName"
+          placeholder="Create watchlist"
+          aria-label="Watchlist name"
+        />
+        <button mat-flat-button (click)="createWatchlist()" [disabled]="isWatchlistBusy">+</button>
+      </div>
 
-  <div class="dashboard-content">
-    <div>
-      <mat-card class="portfolio-card">
-        <div >
-          <button mat-raised-button class="dashboard-button">Individual</button>
-          <button mat-raised-button class="dashboard-button">ForEx</button>
-          <button mat-raised-button class="dashboard-button">Crypto</button>  
-          <mat-card-header>
-            <mat-card-title>CHART </mat-card-title>
-          </mat-card-header>
+      <div class="watchlist-items" *ngIf="watchlists.length; else noWatchlists">
+        <button
+          *ngFor="let list of watchlists"
+          class="watchlist-item"
+          [class.active]="activeWatchlistId === list.watchlistId"
+          (click)="selectWatchlist(list.watchlistId)"
+        >
+          <span>{{ list.watchlistName }}</span>
+        </button>
+      </div>
+      <ng-template #noWatchlists>
+        <p class="empty-hint">No watchlists yet.</p>
+      </ng-template>
+
+      <h3 class="subheading">Instruments</h3>
+      <ul class="watchlist-instruments" *ngIf="watchlistInstruments.length; else emptyInstruments">
+        <li *ngFor="let instrument of watchlistInstruments">
+          <strong>{{ instrument.symbol }}</strong>
+          <small>{{ instrument.name }}</small>
+        </li>
+      </ul>
+      <ng-template #emptyInstruments>
+        <p class="empty-hint">No instruments added.</p>
+      </ng-template>
+    </aside>
+
+    <main class="market-core">
+      <section class="search-strip">
+        <div class="search-input-row">
+          <mat-icon>search</mat-icon>
+          <input
+            type="text"
+            [(ngModel)]="searchQuery"
+            (input)="onSearchInput()"
+            placeholder="Search symbol or name"
+            aria-label="Search instruments"
+          />
         </div>
-      </mat-card>
-    </div>
+        <div class="selected-tag" *ngIf="selectedSymbol">Focus: {{ selectedSymbol }}</div>
+      </section>
+
+      <section class="market-ticker" *ngIf="!isLoadingPulse; else pulseLoadingTemplate">
+        <button class="ticker-item" *ngFor="let quote of marketPulse" (click)="loadMarketDetail(quote.symbol)">
+          <strong>{{ quote.symbol }}</strong>
+          <span>{{ formatPrice(quote) }}</span>
+          <small>{{ quote.sourceType }}</small>
+        </button>
+      </section>
+      <ng-template #pulseLoadingTemplate>
+        <div class="pulse-loading">
+          <mat-spinner diameter="20"></mat-spinner>
+          <span>Loading market pulse...</span>
+        </div>
+      </ng-template>
+
+      <section class="core-main-grid">
+        <article class="price-stage">
+          <header>
+            <h2>Quote & Tradability</h2>
+            <p>Connected to live market endpoints</p>
+          </header>
+
+          <div *ngIf="isLoadingQuote" class="pulse-loading compact">
+            <mat-spinner diameter="20"></mat-spinner>
+            <span>Fetching quote and tradability...</span>
+          </div>
+
+          <div class="quote-details" *ngIf="!isLoadingQuote">
+            <p *ngIf="selectedQuote">
+              <strong>Quote:</strong> {{ formatPrice(selectedQuote) }}
+            </p>
+            <p *ngIf="selectedTradability">
+              <strong>Status:</strong>
+              <span [class.good]="selectedTradability.tradable" [class.warn]="!selectedTradability.tradable">
+                {{ selectedTradability.tradable ? 'Tradable' : 'Not tradable' }}
+              </span>
+              <small>{{ selectedTradability.reason }} | {{ selectedTradability.message }}</small>
+            </p>
+          </div>
+
+          <div class="chart-placeholder">
+            <div class="chart-lines"></div>
+            <p>Intraday chart placeholder (ready for live OHLC feed integration).</p>
+          </div>
+
+          <div class="search-results-grid" *ngIf="searchResults.length > 0">
+            <article class="search-card" *ngFor="let result of searchResults">
+              <div>
+                <h3>{{ result.symbol }}</h3>
+                <p>{{ result.name }}</p>
+              </div>
+              <div class="search-card-actions">
+                <button mat-stroked-button (click)="loadMarketDetail(result.symbol)">Load</button>
+                <button mat-flat-button (click)="addToWatchlist(result)" [disabled]="!activeWatchlistId">Watch</button>
+              </div>
+            </article>
+          </div>
+        </article>
+
+        <article class="trade-ticket">
+          <header>
+            <h2>Trade Ticket</h2>
+            <p>Execution UI aligned to BR-04 to BR-09</p>
+          </header>
+
+          <div class="trade-grid">
+            <label>
+              Symbol
+              <input [(ngModel)]="quickTrade.symbol" (blur)="loadMarketDetail(quickTrade.symbol)" />
+            </label>
+            <label>
+              Side
+              <select [(ngModel)]="quickTrade.side">
+                <option value="BUY">BUY</option>
+                <option value="SELL">SELL</option>
+              </select>
+            </label>
+            <label>
+              Quantity
+              <input type="number" min="1" [(ngModel)]="quickTrade.quantity" />
+            </label>
+            <label>
+              Type
+              <select [(ngModel)]="quickTrade.orderType">
+                <option value="MARKET">MARKET</option>
+                <option value="LIMIT">LIMIT (placeholder)</option>
+              </select>
+            </label>
+          </div>
+
+          <button mat-flat-button class="trade-submit" (click)="submitQuickTradePlaceholder()">Preview Order</button>
+          <p class="placeholder-note" *ngIf="orderStatusMessage">{{ orderStatusMessage }}</p>
+        </article>
+      </section>
+
+      <section class="blotter-row">
+        <article>
+          <h3>Portfolio Snapshot</h3>
+          <ul class="placeholder-list compact-list">
+            <li *ngFor="let holding of placeholderHoldings">
+              <div>
+                <strong>{{ holding.instrument }}</strong>
+                <small>{{ holding.status }}</small>
+              </div>
+              <div>
+                <strong>{{ holding.value }}</strong>
+                <span>{{ holding.allocation }} | {{ holding.change }}</span>
+              </div>
+            </li>
+          </ul>
+        </article>
+
+        <article>
+          <h3>Order Lifecycle</h3>
+          <ul class="placeholder-list compact-list">
+            <li *ngFor="let order of placeholderOrders">
+              <div>
+                <strong>{{ order.ref }}</strong>
+                <small>{{ order.timestamp }}</small>
+              </div>
+              <div>
+                <strong>{{ order.side }} {{ order.instrument }}</strong>
+                <span>{{ order.status }}</span>
+              </div>
+            </li>
+          </ul>
+        </article>
+
+        <article>
+          <h3>Business Insights</h3>
+          <ul class="insight-list compact-list">
+            <li *ngFor="let insight of placeholderInsights">
+              <h4>{{ insight.title }}</h4>
+              <p class="metric">{{ insight.metric }}</p>
+              <small>{{ insight.note }}</small>
+            </li>
+          </ul>
+        </article>
+      </section>
+    </main>
   </div>
 </div>

@@ -1,37 +1,52 @@
-<div class="login-container">
-  <mat-card class="login-card">
+<section class="auth-page">
+  <div class="auth-hero">
+    <p class="kicker">LEAP Direct Trading Platform</p>
+    <h1>Trade across equities, FX, and crypto in one secure workspace.</h1>
+    <p class="hero-copy">
+      Real-time quotes, auditable records, and portfolio visibility designed for self-directed clients.
+    </p>
+    <div class="hero-metrics">
+      <article>
+        <h2>24/7</h2>
+        <p>platform visibility</p>
+      </article>
+      <article>
+        <h2>3</h2>
+        <p>asset classes at launch</p>
+      </article>
+      <article>
+        <h2>100%</h2>
+        <p>order lifecycle traceability</p>
+      </article>
+    </div>
+  </div>
+
+  <mat-card class="auth-card">
     <mat-card-header>
-      <mat-card-title>Login</mat-card-title>
-      <mat-card-subtitle>Welcome back to Leaping Portfolio</mat-card-subtitle>
+      <mat-card-title>Welcome back</mat-card-title>
+      <mat-card-subtitle>Sign in to continue to your trading workspace.</mat-card-subtitle>
     </mat-card-header>
 
     <mat-card-content>
-      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
-        <!-- Error Alert -->
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="auth-form">
         <div *ngIf="errorMessage" class="error-message">
           <mat-icon>error</mat-icon>
           <span>{{ errorMessage }}</span>
         </div>
 
-        <!-- Email Field -->
-        <mat-form-field class="full-width">
+        <mat-form-field class="full-width" appearance="fill">
           <mat-label>Email</mat-label>
           <input
             matInput
             type="email"
             formControlName="email"
-            placeholder="Enter your email"
+            placeholder="you@example.com"
           />
-          <mat-error *ngIf="f['email'].hasError('required')">
-            Email is required
-          </mat-error>
-          <mat-error *ngIf="f['email'].hasError('email')">
-            Enter a valid email address
-          </mat-error>
+          <mat-error *ngIf="f['email'].hasError('required')">Email is required</mat-error>
+          <mat-error *ngIf="f['email'].hasError('email')">Enter a valid email address</mat-error>
         </mat-form-field>
 
-        <!-- Password Field -->
-        <mat-form-field class="full-width">
+        <mat-form-field class="full-width" appearance="fill">
           <mat-label>Password</mat-label>
           <input
             matInput
@@ -39,44 +54,22 @@
             formControlName="password"
             placeholder="Enter your password"
           />
-          <button
-            mat-icon-button
-            matSuffix
-            (click)="togglePasswordVisibility()"
-            type="button"
-          >
+          <button mat-icon-button matSuffix (click)="togglePasswordVisibility()" type="button">
             <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
           </button>
-          <mat-error *ngIf="f['password'].hasError('required')">
-            Password is required
-          </mat-error>
-          <mat-error *ngIf="f['password'].hasError('minlength')">
-            Password must be at least 6 characters
-          </mat-error>
+          <mat-error *ngIf="f['password'].hasError('required')">Password is required</mat-error>
+          <mat-error *ngIf="f['password'].hasError('minlength')">Password must be at least 6 characters</mat-error>
         </mat-form-field>
 
-        <!-- Submit Button -->
-        <button
-          mat-raised-button
-          color="primary"
-          class="full-width submit-btn"
-          [disabled]="loading"
-          type="submit"
-        >
-          <mat-spinner
-            *ngIf="loading"
-            diameter="20"
-            class="spinner"
-          ></mat-spinner>
-          {{ loading ? 'Logging in...' : 'Login' }}
+        <button mat-raised-button class="submit-btn" [disabled]="loading" type="submit">
+          <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
+          {{ loading ? 'Signing in...' : 'Sign In' }}
         </button>
       </form>
 
-      <!-- Links -->
       <div class="links">
-        <p>Don't have an account? <a routerLink="/register">Register here</a></p>
-        <p><a href="#forgot">Forgot your password?</a></p>
+        <p>New to LEAP? <a routerLink="/register">Create your account</a></p>
       </div>
     </mat-card-content>
   </mat-card>
-</div>
+</section>

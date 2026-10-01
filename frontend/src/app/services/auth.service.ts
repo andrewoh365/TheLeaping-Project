@@ -1,35 +1,55 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, BehaviorSubject } from 'rxjs';
-import { tap, catchError } from 'rxjs/operators';
-import { of } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { BehaviorSubject, Observable, throwError } from 'rxjs';
+import { catchError, map, tap } from 'rxjs/operators';
 
 export interface AuthResponse {
-  token: string;
+  token: string | null;
   refreshToken?: string;
+  success?: boolean;
+  message?: string;
+  role?: string;
+  email?: string;
   expiresIn?: number;
 }
 
 export interface User {
-  id?: string;
+  id: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  username?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+interface LoginApiResponse {
+  token: string | null;
+  email?: string;
+  message: string;
+  success: boolean;
+  role?: string;
+  refreshToken?: string;
+}
+
+interface RegisterApiResponse {
+  token: string | null;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  message: string;
+  success: boolean;
+  refreshToken?: string;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  private readonly API_URL = 'http://localhost:8080/api'; // Change this based on your backend
+  private readonly API_URL = 'http://localhost:8080/api';
   private readonly TOKEN_KEY = 'jwt_token';
   private readonly REFRESH_TOKEN_KEY = 'refresh_token';
   private readonly USER_KEY = 'user';
 
   private currentUserSubject = new BehaviorSubject<User | null>(this.getUserFromStorage());
   public currentUser$ = this.currentUserSubject.asObservable();
-  currentUser: any;
 
   private isAuthenticatedSubject = new BehaviorSubject<boolean>(this.hasValidToken());
   public isAuthenticated$ = this.isAuthenticatedSubject.asObservable();
@@ -38,132 +58,109 @@ export class AuthService {
     this.checkTokenExpiration();
   }
 
-  /**
-   * Register a new user
-   */
   register(firstName: string, lastName: string, email: string, password: string, confirmPassword: string, dateOfBirth: string, taxId: string): Observable<AuthResponse> {
     const body = { firstName, lastName, email, password, confirmPassword, dateOfBirth, taxId };
-    return this.http.post<AuthResponse>(`${this.API_URL}/auth/register`, body).pipe(
+    return this.http.post<RegisterApiResponse>(`${this.API_URL}/auth/register`, body).pipe(
+      map((response) => this.normalizeAuthResponse(response)),
       tap(response => {
-        this.storeToken(response.token, response.refreshToken);
-        this.isAuthenticatedSubject.next(true);
-        this.fetchUserDetails();
+        if (response.token) {
+          this.storeToken(response.token, response.refreshToken);
+          this.isAuthenticatedSubject.next(true);
+          this.fetchUserDetails();
+        }
       }),
       catchError(error => {
-        console.error('Registration error:', error);
-        throw error;
+        return throwError(() => error);
       })
     );
   }
 
-  /**
-   * Login with email and password
-   */
   login(email: string, password: string): Observable<AuthResponse> {
     const body = { email, password };
-    return this.http.post<AuthResponse>(`${this.API_URL}/auth/login`, body).pipe(
+    return this.http.post<LoginApiResponse>(`${this.API_URL}/auth/login`, body).pipe(
+      map((response) => {
+        const normalized = this.normalizeAuthResponse(response);
+        if (!response.success) {
+          throw new Error(response.message || 'Login failed');
+        }
+        return normalized;
+      }),
       tap(response => {
-        this.storeToken(response.token, response.refreshToken);
-        this.isAuthenticatedSubject.next(true);
-        // Optionally fetch user details after login
-        this.fetchUserDetails();
+        if (response.token) {
+          this.storeToken(response.token, response.refreshToken);
+          this.isAuthenticatedSubject.next(true);
+          this.fetchUserDetails();
+        }
       }),
       catchError(error => {
-        console.error('Login error:', error);
-        throw error;
+        return throwError(() => error);
       })
     );
   }
 
-  /**
-   * Logout the current user
-   */
   logout(): void {
     this.clearToken();
     this.currentUserSubject.next(null);
     this.isAuthenticatedSubject.next(false);
   }
 
-  /**
-   * Get the current JWT token
-   */
   getToken(): string | null {
     return localStorage.getItem(this.TOKEN_KEY);
   }
 
-  /**
-   * Check if user is authenticated
-   */
   isAuthenticated(): boolean {
     return this.hasValidToken();
   }
 
-  /**
-   * Get current user
-   */
-  getCurrentUser(): void {
-    this.http.get<User>(`${this.API_URL}/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${this.getToken()}`
-      }
-    }).subscribe({
-      next: (user) => {
-        this.currentUser = user;
-      },
-      error: (error) => {
-        console.error('Failed to fetch current user:', error);
-      }
-    });
+  getCurrentUser(): Observable<User> {
+    return this.http.get<User>(`${this.API_URL}/auth/me`).pipe(
+      tap((user) => {
+        this.currentUserSubject.next(user);
+        this.storeUser(user);
+      })
+    );
   } 
-  /**
-   * Refresh the JWT token
-   */
+
   refreshToken(): Observable<AuthResponse> {
-    const refreshToken = localStorage.getItem(this.REFRESH_TOKEN_KEY);
-    if (!refreshToken) {
-      return of({} as AuthResponse).pipe(
-        catchError(() => {
-          this.logout();
-          throw new Error('No refresh token available');
-        })
-      );
+    const refreshTokenValue = localStorage.getItem(this.REFRESH_TOKEN_KEY);
+    if (!refreshTokenValue) {
+      this.logout();
+      return throwError(() => new Error('No refresh token available'));
     }
 
-    const body = { refreshToken };
-    return this.http.post<AuthResponse>(`${this.API_URL}/auth/refresh`, body).pipe(
-      tap(response => {
-        this.storeToken(response.token, response.refreshToken);
+    const body = { refreshToken: refreshTokenValue };
+    return this.http.post<LoginApiResponse>(`${this.API_URL}/auth/refresh`, body).pipe(
+      map((response) => {
+        const normalized = this.normalizeAuthResponse(response);
+        if (!response.success) {
+          throw new Error(response.message || 'Token refresh failed');
+        }
+        return normalized;
       }),
-      catchError(() => {
+      tap(response => {
+        if (response.token) {
+          this.storeToken(response.token, response.refreshToken);
+        }
+      }),
+      catchError((error) => {
         this.logout();
-        throw new Error('Token refresh failed');
+        return throwError(() => error);
       })
     );
   }
 
-  /**
-   * Fetch user details from the backend
-   */
   private fetchUserDetails(): void {
-    const token = localStorage.getItem(this.TOKEN_KEY);
-    this.http.get<User>(`${this.API_URL}/auth/me` , {
-      headers : {
-        Authorization: `Bearer ${token}`
-      }
-    }).subscribe({
+    this.http.get<User>(`${this.API_URL}/auth/me`).subscribe({
       next: (user) => {
         this.currentUserSubject.next(user);
         this.storeUser(user);
       },
-      error: (error) => {
-        console.error('Failed to fetch user details:', error);
+      error: () => {
+        this.currentUserSubject.next(this.getUserFromStorage());
       }
     });
   }
 
-  /**
-   * Store token in localStorage
-   */
   private storeToken(token: string, refreshToken?: string): void {
     localStorage.setItem(this.TOKEN_KEY, token);
     if (refreshToken) {
@@ -171,35 +168,28 @@ export class AuthService {
     }
   }
 
-  /**
-   * Clear tokens from localStorage
-   */
   private clearToken(): void {
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.REFRESH_TOKEN_KEY);
     localStorage.removeItem(this.USER_KEY);
   }
 
-  /**
-   * Check if token exists and is not expired
-   */
   private hasValidToken(): boolean {
     const token = localStorage.getItem(this.TOKEN_KEY);
-    if (!token) return false;
+    if (!token) {
+      return false;
+    }
 
     try {
       const payload = this.parseJwt(token);
-      const expiresIn = payload.exp * 1000; // Convert to milliseconds
+      const expiresIn = payload.exp * 1000;
       return expiresIn > Date.now();
     } catch {
       return false;
     }
   }
 
-  /**
-   * Parse JWT token to get payload
-   */
-  private parseJwt(token: string): any {
+  private parseJwt(token: string): { exp: number } {
     try {
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -209,35 +199,37 @@ export class AuthService {
           .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
           .join('')
       );
-      return JSON.parse(jsonPayload);
-    } catch (error) {
+      return JSON.parse(jsonPayload) as { exp: number };
+    } catch {
       throw new Error('Invalid token');
     }
   }
 
-  /**
-   * Store user data in localStorage
-   */
   private storeUser(user: User): void {
     localStorage.setItem(this.USER_KEY, JSON.stringify(user));
   }
 
-  /**
-   * Retrieve user data from localStorage
-   */
   private getUserFromStorage(): User | null {
     const userStr = localStorage.getItem(this.USER_KEY);
     return userStr ? JSON.parse(userStr) : null;
   }
 
-  /**
-   * Check token expiration periodically
-   */
   private checkTokenExpiration(): void {
     setInterval(() => {
       if (!this.hasValidToken() && this.isAuthenticatedSubject.value) {
         this.logout();
       }
-    }, 60000); // Check every minute
+    }, 60000);
+  }
+
+  private normalizeAuthResponse(response: LoginApiResponse | RegisterApiResponse): AuthResponse {
+    return {
+      token: response.token,
+      refreshToken: response.refreshToken,
+      success: response.success,
+      message: response.message,
+      role: 'role' in response ? response.role : undefined,
+      email: response.email
+    };
   }
 }

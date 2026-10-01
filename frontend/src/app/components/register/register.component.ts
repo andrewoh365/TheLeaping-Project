@@ -105,7 +105,7 @@ export class RegisterComponent implements OnInit {
       },
       error: (error) => {
         this.loading = false;
-        this.errorMessage = error.error?.message || 'Registration failed. Please try again.';
+        this.errorMessage = error?.error?.message || error?.message || 'Registration failed. Please try again.';
         this.snackBar.open(this.errorMessage, 'Close', { duration: 5000 });
       }
     });

@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface Instrument {
-  instrumentId: string;
+  instrumentId: number;
   symbol: string;
   name: string;
   instrumentType: string;
@@ -24,7 +24,7 @@ export class InstrumentService {
     return this.http.get<Instrument[]>(this.API_URL);
   }
 
-  getInstrumentById(id: string): Observable<Instrument> {
+  getInstrumentById(id: number): Observable<Instrument> {
     return this.http.get<Instrument>(`${this.API_URL}/${id}`);
   }
 
