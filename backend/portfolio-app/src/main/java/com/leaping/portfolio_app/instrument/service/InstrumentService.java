@@ -1,7 +1,7 @@
-package com.leaping.portfolio_app.service;
+package com.leaping.portfolio_app.instrument.service;
 
 import com.leaping.portfolio_app.instrument.entity.Instrument;
-import com.leaping.portfolio_app.repository.InstrumentRepository;
+import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
