@@ -10,7 +10,6 @@ import com.leaping.portfolio_app.auth.model.User;
 import com.leaping.portfolio_app.auth.model.Customer;
 import com.leaping.portfolio_app.auth.repository.UserRepository;
 import com.leaping.portfolio_app.auth.repository.CustomerRepository;
-import com.leaping.portfolio_app.auth.repository.CustomerRepository;
 import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
