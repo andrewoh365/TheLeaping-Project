@@ -24,14 +24,8 @@ public class InstrumentController {
         this.instrumentService = instrumentService;
     }
 
-    @GetMapping
-    public ResponseEntity<List<InstrumentDTO>> getAllInstruments() {
-        List<Instrument> instruments = instrumentService.getAllInstruments();
-        List<InstrumentDTO> dtos = instruments.stream()
-            .map(InstrumentDTO::new)
-            .collect(Collectors.toList());
-        return ResponseEntity.ok(dtos);
-    }
+
+    
 
     @GetMapping("/search")
     public ResponseEntity<List<InstrumentDTO>> searchInstruments(@RequestParam String query) {

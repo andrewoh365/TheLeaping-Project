@@ -16,12 +16,8 @@ public class InstrumentService {
         this.instrumentRepository = instrumentRepository;
     }
 
-    public List<Instrument> getAllInstruments() {
-        return instrumentRepository.findAllWithCurrency();
-    }
-
-    public Optional<Instrument> getInstrumentById(Long id) {
-        return instrumentRepository.findByIdWithCurrency(id);
+    public Optional<Instrument> getInstrumentById(Long instrumentId) {
+        return instrumentRepository.findByInstrumentId(instrumentId);   
     }
 
     public Optional<Instrument> getActiveInstruments(Boolean isActive) {

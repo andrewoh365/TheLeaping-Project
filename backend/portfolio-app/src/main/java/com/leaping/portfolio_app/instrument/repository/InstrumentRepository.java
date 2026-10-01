@@ -28,13 +28,6 @@ public interface InstrumentRepository extends JpaRepository<Instrument, Long> {
            "WHERE LOWER(i.symbol) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(i.name) LIKE LOWER(CONCAT('%', :query, '%'))")
     List<Instrument> searchInstruments(@Param("query") String query);
-    
-    @Query("SELECT DISTINCT i FROM Instrument i")
-    List<Instrument> findAllWithCurrency();
-    
-    @Query("SELECT i FROM Instrument i WHERE i.instrumentId = :id")
-    Optional<Instrument> findByIdWithCurrency(@Param("id") Long id);
-
 
 }
 
