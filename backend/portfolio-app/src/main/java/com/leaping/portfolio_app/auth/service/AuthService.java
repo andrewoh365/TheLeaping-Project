@@ -79,6 +79,13 @@ public class AuthService {
     public String getEmailFromToken(String token) {
         return jwtTokenProvider.getEmailFromToken(token);
     }
+    
+    // Implemented this to get ID from same table containing email {User}
+    public Long getUserIdByEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow( () -> new RuntimeException("User Id not found for: " + email) );
+        return user.getId(); 
+    }
 
     public RegisterResponse register(RegisterRequest registerRequest) {
         // STEP 1: Validate input - check all fields are provided
