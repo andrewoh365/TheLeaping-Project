@@ -10,6 +10,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatListModule } from '@angular/material/list';
 import { Subject } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { takeUntil, debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrumentService';
@@ -70,10 +71,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
   }
 
+  navigationToInstrument(symbol: string | undefined): void {
+    if (symbol) {
+      this.router.navigate(['/instruments-expanded', symbol]);
+    }
+  }
+
 
   ngOnInit(): void {
+    this.authService.fetchUserDetails(); 
+    
     this.authService.currentUser$
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        takeUntil(this.destroy$),
+        filter(user => user !== null) 
+      )
       .subscribe(user => {
         this.currentUser = user;
       });

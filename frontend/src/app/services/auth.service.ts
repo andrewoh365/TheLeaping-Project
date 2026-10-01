@@ -99,23 +99,6 @@ export class AuthService {
   }
 
   /**
-   * Get current user
-   */
-  getCurrentUser(): void {
-    this.http.get<User>(`${this.API_URL}/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${this.getToken()}`
-      }
-    }).subscribe({
-      next: (user) => {
-        this.currentUser = user;
-      },
-      error: (error) => {
-        console.error('Failed to fetch current user:', error);
-      }
-    });
-  } 
-  /**
    * Refresh the JWT token
    */
   refreshToken(): Observable<AuthResponse> {
@@ -144,7 +127,7 @@ export class AuthService {
   /**
    * Fetch user details from the backend
    */
-  private fetchUserDetails(): void {
+  public fetchUserDetails(): void {
     const token = localStorage.getItem(this.TOKEN_KEY);
     this.http.get<User>(`${this.API_URL}/auth/me` , {
       headers : {

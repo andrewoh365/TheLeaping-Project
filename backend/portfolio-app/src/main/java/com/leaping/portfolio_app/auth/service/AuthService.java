@@ -8,7 +8,6 @@ import com.leaping.portfolio_app.auth.dto.RefreshRequest;
 import com.leaping.portfolio_app.auth.dto.UserDto;
 import com.leaping.portfolio_app.auth.model.User;
 import com.leaping.portfolio_app.auth.model.Customer;
-import com.leaping.portfolio_app.auth.model.Customer;
 import com.leaping.portfolio_app.auth.repository.UserRepository;
 import com.leaping.portfolio_app.auth.repository.CustomerRepository;
 import com.leaping.portfolio_app.auth.repository.CustomerRepository;
