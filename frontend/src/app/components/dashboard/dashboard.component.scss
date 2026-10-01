@@ -140,6 +140,16 @@
     padding: 8px;
   }
 
+  .portfolio-overview-card {
+    --mdc-elevated-card-container-color: var(--secondary-background-color);
+    --mdc-outlined-card-container-color: var(--secondary-background-color);
+    background-color: var(--secondary-background-color) !important;
+    color: var(--text-color);
+    margin-bottom: 28px;
+    border-radius: 8px;
+    padding: 8px;
+  }
+
   .trade-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

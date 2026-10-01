@@ -14,6 +14,12 @@ import { Subject } from 'rxjs';
 import { takeUntil, debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrumentService';
+import {
+  PortfolioHolding,
+  PortfolioOverviewResponse,
+  PortfolioService,
+  PortfolioSummary
+} from '../../services/portfolio.service';
 
 interface PlaceOrderRequest {
   instrument_id: number;
@@ -91,6 +97,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   orderSubmitError = '';
   placedOrder: OrderResponse | null = null;
   placedTrade: TradeResponse | null = null;
+  portfolioOverview: PortfolioOverviewResponse | null = null;
+  portfolioLoading = false;
+  portfolioError = '';
 
   private destroy$ = new Subject<void>();
   private searchSubject$ = new Subject<string>();
@@ -99,8 +108,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private router: Router,
     private instrumentService: InstrumentService,
-    private http: HttpClient
+    private http: HttpClient,
+    private portfolioService: PortfolioService
   ) {}
+
+  get portfolioSummary(): PortfolioSummary | null {
+    return this.portfolioOverview?.summary ?? null;
+  }
+
+  get portfolioHoldings(): PortfolioHolding[] {
+    return this.portfolioOverview?.holdings ?? [];
+  }
 
   navigateToInvest(): void {
     this.router.navigate(['/invest']);
@@ -149,12 +167,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
             this.placedOrder = executed.order;
             this.placedTrade = executed.trade ?? null;
             this.orderSubmitMessage = 'Order placed successfully.';
+            this.loadPortfolioOverview();
             return;
           }
 
           if (orderOnly.order_id) {
             this.placedOrder = orderOnly;
             this.orderSubmitMessage = 'Order placed successfully.';
+            this.loadPortfolioOverview();
             return;
           }
 
@@ -208,6 +228,26 @@ export class DashboardComponent implements OnInit, OnDestroy {
         }
       });
   }
+
+  loadPortfolioOverview(): void {
+    this.portfolioLoading = true;
+    this.portfolioError = '';
+
+    this.portfolioService.getOverview()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (overview) => {
+          this.portfolioOverview = overview;
+          this.portfolioLoading = false;
+        },
+        error: (error) => {
+          const message = error?.error?.message || 'Failed to load portfolio overview.';
+          this.portfolioError = message;
+          this.portfolioLoading = false;
+        }
+      });
+  }
+
   ngOnInit(): void {
     this.authService.currentUser$
       .pipe(takeUntil(this.destroy$))
@@ -224,6 +264,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .subscribe(query => {
         this.performSearch(query);
       });
+
+    this.loadPortfolioOverview();
   }
 
   ngOnDestroy(): void {

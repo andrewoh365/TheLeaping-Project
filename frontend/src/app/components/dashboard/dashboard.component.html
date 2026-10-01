@@ -129,6 +129,87 @@
         </mat-card-content>
       </mat-card>
 
+      <mat-card class="portfolio-overview-card">
+        <mat-card-header>
+          <mat-card-title>Portfolio Overview</mat-card-title>
+          <mat-card-subtitle>
+            {{ portfolioOverview?.last_executed_trade_at ? ('As of ' + (portfolioOverview?.last_executed_trade_at | date:'medium')) : 'No executed trades yet' }}
+          </mat-card-subtitle>
+        </mat-card-header>
+
+        <mat-card-content>
+          <p class="portfolio-message error" *ngIf="portfolioError">{{ portfolioError }}</p>
+          <p class="portfolio-message" *ngIf="portfolioLoading">Loading portfolio overview...</p>
+
+          <div class="portfolio-summary-grid" *ngIf="!portfolioLoading && portfolioSummary">
+            <div class="summary-tile">
+              <span class="summary-label">Cash Balance</span>
+              <strong>{{ portfolioSummary.cash_balance_usd | currency:'USD' }}</strong>
+            </div>
+            <div class="summary-tile">
+              <span class="summary-label">Buying Power</span>
+              <strong>{{ portfolioSummary.buying_power_usd | currency:'USD' }}</strong>
+            </div>
+            <div class="summary-tile">
+              <span class="summary-label">Holdings Value</span>
+              <strong>{{ portfolioSummary.total_holdings_value_usd | currency:'USD' }}</strong>
+            </div>
+            <div class="summary-tile">
+              <span class="summary-label">Total Portfolio Value</span>
+              <strong>{{ portfolioSummary.total_portfolio_value_usd | currency:'USD' }}</strong>
+            </div>
+            <div class="summary-tile" [class.positive]="portfolioSummary.total_gain_loss_usd >= 0" [class.negative]="portfolioSummary.total_gain_loss_usd < 0">
+              <span class="summary-label">Total Gain / Loss</span>
+              <strong>
+                {{ portfolioSummary.total_gain_loss_usd | currency:'USD' }}
+                ({{ portfolioSummary.total_gain_loss_percent }}%)
+              </strong>
+            </div>
+          </div>
+
+          <div class="holdings-section" *ngIf="!portfolioLoading && portfolioSummary">
+            <div class="holdings-header">
+              <h3>Current Holdings</h3>
+              <button mat-button type="button" (click)="loadPortfolioOverview()">Refresh</button>
+            </div>
+
+            <div class="holdings-empty" *ngIf="portfolioHoldings.length === 0">
+              No holdings yet. Place a trade to build your portfolio.
+            </div>
+
+            <div class="holdings-table-wrapper" *ngIf="portfolioHoldings.length > 0">
+              <table class="holdings-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Instrument</th>
+                    <th>Quantity</th>
+                    <th>Avg Cost</th>
+                    <th>Current Price</th>
+                    <th>Current Value</th>
+                    <th>Gain / Loss</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let holding of portfolioHoldings">
+                    <td>{{ holding.symbol }}</td>
+                    <td>{{ holding.instrument_name }}</td>
+                    <td>{{ holding.quantity }}</td>
+                    <td>{{ holding.average_cost_usd | currency:'USD' }}</td>
+                    <td>{{ holding.current_price | currency:'USD' }}</td>
+                    <td>{{ holding.current_value_usd | currency:'USD' }}</td>
+                    <td [class.positive]="holding.gain_loss_usd >= 0" [class.negative]="holding.gain_loss_usd < 0">
+                      {{ holding.gain_loss_usd | currency:'USD' }}
+                      ({{ holding.gain_loss_percent }}%)
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
       <mat-card class="portfolio-card">
         <div >
           <button mat-raised-button class="dashboard-button">Individual</button>
