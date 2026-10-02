@@ -43,11 +43,11 @@ export class LoginComponent implements OnInit {
     private router: Router,
     private authService: AuthService,
     private snackBar: MatSnackBar
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.initializeForm();
-    this.returnUrl = this.route.snapshot.queryParams['returnUrl'] || '/dashboard';
+    this.returnUrl = this.route.snapshot.queryParams['returnUrl'] || '';
   }
 
   private initializeForm(): void {
@@ -74,10 +74,17 @@ export class LoginComponent implements OnInit {
     const { email, password } = this.loginForm.value;
 
     this.authService.login(email, password).subscribe({
-      next: () => {
+      next: (response) => {
         this.snackBar.open('Login successful!', 'Close', { duration: 3000 });
-        this.router.navigateByUrl(this.returnUrl);
+
+        const defaultRoute =
+          response.role === 'ADMIN' || response.role === 'ANALYST'
+            ? '/analytics'
+            : '/dashboard';
+
+        this.router.navigateByUrl(this.returnUrl || defaultRoute);
       },
+
       error: (error) => {
         this.loading = false;
         this.errorMessage = error.error?.message || 'Invalid email or password';

@@ -4,23 +4,30 @@ import { Observable, BehaviorSubject } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
 
+export type UserRole = 'ADMIN' | 'ANALYST' | 'CUSTOMER';
+
 export interface AuthResponse {
   token: string;
   refreshToken?: string;
   expiresIn?: number;
+  email?: string;
+  role?: UserRole;
+  message?: string;
+  success?: boolean;
 }
 
 export interface User {
   id?: string;
   email: string;
   username?: string;
+  role?: UserRole;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  private readonly API_URL = 'http://localhost:8080/api'; // Change this based on your backend
+  private readonly API_URL = '/api'; // Change this based on your backend
   private readonly TOKEN_KEY = 'jwt_token';
   private readonly REFRESH_TOKEN_KEY = 'refresh_token';
   private readonly USER_KEY = 'user';
@@ -61,8 +68,16 @@ export class AuthService {
       tap(response => {
         this.storeToken(response.token, response.refreshToken);
         this.isAuthenticatedSubject.next(true);
-        // Optionally fetch user details after login
-        this.fetchUserDetails();
+
+        if (response.role) {
+          const user: User = {
+            email: response.email ?? email,
+            role: response.role
+          };
+
+          this.currentUserSubject.next(user);
+          this.storeUser(user);
+        }
       }),
       catchError(error => {
         console.error('Login error:', error);
@@ -99,6 +114,15 @@ export class AuthService {
    */
   getCurrentUser(): User | null {
     return this.currentUserSubject.value;
+  }
+
+  getCurrentRole(): UserRole | null {
+    return this.currentUserSubject.value?.role ?? null;
+  }
+
+  hasRole(...roles: UserRole[]): boolean {
+    const role = this.getCurrentRole();
+    return role !== null && roles.includes(role);
   }
 
   /**
