@@ -7,8 +7,7 @@ import com.leaping.portfolio_app.portfolio.entity.Holding;
 import com.leaping.portfolio_app.portfolio.entity.Portfolio;
 import com.leaping.portfolio_app.portfolio.repository.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
-import com.leaping.portfolio_app.market.entity.Price; 
-import com.leaping.portfolio_app.market.service.PricingService;
+import com.leaping.portfolio_app.market.entity.Price;
 
 import org.springframework.stereotype.Service;
 
@@ -46,7 +45,7 @@ public class PortfolioService {
 
             //Look up instruments latest price (does not exist yet)
             Optional<Price> latestPrice = pricingService.getLatestPriceBySymbol(
-                    holdng.getInstrument().getSymbol());
+                    holding.getInstrument().getSymbol());
             
             //If no price found or not in USD, =null
             BigDecimal currentPriceUsd = null;
@@ -70,6 +69,7 @@ public class PortfolioService {
                             .divide(costBasis, 4, RoundingMode.HALF_UP)
                             .multiply(new BigDecimal("100"));
 
+                }
             }
 
             HoldingResponse response = new HoldingResponse(
