@@ -1,10 +1,10 @@
 package com.leaping.portfolio_app.portfolio.service;
 
-import com.leaping.portfolio_app.portfolio.dto.HoldingResponse;
+import com.leaping.portfolio_app.holdings.HoldingResponse;
+import com.leaping.portfolio_app.holdings.Holding;
+import com.leaping.portfolio_app.holdings.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.dto.PortfolioResponse;
-import com.leaping.portfolio_app.portfolio.entity.Holding;
 import com.leaping.portfolio_app.portfolio.entity.Portfolio;
-import com.leaping.portfolio_app.portfolio.repository.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
 
 import org.springframework.stereotype.Service;
@@ -29,7 +29,7 @@ public class PortfolioService {
             .orElseThrow( () -> new RuntimeException("Portfolio not found for customer customerId:" + customerId) );
         
         //Portfolio found, find all holdings of that portfolio
-        List<Holding> holdings = holdingRepository.findByPortfolio_PortfolioId(portfolio.getPortfolioId() );
+        List<Holding> holdings = holdingRepository.findAllByPortfolio_PortfolioIdOrderByUpdatedAtDesc(portfolio.getPortfolioId() );
 
         //Take the holdings entities found and convert them into HoldingResponse DTO
         List<HoldingResponse> holdingResponses = new ArrayList<>(); 

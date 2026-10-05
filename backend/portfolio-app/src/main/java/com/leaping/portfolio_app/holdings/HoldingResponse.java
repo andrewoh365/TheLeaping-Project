@@ -1,11 +1,10 @@
-package com.leaping.portfolio_app.portfolio.dto;
+package com.leaping.portfolio_app.holdings;
 
 import java.math.BigDecimal;
 
 /* So far rest of the repo has been writing setters/getters/constructors 
     instead of using Lombok Annotations for short writing, will just label
     equivalent Lombok in comments*/
-
 
 public class HoldingResponse {
 
@@ -15,12 +14,10 @@ public class HoldingResponse {
     private BigDecimal averageCostUsd; 
 
     // @NoArgsConstructor
-    public HoldingResponse(){
+    public HoldingResponse(){}
 
-    }
-
-    //AllArgsConstructor
-     public HoldingResponse(String instrumentSymbol, String instrumentName,
+    // @AllArgsConstructor
+    public HoldingResponse(String instrumentSymbol, String instrumentName,
                             BigDecimal quantity, BigDecimal averageCostUsd) {
         this.instrumentSymbol = instrumentSymbol;
         this.instrumentName = instrumentName;
@@ -28,12 +25,12 @@ public class HoldingResponse {
         this.averageCostUsd = averageCostUsd;
     }
 
-    //@Getter
+    // @Getter
     public String getInstrumentSymbol() {
         return instrumentSymbol;
     }
 
-    //@Setter
+    // @Setter
     public void setInstrumentSymbol(String instrumentSymbol) {
         this.instrumentSymbol = instrumentSymbol;
     }
@@ -61,6 +58,4 @@ public class HoldingResponse {
     public void setAverageCostUsd(BigDecimal averageCostUsd) {
         this.averageCostUsd = averageCostUsd;
     }
-
-
 }
