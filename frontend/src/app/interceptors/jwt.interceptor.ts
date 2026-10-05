@@ -24,11 +24,12 @@ export class JwtInterceptor implements HttpInterceptor {
     return next.handle(request).pipe(
       catchError((error: HttpErrorResponse) => {
         // Handle 401 Unauthorized - try to refresh token
-        if (error.status === 401 && !this.isRefreshUrl(request.url)) {
+        if (
+          error.status === 401
+          && !this.isRefreshUrl(request.url)
+          && !this.isExcludedUrl(request.url)
+        ) {
           return this.handle401Error(request, next);
-        } else if (error.status === 403) {
-          // Forbidden - clear auth and redirect to login
-          this.authService.logout();
         }
         return throwError(() => error);
       })
