@@ -1,7 +1,10 @@
 package com.leaping.portfolio_app.holdings;
 
+import com.leaping.portfolio_app.auth.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -13,10 +16,12 @@ public class HoldingController {
 
     private final HoldingService holdingService;
     private final HoldingValidator holdingValidator;
+    private final AuthService authService;
 
-    public HoldingController(HoldingService holdingService, HoldingValidator holdingValidator) {
+    public HoldingController(HoldingService holdingService, HoldingValidator holdingValidator, AuthService authService) {
         this.holdingService = holdingService;
         this.holdingValidator = holdingValidator;
+        this.authService = authService;
     }
 
     /**
@@ -39,7 +44,13 @@ public class HoldingController {
             @PathVariable Long portfolioId
     ) {
         try {
-            holdingValidator.validatePortfolioExists(portfolioId);
+            // Get authenticated customer ID
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String email = auth.getName();
+            Long customerId = authService.getUserIdByEmail(email);
+            
+            // Validate portfolio exists AND belongs to customer
+            holdingValidator.validatePortfolioOwnership(portfolioId, customerId);
         } catch (RuntimeException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
         }
@@ -70,7 +81,13 @@ public class HoldingController {
             @PathVariable Long instrumentId
     ) {
         try {
-            holdingValidator.validatePortfolioExists(portfolioId);
+            // Get authenticated customer ID
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String email = auth.getName();
+            Long customerId = authService.getUserIdByEmail(email);
+            
+            // Validate portfolio exists AND belongs to customer
+            holdingValidator.validatePortfolioOwnership(portfolioId, customerId);
             holdingValidator.validateInstrument(instrumentId);
         } catch (RuntimeException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
@@ -116,9 +133,14 @@ public class HoldingController {
             );
         }
         
-        // Validate portfolio exists
+        // Validate portfolio exists AND belongs to customer
         try {
-            holdingValidator.validatePortfolioExists(portfolioId);
+            // Get authenticated customer ID
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String email = auth.getName();
+            Long customerId = authService.getUserIdByEmail(email);
+            
+            holdingValidator.validatePortfolioOwnership(portfolioId, customerId);
         } catch (RuntimeException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
         }

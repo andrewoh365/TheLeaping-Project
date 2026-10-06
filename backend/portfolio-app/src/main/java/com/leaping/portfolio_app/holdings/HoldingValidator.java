@@ -78,4 +78,31 @@ public class HoldingValidator {
             throw new RuntimeException("Portfolio not found with ID: " + portfolioId);
         }
     }
+
+    /**
+     * Validate that portfolio exists AND belongs to the specified customer.
+     * CRITICAL FOR SECURITY: Ensures customer can only access their own portfolios.
+     * 
+     * @param portfolioId the portfolio ID to validate
+     * @param customerId the customer ID to verify ownership
+     * @throws RuntimeException if portfolio not found or does not belong to customer
+     */
+    public void validatePortfolioOwnership(Long portfolioId, Long customerId) {
+        if (portfolioId == null || portfolioId <= 0) {
+            throw new RuntimeException("Invalid portfolio ID");
+        }
+        
+        if (customerId == null || customerId <= 0) {
+            throw new RuntimeException("Invalid customer ID");
+        }
+        
+        // Check if portfolio exists AND belongs to this customer
+        boolean portfolioExists = portfolioRepository.findByCustomer_UserId(customerId)
+            .map(portfolio -> portfolio.getPortfolioId().equals(portfolioId))
+            .orElse(false);
+        
+        if (!portfolioExists) {
+            throw new RuntimeException("Portfolio not found or access denied");
+        }
+    }
 }
