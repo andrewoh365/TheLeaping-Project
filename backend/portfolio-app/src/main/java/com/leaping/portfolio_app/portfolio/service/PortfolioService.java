@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.List; //allows for possibly having exactly 1 or 0 value or nothing.
 
 @Service
 public class PortfolioService {
@@ -33,34 +33,50 @@ public class PortfolioService {
     }
 
     public PortfolioResponse getPortfolioForCustomer(Long customerId){
-        //Find customer's portfolio if somehow doesn't exist, fail
+        // Fetch portfolio
         Portfolio portfolio = portfolioRepository.findByCustomer_UserId(customerId)
-            .orElseThrow( () -> new RuntimeException("Portfolio not found for customer customerId:" + customerId) );
+            .orElseThrow(() -> new RuntimeException("Portfolio not found for customer customerId:" + customerId));
         
-        //Portfolio found, find all holdings of that portfolio
-        List<Holding> holdings = holdingRepository.findAllByPortfolio_PortfolioIdOrderByUpdatedAtDesc(portfolio.getPortfolioId() );
+        // Fetch all holdings
+        List<Holding> holdings = holdingRepository.findAllByPortfolio_PortfolioIdOrderByUpdatedAtDesc(portfolio.getPortfolioId());
 
-        //Take the holdings entities found and convert them into HoldingResponse DTO
-        List<HoldingResponse> holdingResponses = new ArrayList<>(); 
-        for (Holding holding : holdings){
+        // Enrich each holding with market data
+        List<HoldingResponse> holdingResponses = new ArrayList<>();
+        for (Holding holding : holdings) {
+            // Get current market price
+            BigDecimal currentPrice = marketPriceService.getCurrentPrice(holding.getInstrument().getSymbol());
+            
+            // Calculate values
+            BigDecimal costBasis = holding.getQuantity().multiply(holding.getAverageCostUsd());
+            BigDecimal currentValue = holding.getQuantity().multiply(currentPrice);
+            BigDecimal gainLossUsd = currentValue.subtract(costBasis);
+            BigDecimal gainLossPercent = BigDecimal.ZERO;
+            
+            // Calculate gain/loss percentage safely
+            if (costBasis.compareTo(BigDecimal.ZERO) > 0) {
+                gainLossPercent = gainLossUsd.divide(costBasis, 4, RoundingMode.HALF_UP).multiply(new BigDecimal("100"));
+            }
+            
             HoldingResponse response = new HoldingResponse(
                 holding.getHoldingId(),
                 holding.getInstrument().getInstrumentId(),
-                holding.getInstrument().getSymbol(), 
+                holding.getInstrument().getSymbol(),
                 holding.getInstrument().getName(),
                 holding.getQuantity(),
-                holding.getAverageCostUsd()
+                holding.getAverageCostUsd(),
+                currentPrice,
+                currentValue,
+                gainLossUsd,
+                gainLossPercent
             );
             holdingResponses.add(response);
         }
 
-        // Packing everything into the outer PortfolioResponse
         return new PortfolioResponse(
             portfolio.getPortfolioId(),
             portfolio.getCashBalanceUsd(),
             holdingResponses
         );
-
     }
 
     /**

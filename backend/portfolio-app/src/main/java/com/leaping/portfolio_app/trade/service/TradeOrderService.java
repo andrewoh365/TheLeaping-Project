@@ -67,7 +67,7 @@ public class TradeOrderService {
      */
     public TradeOrder placeOrder(Long customerId, PlaceOrderRequest request) {
         // 1. Load portfolio for customer
-        Portfolio portfolio = portfolioRepository.findByCustomerUserId(customerId)
+        Portfolio portfolio = portfolioRepository.findByCustomer_UserId(customerId)
             .orElseThrow(() -> new IllegalArgumentException("Portfolio not found for customer"));
 
         // 2. Load instrument

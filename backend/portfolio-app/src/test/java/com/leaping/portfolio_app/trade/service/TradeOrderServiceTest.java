@@ -88,7 +88,7 @@ class TradeOrderServiceTest {
         request.setQuantity(new BigDecimal("10"));
         request.setTimeInForce("DAY");
 
-        when(portfolioRepository.findByCustomerUserId(1L)).thenReturn(Optional.of(portfolio));
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
         when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
         when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.00"));
         when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> {
@@ -115,7 +115,7 @@ class TradeOrderServiceTest {
         request.setOrderType("MARKET");
         request.setQuantity(new BigDecimal("100"));
 
-        when(portfolioRepository.findByCustomerUserId(1L)).thenReturn(Optional.of(portfolio));
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
         when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
         when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("200.00"));
 
@@ -135,7 +135,7 @@ class TradeOrderServiceTest {
         request.setOrderType("MARKET");
         request.setQuantity(new BigDecimal("2"));
 
-        when(portfolioRepository.findByCustomerUserId(1L)).thenReturn(Optional.of(portfolio));
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
         when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
         when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L)).thenReturn(Optional.empty());
 
