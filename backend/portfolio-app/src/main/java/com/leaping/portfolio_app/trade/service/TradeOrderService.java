@@ -9,9 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import com.leaping.portfolio_app.market.service.MarketPriceService;
-import com.leaping.portfolio_app.portfolio.entity.Holding;
+import com.leaping.portfolio_app.holdings.Holding;
+import com.leaping.portfolio_app.holdings.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.entity.Portfolio;
-import com.leaping.portfolio_app.portfolio.repository.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
 import com.leaping.portfolio_app.trade.dto.OrderResponse;
 import com.leaping.portfolio_app.trade.dto.PlaceOrderRequest;
@@ -67,7 +67,7 @@ public class TradeOrderService {
      */
     public TradeOrder placeOrder(Long customerId, PlaceOrderRequest request) {
         // 1. Load portfolio for customer
-        Portfolio portfolio = portfolioRepository.findByCustomerUserId(customerId)
+        Portfolio portfolio = portfolioRepository.findByCustomer_UserId(customerId)
             .orElseThrow(() -> new IllegalArgumentException("Portfolio not found for customer"));
 
         // 2. Load instrument
@@ -152,7 +152,8 @@ public class TradeOrderService {
             }
         } else {
             Holding holding = holdingRepository
-                .findByPortfolioAndInstrument(portfolio, instrument)
+                .findByPortfolio_PortfolioIdAndInstrument_InstrumentId(
+                    portfolio.getPortfolioId(), instrument.getInstrumentId())
                 .orElseThrow(() -> new IllegalArgumentException("Cannot sell an instrument that is not owned"));
 
             if (holding.getQuantity().compareTo(request.getQuantity()) < 0) {

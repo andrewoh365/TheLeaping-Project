@@ -2,6 +2,7 @@ package com.leaping.portfolio_app.portfolio.dto;
 
 import java.math.BigDecimal;
 import java.util.List;
+import com.leaping.portfolio_app.holdings.HoldingResponse;
 
 public class PortfolioResponse {
     private Long portfolioId;
