@@ -13,6 +13,8 @@ public interface InstrumentRepository extends JpaRepository<Instrument, Long> {
     Optional<Instrument> findByIsActive(Boolean isActive);
 
     Optional<Instrument> findByInstrumentId(Long instrumentId);
+
+    Optional<Instrument> findBySymbol(String symbol);
     
     Optional<Instrument> findBySymbolIgnoreCase(String symbol);
 

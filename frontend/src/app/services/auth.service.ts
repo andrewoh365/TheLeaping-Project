@@ -65,8 +65,10 @@ export class AuthService {
       tap(response => {
         this.storeToken(response.token, response.refreshToken);
         this.isAuthenticatedSubject.next(true);
-        // Optionally fetch user details after login
-        this.fetchUserDetails();
+        // Keep a minimal local user record; backend has no /auth/me endpoint yet.
+        const user: User = { email, firstName: '', lastName: ''};
+        this.currentUserSubject.next(user);
+        this.storeUser(user);
       }),
       catchError(error => {
         console.error('Login error:', error);

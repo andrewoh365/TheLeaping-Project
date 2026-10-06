@@ -187,6 +187,58 @@
     color: var(--text-color);
   }
 
+  .trade-card {
+    background-color: var(--secondary-background-color);
+    margin-bottom: 28px;
+    border-radius: 8px;
+    padding: 8px;
+  }
+
+  .trade-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
+  .trade-grid label,
+  .lookup-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  .trade-grid input,
+  .trade-grid select,
+  .lookup-row input {
+    height: 36px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: #2f2f2f;
+    color: #fafafa;
+    padding: 0 10px;
+  }
+
+  .trade-actions,
+  .trade-result,
+  .lookup-row {
+    margin-top: 12px;
+  }
+
+  .trade-message.success {
+    color: #6fe3ac;
+  }
+
+  .trade-message.error {
+    color: #ff8383;
+  }
+
+  .lookup-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
   .portfolio-card {
 
     background-color: var(--secondary-background-color);
@@ -210,50 +262,20 @@
     }
   
 }
-
-  mat-card-content {
-    p {
-      margin: 10px 0;
-      line-height: 1.6;
-
-      font-size: 15px;
-
-      &.user-info {
-        padding: 12px 16px;
-        margin-top: 20px;
-      }
-    }
-  }
-}
-
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 24px;
-}
-
-.feature-card {
-  background-color: var(--background-color);
-  transition: all 0.3s ease;
-
-
-
-
-  mat-card-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 20px;
-  }
 }
 
 @media (max-width: 600px) {
   .dashboard-content {
     padding: 20px 10px;
-  }
 
-  .features-grid {
-    grid-template-columns: 1fr;
+    .lookup-row {
+      flex-direction: column;
+      align-items: stretch;
+
+      label {
+        width: 100%;
+      }
+    }
   }
 }
 
