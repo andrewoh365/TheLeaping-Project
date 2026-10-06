@@ -15,15 +15,15 @@ public class InstrumentService {
         this.instrumentRepository = instrumentRepository;
     }
 
-    public List<Instrument> getAllInstruments() {
-        return instrumentRepository.findAll();
-    }
-
-    public Optional<Instrument> getInstrumentById(Long id) {
-        return instrumentRepository.findById(id);
+    public Optional<Instrument> getInstrumentById(Long instrumentId) {
+        return instrumentRepository.findByInstrumentId(instrumentId);   
     }
 
     public Optional<Instrument> getActiveInstruments(Boolean isActive) {
         return instrumentRepository.findByIsActive(isActive);
+    }
+
+    public List<Instrument> searchInstruments(String query) {
+        return instrumentRepository.searchInstruments(query);
     }
 }

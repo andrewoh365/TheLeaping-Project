@@ -13,15 +13,18 @@
       <mat-icon>account_circle</mat-icon>
     </button>
     <mat-menu #menu="matMenu">
-      <button mat-menu-item disabled>
+      <div class="user-info-header" *ngIf="currentUser">
         <mat-icon>person</mat-icon>
-        <span>{{ currentUser?.email || 'User' }}</span>
-      </button>
+        <div class="user-info">
+          <span class="user-name">{{ currentUser.firstName }} {{ currentUser.lastName }}</span>
+        </div>
+      </div>
       <mat-divider></mat-divider>
-      <button mat-menu-item (click)="logout()">
+      <button mat-menu-item class="logout-button" (click)="logout()">
         <mat-icon>logout</mat-icon>
-        <span>Logout</span>
-      </button>
+        <span class="logout-text">Logout</span>
+      </button>   
+      
     </mat-menu>
   </mat-toolbar>
 
@@ -32,11 +35,19 @@
         class="search-input" 
         [(ngModel)]="searchQuery" 
         (input)="onSearchInput()"
-        placeholder="Search portfolios, instruments..."
+        placeholder="Enter a symbol or name"
         aria-label="Search"
       />
       <mat-icon class="search-icon">search</mat-icon>
     </div>
+    <div class="search-results">
+      <div *ngFor="let result of searchResults" class="search-result-item"> 
+        <div class="result-header">
+          <h3>{{ result?.symbol }}</h3>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <div class="dashboard-content">
@@ -134,55 +145,11 @@
           <button mat-raised-button class="dashboard-button">Individual</button>
           <button mat-raised-button class="dashboard-button">ForEx</button>
           <button mat-raised-button class="dashboard-button">Crypto</button>  
+          <mat-card-header>
+            <mat-card-title>CHART </mat-card-title>
+          </mat-card-header>
         </div>
-        <mat-card-header>
-          <mat-card-title>CHART </mat-card-title>
-        </mat-card-header>
       </mat-card>
-    <!--
-
-    <div class="features-grid">
-      <mat-card class="feature-card">
-        <mat-card-header>
-          <mat-icon class="feature-icon">security</mat-icon>
-          <mat-card-title>Secure Authentication</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          Your login is protected with JWT tokens and automatic token refresh.
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="feature-card">
-        <mat-card-header>
-          <mat-icon class="feature-icon">trending_up</mat-icon>
-          <mat-card-title>Portfolio Tracking</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          Monitor your investments and portfolio performance in real-time.
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="feature-card">
-        <mat-card-header>
-          <mat-icon class="feature-icon">notifications_active</mat-icon>
-          <mat-card-title>Real-time Updates</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          Get instant notifications on market changes and your holdings.
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="feature-card" (click)="navigateToInvest()">
-        <mat-card-header>
-          <mat-icon class="feature-icon">invest-instrument</mat-icon>
-          <mat-card-title>Invest</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          Find an instrument
-        </mat-card-content>
-        
-      </mat-card>
-    </div> -->
     </div>
   </div>
 </div>

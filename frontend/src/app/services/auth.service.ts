@@ -13,6 +13,8 @@ export interface AuthResponse {
 export interface User {
   id?: string;
   email: string;
+  firstName: string;
+  lastName: string;
   username?: string;
 }
 
@@ -27,6 +29,7 @@ export class AuthService {
 
   private currentUserSubject = new BehaviorSubject<User | null>(this.getUserFromStorage());
   public currentUser$ = this.currentUserSubject.asObservable();
+  currentUser: any;
 
   private isAuthenticatedSubject = new BehaviorSubject<boolean>(this.hasValidToken());
   public isAuthenticated$ = this.isAuthenticatedSubject.asObservable();
@@ -43,7 +46,8 @@ export class AuthService {
     return this.http.post<AuthResponse>(`${this.API_URL}/auth/register`, body).pipe(
       tap(response => {
         this.storeToken(response.token, response.refreshToken);
-        // After registration, you might want to fetch user details
+        this.isAuthenticatedSubject.next(true);
+        this.fetchUserDetails();
       }),
       catchError(error => {
         console.error('Registration error:', error);
@@ -62,7 +66,7 @@ export class AuthService {
         this.storeToken(response.token, response.refreshToken);
         this.isAuthenticatedSubject.next(true);
         // Keep a minimal local user record; backend has no /auth/me endpoint yet.
-        const user: User = { email };
+        const user: User = { email, firstName: '', lastName: ''};
         this.currentUserSubject.next(user);
         this.storeUser(user);
       }),
@@ -97,13 +101,6 @@ export class AuthService {
   }
 
   /**
-   * Get current user
-   */
-  getCurrentUser(): User | null {
-    return this.currentUserSubject.value;
-  }
-
-  /**
    * Refresh the JWT token
    */
   refreshToken(): Observable<AuthResponse> {
@@ -127,6 +124,26 @@ export class AuthService {
         throw new Error('Token refresh failed');
       })
     );
+  }
+
+  /**
+   * Fetch user details from the backend
+   */
+  public fetchUserDetails(): void {
+    const token = localStorage.getItem(this.TOKEN_KEY);
+    this.http.get<User>(`${this.API_URL}/auth/me` , {
+      headers : {
+        Authorization: `Bearer ${token}`
+      }
+    }).subscribe({
+      next: (user) => {
+        this.currentUserSubject.next(user);
+        this.storeUser(user);
+      },
+      error: (error) => {
+        console.error('Failed to fetch user details:', error);
+      }
+    });
   }
 
   /**
