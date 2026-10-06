@@ -1,4 +1,4 @@
-package com.leaping.portfolio_app.service;
+package com.leaping.portfolio_app.instrument.service;
 
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
