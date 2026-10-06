@@ -4,6 +4,7 @@ from decimal import Decimal
 from fastapi.testclient import TestClient
 
 import app.api.dashboard as dashboard_api
+import app.main as main_api
 from app.main import app
 from app.schemas.dashboard import (
     ClientActivityPoint,
@@ -98,6 +99,41 @@ def test_health_endpoint():
     assert response.json() == {
         "status": "healthy",
         "service": "analytics",
+    }
+    
+def test_ready_endpoint_when_database_is_available(monkeypatch):
+    monkeypatch.setattr(
+        main_api,
+        "test_database_connection",
+        lambda: True,
+    )
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+
+    assert response.json() == {
+        "status": "ready",
+        "service": "analytics",
+        "database": "connected",
+    }
+
+
+def test_ready_endpoint_when_database_is_unavailable(monkeypatch):
+    monkeypatch.setattr(
+        main_api,
+        "test_database_connection",
+        lambda: False,
+    )
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+
+    assert response.json() == {
+        "status": "not_ready",
+        "service": "analytics",
+        "database": "unavailable",
     }
 
 

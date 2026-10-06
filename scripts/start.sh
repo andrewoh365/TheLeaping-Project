@@ -86,13 +86,6 @@ Run:
   ./scripts/setup.sh"
     fi
 
-    if ! docker image inspect "${ANALYTICS_IMAGE}" >/dev/null 2>&1; then
-        die "Analytics Docker image '${ANALYTICS_IMAGE}' does not exist.
-
-Run:
-  ./scripts/setup.sh"
-    fi
-
     success "Environment is prepared"
 }
 
@@ -310,9 +303,53 @@ Or reset the LEAP environment later with:
 start_analytics() {
     section "Analytics"
 
+    # Always build from the current analytics source.
+    #
+    # Docker's layer cache makes this quick when nothing changed,
+    # while ensuring pulled/edited Python code cannot accidentally
+    # run against an older local Docker image.
+    info "Ensuring analytics Docker image matches current source"
+
+    docker build \
+        -t "${ANALYTICS_IMAGE}" \
+        "${ANALYTICS_DIR}"
+
+    success "Analytics Docker image is current"
+
+
+    local current_image_id
+
+    current_image_id="$(
+        docker image inspect \
+            --format='{{.Id}}' \
+            "${ANALYTICS_IMAGE}"
+    )"
+
+
     if docker_container_exists "${ANALYTICS_CONTAINER}"; then
 
-        if docker_container_running "${ANALYTICS_CONTAINER}"; then
+        local container_image_id
+
+        container_image_id="$(
+            docker inspect \
+                --format='{{.Image}}' \
+                "${ANALYTICS_CONTAINER}" \
+                2>/dev/null || true
+        )"
+
+
+        # If the source changed, docker build above created a new
+        # image. A container created from the previous image must
+        # therefore be replaced.
+        if [[ "${container_image_id}" != "${current_image_id}" ]]; then
+            warn "Existing analytics container uses an older image"
+            info "Replacing analytics container with the current image"
+
+            docker rm -f \
+                "${ANALYTICS_CONTAINER}" \
+                >/dev/null
+
+        elif docker_container_running "${ANALYTICS_CONTAINER}"; then
 
             if curl \
                 --silent \
@@ -321,19 +358,23 @@ start_analytics() {
                 "http://127.0.0.1:${ANALYTICS_PORT}/health" \
                 >/dev/null 2>&1; then
 
-                success "Analytics service is already running"
+                success "Analytics service is already running with the current image"
                 return 0
             fi
 
             warn "Existing LEAP analytics container is unhealthy"
             info "Removing unhealthy LEAP analytics container"
 
-            docker rm -f "${ANALYTICS_CONTAINER}" >/dev/null
+            docker rm -f \
+                "${ANALYTICS_CONTAINER}" \
+                >/dev/null
 
         else
             warn "Removing stopped LEAP analytics container"
 
-            docker rm "${ANALYTICS_CONTAINER}" >/dev/null
+            docker rm \
+                "${ANALYTICS_CONTAINER}" \
+                >/dev/null
         fi
     fi
 
@@ -384,7 +425,8 @@ start_analytics() {
 
         echo "----------------------------------------"
 
-        docker rm -f "${ANALYTICS_CONTAINER}" \
+        docker rm -f \
+            "${ANALYTICS_CONTAINER}" \
             >/dev/null 2>&1 || true
 
         die "Fix the analytics startup error, then rerun ./scripts/start.sh."

@@ -80,9 +80,19 @@ export class AnalyticsDashboardComponent
 
     dateFrom = '';
     dateTo = '';
+
     assetType: AssetType | '' = '';
     market = '';
     orderStatus: OrderStatus | '' = '';
+
+    readonly markets = [
+        'NASDAQ',
+        'NYSE',
+        'LSE',
+        'NSE',
+        'FOREX',
+        'CRYPTO'
+    ];
 
     private readonly destroy$ = new Subject<void>();
 
@@ -123,7 +133,6 @@ export class AnalyticsDashboardComponent
     }
 
     private loadDashboard(): void {
-
         this.loading = true;
         this.errorMessage = '';
 
@@ -183,7 +192,6 @@ export class AnalyticsDashboardComponent
     }
 
     private renderCharts(): void {
-
         if (!this.dashboard) {
             return;
         }
@@ -198,7 +206,6 @@ export class AnalyticsDashboardComponent
     }
 
     private renderVolumeChart(): void {
-
         if (!this.volumeChartRef || !this.dashboard) {
             return;
         }
@@ -233,7 +240,6 @@ export class AnalyticsDashboardComponent
     }
 
     private renderOutcomesChart(): void {
-
         if (!this.outcomesChartRef || !this.dashboard) {
             return;
         }
@@ -267,7 +273,6 @@ export class AnalyticsDashboardComponent
     }
 
     private renderInstrumentsChart(): void {
-
         if (!this.instrumentsChartRef || !this.dashboard) {
             return;
         }
@@ -302,7 +307,6 @@ export class AnalyticsDashboardComponent
     }
 
     private renderClientsChart(): void {
-
         if (!this.clientsChartRef || !this.dashboard) {
             return;
         }
@@ -337,7 +341,6 @@ export class AnalyticsDashboardComponent
     }
 
     private renderRejectionsChart(): void {
-
         if (!this.rejectionsChartRef || !this.dashboard) {
             return;
         }
@@ -372,7 +375,6 @@ export class AnalyticsDashboardComponent
     }
 
     private destroyCharts(): void {
-
         this.volumeChart?.destroy();
         this.outcomesChart?.destroy();
         this.instrumentsChart?.destroy();

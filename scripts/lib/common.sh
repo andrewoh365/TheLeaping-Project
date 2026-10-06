@@ -24,7 +24,6 @@ FRONTEND_DIR="${REPO_ROOT}/frontend"
 ENV_FILE="${REPO_ROOT}/.env"
 
 SPRING_LOCAL_CONFIG="${SPRING_DIR}/src/main/resources/application-local.yaml"
-SPRING_LOCAL_CONFIG_EXAMPLE="${SPRING_DIR}/src/main/resources/application-local.yaml.example"
 
 RUN_DIR="${REPO_ROOT}/.run"
 
@@ -139,11 +138,11 @@ load_env() {
     if [[ ! -f "${ENV_FILE}" ]]; then
         die "Missing ${ENV_FILE}
 
-Create a .env file in the repository root containing:
+Run the LEAP environment setup:
 
-DB_USERNAME=...
-DB_PASSWORD=...
-JWT_SECRET=..."
+  ./scripts/setup.sh
+
+Setup will create or migrate the required local environment configuration."
     fi
 
     set -a
@@ -159,7 +158,11 @@ require_env_var() {
     local variable_name="$1"
 
     if [[ -z "${!variable_name:-}" ]]; then
-        die "${variable_name} is missing or empty in ${ENV_FILE}"
+        die "${variable_name} is missing or empty in ${ENV_FILE}
+
+Update your local configuration, then rerun:
+
+  ./scripts/setup.sh"
     fi
 }
 
@@ -361,6 +364,7 @@ wait_for_http() {
     return 1
 }
 
+
 # ------------------------------------------------------------
 # Node / nvm helpers
 # ------------------------------------------------------------
@@ -376,6 +380,7 @@ Run:
     fi
 
     local desired_version
+
     desired_version="$(
         tr -d '[:space:]' < "${nvmrc_file}"
     )"
@@ -425,6 +430,7 @@ Detected:
   $(node --version)"
     fi
 }
+
 
 # ------------------------------------------------------------
 # Header

@@ -43,6 +43,9 @@ POSTGRES_IMAGE="postgres:16"
 POSTGRES_DB_NAME="leaping_db"
 POSTGRES_VOLUME="leap-postgres-data"
 
+STANDARD_SPRING_DB_URL="jdbc:postgresql://localhost:${POSTGRES_PORT}/${POSTGRES_DB_NAME}"
+STANDARD_SPRING_PORT="${SPRING_PORT}"
+
 
 # ------------------------------------------------------------
 # Project structure
@@ -75,6 +78,9 @@ check_required_directories() {
 
     [[ -f "${REPO_ROOT}/.nvmrc" ]] \
         || die "Missing ${REPO_ROOT}/.nvmrc"
+
+    [[ -f "${REPO_ROOT}/.env.example" ]] \
+        || die "Missing ${REPO_ROOT}/.env.example"
 
     success "Project structure"
 }
@@ -225,20 +231,172 @@ $(node --version)"
 # Spring local configuration
 # ------------------------------------------------------------
 
-prepare_spring_local_config() {
-    if [[ -f "${SPRING_LOCAL_CONFIG}" ]]; then
-        success "Spring local configuration already exists"
+SPRING_CONFIG_SERVER_PORT=""
+SPRING_CONFIG_DB_URL=""
+SPRING_CONFIG_DB_USERNAME=""
+SPRING_CONFIG_DB_PASSWORD=""
+SPRING_CONFIG_JWT_SECRET=""
+
+
+yaml_path_value() {
+    local file="$1"
+    local wanted_path="$2"
+
+    awk -v wanted_path="${wanted_path}" '
+        function trim(value) {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+            return value
+        }
+
+        function leading_spaces(value, match_text) {
+            match(value, /^[[:space:]]*/)
+            match_text = substr(value, RSTART, RLENGTH)
+            gsub(/\t/, "    ", match_text)
+            return length(match_text)
+        }
+
+        function current_path(leaf, result, i) {
+            result = ""
+
+            for (i = 1; i <= depth; i++) {
+                if (result != "") {
+                    result = result "."
+                }
+
+                result = result keys[i]
+            }
+
+            if (result != "") {
+                result = result "."
+            }
+
+            return result leaf
+        }
+
+        /^[[:space:]]*#/ || /^[[:space:]]*$/ {
+            next
+        }
+
+        {
+            indent = leading_spaces($0)
+            content = $0
+            sub(/^[[:space:]]*/, "", content)
+
+            colon = index(content, ":")
+
+            if (colon == 0) {
+                next
+            }
+
+            key = trim(substr(content, 1, colon - 1))
+            value = trim(substr(content, colon + 1))
+
+            while (depth > 0 && indent <= indents[depth]) {
+                delete keys[depth]
+                delete indents[depth]
+                depth--
+            }
+
+            if (value == "" || value ~ /^#/) {
+                depth++
+                keys[depth] = key
+                indents[depth] = indent
+                next
+            }
+
+            if (current_path(key) == wanted_path) {
+                print value
+                exit
+            }
+        }
+    ' "${file}"
+}
+
+
+normalize_yaml_scalar() {
+    local value="$1"
+
+    value="$(
+        printf '%s' "${value}" \
+            | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//'
+    )"
+
+    if [[ "${value}" =~ ^\"(.*)\"[[:space:]]*(#.*)?$ ]]; then
+        printf '%s' "${BASH_REMATCH[1]}"
         return 0
     fi
 
-    info "Creating standard Spring local configuration"
+    if [[ "${value}" =~ ^\'(.*)\'[[:space:]]*(#.*)?$ ]]; then
+        printf '%s' "${BASH_REMATCH[1]}"
+        return 0
+    fi
 
-    cat > "${SPRING_LOCAL_CONFIG}" <<'EOF'
+    value="$(
+        printf '%s' "${value}" \
+            | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//'
+    )"
+
+    printf '%s' "${value}"
+}
+
+
+looks_like_env_reference() {
+    local value="$1"
+
+    [[ \
+        "${value}" =~ ^\$\{[A-Za-z_][A-Za-z0-9_]*\}$ \
+        || "${value}" =~ ^\$[A-Za-z_][A-Za-z0-9_]*$ \
+    ]]
+}
+
+
+is_expected_env_reference() {
+    local value="$1"
+    local variable_name="$2"
+
+    local braced_reference="\${${variable_name}}"
+    local simple_reference="\$${variable_name}"
+
+    [[ \
+        "${value}" == "${braced_reference}" \
+        || "${value}" == "${simple_reference}" \
+    ]]
+}
+
+
+is_placeholder_value() {
+    local value="$1"
+    local upper_value="${value^^}"
+
+    [[ -z "${value}" ]] && return 0
+
+    case "${upper_value}" in
+        YOUR_*|CHANGE_ME*|CHANGEME*|REPLACE_ME*|REPLACE_WITH_*|TODO|TODO_*|PLACEHOLDER*)
+            return 0
+            ;;
+    esac
+
+    return 1
+}
+
+
+ensure_spring_local_config() {
+    if [[ -f "${SPRING_LOCAL_CONFIG}" ]]; then
+        success "Existing application-local.yaml found"
+        return 0
+    fi
+
+    info "application-local.yaml does not exist"
+    info "Creating the standard LEAP local Spring configuration"
+
+    mkdir -p "$(dirname "${SPRING_LOCAL_CONFIG}")"
+
+    cat > "${SPRING_LOCAL_CONFIG}" <<'YAML'
 # ============================================================
-# LEAP Local Development Configuration
+# LEAP local Spring configuration
 #
-# This file is local-only and should NOT be committed.
-# Secrets come from the repository root .env file.
+# This file is intentionally local and gitignored.
+# Secrets are loaded from the repository root .env file.
 # ============================================================
 
 server:
@@ -261,58 +419,121 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-EOF
+YAML
 
     success "Created application-local.yaml"
 }
 
 
-check_existing_spring_config() {
-    if [[ ! -f "${SPRING_LOCAL_CONFIG}" ]]; then
-        return 0
+read_spring_local_config() {
+    SPRING_CONFIG_SERVER_PORT="$(
+        normalize_yaml_scalar "$(
+            yaml_path_value \
+                "${SPRING_LOCAL_CONFIG}" \
+                "server.port"
+        )"
+    )"
+
+    SPRING_CONFIG_DB_URL="$(
+        normalize_yaml_scalar "$(
+            yaml_path_value \
+                "${SPRING_LOCAL_CONFIG}" \
+                "spring.datasource.url"
+        )"
+    )"
+
+    SPRING_CONFIG_DB_USERNAME="$(
+        normalize_yaml_scalar "$(
+            yaml_path_value \
+                "${SPRING_LOCAL_CONFIG}" \
+                "spring.datasource.username"
+        )"
+    )"
+
+    SPRING_CONFIG_DB_PASSWORD="$(
+        normalize_yaml_scalar "$(
+            yaml_path_value \
+                "${SPRING_LOCAL_CONFIG}" \
+                "spring.datasource.password"
+        )"
+    )"
+
+    SPRING_CONFIG_JWT_SECRET="$(
+        normalize_yaml_scalar "$(
+            yaml_path_value \
+                "${SPRING_LOCAL_CONFIG}" \
+                "jwt.secret"
+        )"
+    )"
+}
+
+
+validate_spring_local_config() {
+    read_spring_local_config
+
+    local invalid=false
+
+    if [[ "${SPRING_CONFIG_SERVER_PORT}" != "${STANDARD_SPRING_PORT}" ]]; then
+        error "application-local.yaml must set server.port to ${STANDARD_SPRING_PORT}."
+        invalid=true
     fi
 
-    local warning_found=false
-
-    if ! grep -qE '^[[:space:]]*port:[[:space:]]*8081[[:space:]]*$' \
-        "${SPRING_LOCAL_CONFIG}"; then
-
-        warn "application-local.yaml does not use the standard LEAP Spring port: 8081"
-        warning_found=true
+    if [[ "${SPRING_CONFIG_DB_URL}" != "${STANDARD_SPRING_DB_URL}" ]]; then
+        error "application-local.yaml must use this datasource URL:
+  ${STANDARD_SPRING_DB_URL}"
+        invalid=true
     fi
 
-    if ! grep -q \
-        'jdbc:postgresql://localhost:5432/leaping_db' \
-        "${SPRING_LOCAL_CONFIG}"; then
+    if is_placeholder_value "${SPRING_CONFIG_DB_USERNAME}"; then
+        error "application-local.yaml is missing a real spring.datasource.username."
+        invalid=true
 
-        warn "application-local.yaml does not appear to use the standard LEAP database URL:"
-        echo "  jdbc:postgresql://localhost:5432/leaping_db"
-        warning_found=true
+    elif looks_like_env_reference "${SPRING_CONFIG_DB_USERNAME}" \
+        && ! is_expected_env_reference \
+            "${SPRING_CONFIG_DB_USERNAME}" \
+            "DB_USERNAME"; then
+
+        error "spring.datasource.username may only reference DB_USERNAME."
+        invalid=true
     fi
 
-    if ! grep -q 'DB_USERNAME' "${SPRING_LOCAL_CONFIG}"; then
-        warn "application-local.yaml does not reference DB_USERNAME from .env"
-        warning_found=true
+    if is_placeholder_value "${SPRING_CONFIG_DB_PASSWORD}"; then
+        error "application-local.yaml is missing a real spring.datasource.password."
+        invalid=true
+
+    elif looks_like_env_reference "${SPRING_CONFIG_DB_PASSWORD}" \
+        && ! is_expected_env_reference \
+            "${SPRING_CONFIG_DB_PASSWORD}" \
+            "DB_PASSWORD"; then
+
+        error "spring.datasource.password may only reference DB_PASSWORD."
+        invalid=true
     fi
 
-    if ! grep -q 'DB_PASSWORD' "${SPRING_LOCAL_CONFIG}"; then
-        warn "application-local.yaml does not reference DB_PASSWORD from .env"
-        warning_found=true
+    if is_placeholder_value "${SPRING_CONFIG_JWT_SECRET}"; then
+        error "application-local.yaml is missing a real jwt.secret."
+        invalid=true
+
+    elif looks_like_env_reference "${SPRING_CONFIG_JWT_SECRET}" \
+        && ! is_expected_env_reference \
+            "${SPRING_CONFIG_JWT_SECRET}" \
+            "JWT_SECRET"; then
+
+        error "jwt.secret may only reference JWT_SECRET."
+        invalid=true
     fi
 
-    if ! grep -q 'JWT_SECRET' "${SPRING_LOCAL_CONFIG}"; then
-        warn "application-local.yaml does not reference JWT_SECRET from .env"
-        warning_found=true
+    if [[ "${invalid}" == "true" ]]; then
+        die "Spring local configuration does not match the LEAP team standard.
+
+The setup script did NOT overwrite your existing file:
+  ${SPRING_LOCAL_CONFIG}
+
+Correct the values reported above, then rerun:
+  ./scripts/setup.sh"
     fi
 
-    if [[ "${warning_found}" == "false" ]]; then
-        success "Spring local configuration matches the team environment"
-    else
-        echo
-        warn "The script will NOT overwrite an existing application-local.yaml."
-        warn "Review this file before starting LEAP:"
-        echo "  ${SPRING_LOCAL_CONFIG}"
-    fi
+    success "Spring local configuration matches the team standard"
 }
 
 
@@ -320,23 +541,144 @@ check_existing_spring_config() {
 # Environment setup
 # ------------------------------------------------------------
 
-prepare_env_file() {
+read_env_example_value() {
+    local variable_name="$1"
     local env_example="${REPO_ROOT}/.env.example"
 
+    (
+        set +u
+
+        # shellcheck disable=SC1090
+        source "${env_example}"
+
+        printf '%s' "${!variable_name:-}"
+    )
+}
+
+
+bootstrap_env_value() {
+    local spring_value="$1"
+    local variable_name="$2"
+
+    if is_expected_env_reference \
+        "${spring_value}" \
+        "${variable_name}"; then
+
+        read_env_example_value "${variable_name}"
+        return 0
+    fi
+
+    printf '%s' "${spring_value}"
+}
+
+
+prepare_env_file() {
     if [[ -f "${ENV_FILE}" ]]; then
         success ".env already exists"
         return 0
     fi
 
-    if [[ ! -f "${env_example}" ]]; then
-        die "Missing ${env_example}"
+    info ".env does not exist"
+    info "Creating .env from the existing Spring configuration"
+
+    local db_username
+    local db_password
+    local jwt_secret
+
+    db_username="$(
+        bootstrap_env_value \
+            "${SPRING_CONFIG_DB_USERNAME}" \
+            "DB_USERNAME"
+    )"
+
+    db_password="$(
+        bootstrap_env_value \
+            "${SPRING_CONFIG_DB_PASSWORD}" \
+            "DB_PASSWORD"
+    )"
+
+    jwt_secret="$(
+        bootstrap_env_value \
+            "${SPRING_CONFIG_JWT_SECRET}" \
+            "JWT_SECRET"
+    )"
+
+    if [[ \
+        -z "${db_username}" \
+        || -z "${db_password}" \
+        || -z "${jwt_secret}" \
+    ]]; then
+        die "Could not create .env because one or more required values are missing."
     fi
 
-    info "Creating local .env from .env.example"
+    local old_umask
+    old_umask="$(umask)"
 
-    cp "${env_example}" "${ENV_FILE}"
+    umask 077
+
+    {
+        echo "# LEAP local development environment"
+        echo "# Generated by ./scripts/setup.sh"
+        echo "# This file is gitignored."
+        echo
+
+        printf 'DB_USERNAME=%q\n' "${db_username}"
+        printf 'DB_PASSWORD=%q\n' "${db_password}"
+        printf 'JWT_SECRET=%q\n' "${jwt_secret}"
+    } > "${ENV_FILE}"
+
+    umask "${old_umask}"
 
     success "Created .env"
+}
+
+
+validate_spring_env_alignment() {
+    local invalid=false
+
+    if ! is_expected_env_reference \
+        "${SPRING_CONFIG_DB_USERNAME}" \
+        "DB_USERNAME" \
+        && [[ "${SPRING_CONFIG_DB_USERNAME}" != "${DB_USERNAME}" ]]; then
+
+        error "DB_USERNAME in .env does not match spring.datasource.username in application-local.yaml."
+
+        echo "  Spring username: ${SPRING_CONFIG_DB_USERNAME}" >&2
+        echo "  .env username:   ${DB_USERNAME}" >&2
+
+        invalid=true
+    fi
+
+    if ! is_expected_env_reference \
+        "${SPRING_CONFIG_DB_PASSWORD}" \
+        "DB_PASSWORD" \
+        && [[ "${SPRING_CONFIG_DB_PASSWORD}" != "${DB_PASSWORD}" ]]; then
+
+        error "DB_PASSWORD in .env does not match spring.datasource.password in application-local.yaml."
+
+        invalid=true
+    fi
+
+    if ! is_expected_env_reference \
+        "${SPRING_CONFIG_JWT_SECRET}" \
+        "JWT_SECRET" \
+        && [[ "${SPRING_CONFIG_JWT_SECRET}" != "${JWT_SECRET}" ]]; then
+
+        error "JWT_SECRET in .env does not match jwt.secret in application-local.yaml."
+
+        invalid=true
+    fi
+
+    if [[ "${invalid}" == "true" ]]; then
+        die "Spring and .env are using different local credentials/secrets.
+
+The setup script will not overwrite either existing file automatically.
+
+Update application-local.yaml or .env so they agree, then rerun:
+  ./scripts/setup.sh"
+    fi
+
+    success "Spring and .env configuration agree"
 }
 
 
@@ -367,7 +709,9 @@ prepare_postgres() {
 
     if port_is_in_use "${POSTGRES_PORT}"; then
         error "Cannot create LEAP PostgreSQL because port ${POSTGRES_PORT} is already in use."
+
         show_port_owner "${POSTGRES_PORT}"
+
         die "Free port ${POSTGRES_PORT}, then rerun setup."
     fi
 
@@ -392,11 +736,14 @@ start_and_verify_postgres() {
     if ! docker_container_running "${POSTGRES_CONTAINER}"; then
         if port_is_in_use "${POSTGRES_PORT}"; then
             error "PostgreSQL cannot start because port ${POSTGRES_PORT} is already in use."
+
             show_port_owner "${POSTGRES_PORT}"
+
             die "Free port ${POSTGRES_PORT}, then rerun setup."
         fi
 
         info "Starting PostgreSQL"
+
         docker start "${POSTGRES_CONTAINER}" >/dev/null
     fi
 
@@ -541,21 +888,22 @@ main() {
 
     success "Docker daemon is running"
 
+    section "Checking Spring local configuration"
+
+    ensure_spring_local_config
+    validate_spring_local_config
+
     section "Checking environment variables"
 
     prepare_env_file
     load_env
     validate_required_env
+    validate_spring_env_alignment
 
     success ".env found"
     success "DB_USERNAME is set"
     success "DB_PASSWORD is set"
     success "JWT_SECRET is set"
-
-    section "Checking Spring local configuration"
-
-    prepare_spring_local_config
-    check_existing_spring_config
 
     section "Preparing PostgreSQL"
 
@@ -575,6 +923,8 @@ main() {
     echo "  ✓ Java ${REQUIRED_JAVA_MAJOR}"
     echo "  ✓ Node ${REQUIRED_NODE_VERSION}"
     echo "  ✓ PostgreSQL ${POSTGRES_IMAGE}"
+    echo "  ✓ Spring local configuration"
+    echo "  ✓ Local .env"
     echo "  ✓ Spring dependencies"
     echo "  ✓ Analytics Docker image"
     echo "  ✓ Frontend dependencies"

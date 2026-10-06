@@ -2,78 +2,145 @@
   padding: 24px;
   background: #f6f7f9;
   min-height: 100vh;
+  color: #1f2937;
 }
 
 .analytics-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 24px;
   margin-bottom: 24px;
 
   h1 {
     margin: 0;
     font-size: 28px;
+    color: #111827;
   }
 
   p {
     margin: 6px 0 0;
-    color: #666;
+    color: #6b7280;
+  }
+
+  button {
+    color: #374151;
   }
 }
 
 .filter-card {
   margin-bottom: 24px;
   padding: 16px;
+  background: #fff;
+  color: #1f2937;
 }
 
 .filter-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(150px, 1fr)) auto;
-  gap: 16px;
+  grid-template-columns: repeat(5, minmax(135px, 1fr)) auto;
+  gap: 14px;
   align-items: center;
+
+  mat-form-field {
+    width: 100%;
+  }
 }
 
 .filter-actions {
   display: flex;
   gap: 8px;
-  align-items: center;
+
+  button {
+    min-width: 76px;
+    height: 48px;
+  }
+}
+
+/* Keep filters readable on the light analytics page */
+:host ::ng-deep .analytics-page {
+  .mat-mdc-text-field-wrapper {
+    background: #fff;
+  }
+
+  .mat-mdc-input-element,
+  .mat-mdc-select-value {
+    color: #1f2937 !important;
+  }
+
+  .mdc-floating-label {
+    color: #6b7280 !important;
+  }
+
+  input[type='date'] {
+    color: #1f2937 !important;
+    color-scheme: light;
+    background: #fff;
+  }
+
+  input[type='date']::-webkit-datetime-edit {
+    color: #1f2937;
+  }
+
+  input[type='date']::-webkit-datetime-edit-fields-wrapper {
+    background: transparent;
+  }
+
+  input[type='date']::-webkit-datetime-edit-month-field:focus,
+  input[type='date']::-webkit-datetime-edit-day-field:focus,
+  input[type='date']::-webkit-datetime-edit-year-field:focus {
+    background: transparent;
+    color: #1f2937;
+    outline: none;
+  }
+
+  input[type='date']::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+  }
 }
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
 
 .summary-card {
   padding: 20px;
-
-  strong {
-    display: block;
-    margin-top: 8px;
-    font-size: 26px;
-  }
+  background: #fff;
+  color: #111827;
+  min-height: 100px;
 }
 
 .summary-label {
-  color: #666;
+  color: #6b7280;
   font-size: 14px;
+}
+
+.summary-value {
+  display: block;
+  margin-top: 8px;
+  font-size: 26px;
+  font-weight: 700;
+  color: #111827 !important;
 }
 
 .charts-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
 
 .chart-card {
   padding: 20px;
+  background: #fff;
+  color: #1f2937;
 
   h2 {
-    margin-top: 0;
-    margin-bottom: 16px;
+    margin: 0 0 16px;
     font-size: 18px;
+    color: #111827;
   }
 }
 
@@ -95,12 +162,13 @@
 .error-card {
   padding: 16px;
   margin-bottom: 24px;
+  background: #fff;
   color: #b00020;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1200px) {
   .filter-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .summary-grid {
@@ -115,7 +183,6 @@
 
   .analytics-header {
     align-items: flex-start;
-    gap: 16px;
   }
 
   .filter-grid,
@@ -129,6 +196,6 @@
   }
 
   .filter-actions {
-    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
