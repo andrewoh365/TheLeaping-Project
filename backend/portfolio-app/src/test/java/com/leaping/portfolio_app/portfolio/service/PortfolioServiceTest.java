@@ -1,5 +1,6 @@
 package com.leaping.portfolio_app.portfolio.service;
 
+import com.leaping.portfolio_app.market.service.PricingService;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.portfolio.dto.HoldingResponse;
 import com.leaping.portfolio_app.portfolio.dto.PortfolioResponse;
@@ -12,7 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +40,9 @@ class PortfolioServiceTest {
 
     @Mock
     private HoldingRepository holdingRepository;
+    
+    @Mock
+    private PricingService pricingService;
 
     // Mockito builds a real PortfolioService, but hands it the two @Mock
     // fields above instead of real repositories - same constructor
