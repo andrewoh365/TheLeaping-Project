@@ -7,7 +7,7 @@ import com.leaping.portfolio_app.market.dto.QuoteDto;
 import com.leaping.portfolio_app.market.dto.TradabilityDto;
 import com.leaping.portfolio_app.market.entity.Price;
 import com.leaping.portfolio_app.market.enums.TradabilityReason;
-import com.leaping.portfolio_app.repository.InstrumentRepository;
+import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 

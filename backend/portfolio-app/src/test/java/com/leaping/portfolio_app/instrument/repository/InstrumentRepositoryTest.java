@@ -4,7 +4,7 @@ import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.enums.InstrumentType;
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.entity.Market;
-import com.leaping.portfolio_app.repository.InstrumentRepository;
+import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -14,6 +14,12 @@ import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+// Portfolio repository for managing portfolio entities
+import com.leaping.portfolio_app.portfolio.entity.Portfolio;
+import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
+
+
+
 @Service
 public class AuthService {
 
@@ -21,13 +27,17 @@ public class AuthService {
     private final CustomerRepository customerRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
-
+    
+    private final PortfolioRepository portfolioRepository;
+    
     public AuthService(UserRepository userRepository, CustomerRepository customerRepository,
-                      JwtTokenProvider jwtTokenProvider, PasswordEncoder passwordEncoder) {
+                      JwtTokenProvider jwtTokenProvider, PasswordEncoder passwordEncoder, 
+                      PortfolioRepository portfolioRepository) {
         this.userRepository = userRepository;
         this.customerRepository = customerRepository;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
+        this.portfolioRepository = portfolioRepository;
     }
 
     public AuthResponse authenticate(LoginRequest loginRequest) {
@@ -69,6 +79,13 @@ public class AuthService {
 
     public String getEmailFromToken(String token) {
         return jwtTokenProvider.getEmailFromToken(token);
+    }
+    
+    // Implemented this to get ID from same table containing email {User}
+    public Long getUserIdByEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow( () -> new RuntimeException("User Id not found for: " + email) );
+        return user.getId(); 
     }
 
     public RegisterResponse register(RegisterRequest registerRequest) {
@@ -157,6 +174,10 @@ public class AuthService {
         newCustomer.setDateOfBirth(dateOfBirth);
         newCustomer.setTaxId(registerRequest.getTaxId());
         customerRepository.save(newCustomer);
+
+        //Step 10.5: Create a Portfolio for the new customer, starting balance $0
+        Portfolio newPortfolio = new Portfolio(newCustomer);
+        portfolioRepository.save(newPortfolio);
         
         // STEP 11: Generate JWT access token and refresh token for the new user
         String token = jwtTokenProvider.generateToken(savedUser.getEmail());

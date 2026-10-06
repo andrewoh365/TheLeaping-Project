@@ -1,5 +1,4 @@
-
-package com.leaping.portfolio_app.repository;
+package com.leaping.portfolio_app.instrument.repository;
 
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import org.springframework.data.jpa.repository.JpaRepository;

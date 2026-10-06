@@ -1,7 +1,7 @@
 package com.leaping.portfolio_app.instrument.controller;
 import com.leaping.portfolio_app.instrument.dto.InstrumentDTO;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
-import com.leaping.portfolio_app.service.InstrumentService;
+import com.leaping.portfolio_app.instrument.service.InstrumentService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
