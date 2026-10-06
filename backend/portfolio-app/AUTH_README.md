@@ -106,16 +106,16 @@ jwt:
 
 ```bash
 # Login
-curl -X POST http://localhost:8080/api/auth/login \
+curl -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"alice@example.com","password":"password123"}'
 
 # Validate token
-curl -X GET http://localhost:8080/api/auth/validate \
+curl -X GET http://localhost:8081/api/auth/validate \
   -H "Authorization: Bearer <your_token_here>"
 
 # Logout
-curl -X POST http://localhost:8080/api/auth/logout
+curl -X POST http://localhost:8081/api/auth/logout
 ```
 
 ## Acceptance Criteria Status
