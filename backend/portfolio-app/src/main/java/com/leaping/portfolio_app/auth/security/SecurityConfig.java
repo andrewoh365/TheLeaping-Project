@@ -92,7 +92,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/auth/**").permitAll()      // Login, register, validate endpoints
+                        .requestMatchers("/api/auth/**").permitAll()      // All auth endpoints are public
                         .requestMatchers("/api/public/**").permitAll()    // Public endpoints
                         .requestMatchers("/auth/**").permitAll()          // Auth endpoints without /api prefix
                         .anyRequest().authenticated()                     // Everything else requires authentication

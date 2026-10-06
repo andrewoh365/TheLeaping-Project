@@ -5,6 +5,7 @@ import com.leaping.portfolio_app.auth.dto.LoginRequest;
 import com.leaping.portfolio_app.auth.dto.RegisterRequest;
 import com.leaping.portfolio_app.auth.dto.RegisterResponse;
 import com.leaping.portfolio_app.auth.dto.RefreshRequest;
+import com.leaping.portfolio_app.auth.dto.UserDto;
 import com.leaping.portfolio_app.auth.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -101,6 +102,25 @@ public class AuthController {
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("Auth service is running");
     }
+
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<UserDto> getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String email = auth.getName();
+        UserDto userDto = authService.getUserByEmail(email);
+        
+        if (userDto != null) {
+            return ResponseEntity.ok(userDto);
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+    }
+
 
     /**
      * TEST ENDPOINT: Verify RBAC - ADMIN access only

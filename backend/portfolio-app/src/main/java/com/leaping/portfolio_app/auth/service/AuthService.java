@@ -5,6 +5,7 @@ import com.leaping.portfolio_app.auth.dto.LoginRequest;
 import com.leaping.portfolio_app.auth.dto.RegisterRequest;
 import com.leaping.portfolio_app.auth.dto.RegisterResponse;
 import com.leaping.portfolio_app.auth.dto.RefreshRequest;
+import com.leaping.portfolio_app.auth.dto.UserDto;
 import com.leaping.portfolio_app.auth.model.User;
 import com.leaping.portfolio_app.auth.model.Customer;
 import com.leaping.portfolio_app.auth.repository.UserRepository;
@@ -229,4 +230,14 @@ public class AuthService {
     public AuthResponse logout() {
         return new AuthResponse(null, null, "Logout successful", true);
     }
+
+    public UserDto getUserByEmail(String email) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user != null) {
+            return new UserDto(user.getId().toString(), user.getEmail(), user.getFirstName(), user.getLastName());
+        }
+        return null;
+    }
+
+   
 }

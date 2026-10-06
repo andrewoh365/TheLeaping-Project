@@ -6,8 +6,6 @@ public class InstrumentList {
     private String instrumentType;
     private String priceCurrencyCode;
 
-    public InstrumentList() {
-    }
 
     public InstrumentList(String instrumentId, String symbol, String instrumentType, String priceCurrencyCode) {
         this.instrumentId = instrumentId;
