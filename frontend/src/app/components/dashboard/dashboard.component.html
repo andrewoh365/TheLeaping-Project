@@ -41,6 +41,94 @@
 
   <div class="dashboard-content">
     <div>
+      <mat-card class="trade-card">
+        <mat-card-header>
+          <mat-card-title>Quick Trade Ticket</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="trade-grid">
+            <label>
+              Instrument ID
+              <input type="number" [(ngModel)]="orderForm.instrument_id" min="1" />
+            </label>
+
+            <label>
+              Action
+              <select [(ngModel)]="orderForm.order_action">
+                <option value="BUY">BUY</option>
+                <option value="SELL">SELL</option>
+              </select>
+            </label>
+
+            <label>
+              Order Type
+              <select [(ngModel)]="orderForm.order_type">
+                <option value="MARKET">MARKET</option>
+                <option value="LIMIT">LIMIT</option>
+              </select>
+            </label>
+
+            <label>
+              Quantity
+              <input type="number" [(ngModel)]="orderForm.quantity" min="0.0001" step="0.0001" />
+            </label>
+
+            <label *ngIf="orderForm.order_type === 'LIMIT'">
+              Limit Price
+              <input type="number" [(ngModel)]="orderForm.limit_price" min="0.01" step="0.01" />
+            </label>
+
+            <label>
+              Time In Force
+              <select [(ngModel)]="orderForm.time_in_force">
+                <option value="DAY">DAY</option>
+                <option value="GTC">GTC</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="trade-actions">
+            <button mat-raised-button color="primary" (click)="submitOrder()" [disabled]="orderSubmitInProgress">
+              {{ orderSubmitInProgress ? 'Submitting...' : 'Place Order' }}
+            </button>
+          </div>
+
+          <p class="trade-message success" *ngIf="orderSubmitMessage">{{ orderSubmitMessage }}</p>
+          <p class="trade-message error" *ngIf="orderSubmitError">{{ orderSubmitError }}</p>
+
+          <div class="trade-result" *ngIf="placedOrder">
+            <h3>Order Result</h3>
+            <p><strong>Order ID:</strong> {{ placedOrder.order_id }}</p>
+            <p><strong>Status:</strong> {{ placedOrder.order_status }}</p>
+            <p><strong>Symbol:</strong> {{ placedOrder.instrument_symbol || 'N/A' }}</p>
+            <p><strong>Action:</strong> {{ placedOrder.order_action }}</p>
+            <p><strong>Type:</strong> {{ placedOrder.order_type }}</p>
+            <p><strong>Quantity:</strong> {{ placedOrder.quantity }}</p>
+            <p *ngIf="placedOrder.rejection_reason"><strong>Reason:</strong> {{ placedOrder.rejection_reason }}</p>
+            <p *ngIf="placedTrade"><strong>Execution Price:</strong> {{ placedTrade.execution_price }}</p>
+            <p *ngIf="placedTrade"><strong>Total USD Value:</strong> {{ placedTrade.total_usd_value }}</p>
+          </div>
+
+          <div class="lookup-row">
+            <label>
+              Lookup Order ID
+              <input type="number" [(ngModel)]="orderLookupId" min="1" />
+            </label>
+            <button mat-button (click)="fetchOrderById()">Get Order</button>
+          </div>
+
+          <div class="trade-result" *ngIf="lookupResult">
+            <h3>Order Lookup</h3>
+            <p><strong>Order ID:</strong> {{ lookupResult.order_id }}</p>
+            <p><strong>Status:</strong> {{ lookupResult.order_status }}</p>
+            <p><strong>Symbol:</strong> {{ lookupResult.instrument_symbol || 'N/A' }}</p>
+            <p><strong>Action:</strong> {{ lookupResult.order_action }}</p>
+            <p><strong>Type:</strong> {{ lookupResult.order_type }}</p>
+            <p><strong>Quantity:</strong> {{ lookupResult.quantity }}</p>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
       <mat-card class="portfolio-card">
         <div >
           <button mat-raised-button class="dashboard-button">Individual</button>

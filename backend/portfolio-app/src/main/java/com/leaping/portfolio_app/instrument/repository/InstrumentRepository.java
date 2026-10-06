@@ -7,12 +7,12 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
-@Repository
-
 public interface InstrumentRepository extends JpaRepository<Instrument, Long> {
     Optional<Instrument> findByIsActive(Boolean isActive);
 
     List<Instrument> findByIsActiveTrueAndIsTradeableTrue();
+
+    Optional<Instrument> findBySymbol(String symbol);
 
     Optional<Instrument> findBySymbolIgnoreCase(String symbol);
 

@@ -61,8 +61,10 @@ export class AuthService {
       tap(response => {
         this.storeToken(response.token, response.refreshToken);
         this.isAuthenticatedSubject.next(true);
-        // Optionally fetch user details after login
-        this.fetchUserDetails();
+        // Keep a minimal local user record; backend has no /auth/me endpoint yet.
+        const user: User = { email };
+        this.currentUserSubject.next(user);
+        this.storeUser(user);
       }),
       catchError(error => {
         console.error('Login error:', error);
@@ -125,21 +127,6 @@ export class AuthService {
         throw new Error('Token refresh failed');
       })
     );
-  }
-
-  /**
-   * Fetch user details from the backend
-   */
-  private fetchUserDetails(): void {
-    this.http.get<User>(`${this.API_URL}/auth/me`).subscribe({
-      next: (user) => {
-        this.currentUserSubject.next(user);
-        this.storeUser(user);
-      },
-      error: (error) => {
-        console.error('Failed to fetch user details:', error);
-      }
-    });
   }
 
   /**

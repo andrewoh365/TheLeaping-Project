@@ -10,5 +10,7 @@ public interface MarketRepository extends JpaRepository<Market, Long> {
 
     List<Market> findByIsActiveTrueOrderByMarketNameAsc();
 
+    Optional<Market> findByMarketName(String marketName);
+
     Optional<Market> findByMarketNameIgnoreCase(String marketName);
 }
