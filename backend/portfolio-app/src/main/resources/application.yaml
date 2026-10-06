@@ -23,13 +23,13 @@ spring:
       hibernate:
         database-platform: org.hibernate.dialect.PostgreSQLDialect
 
-  jwt:
-    secret: ${JWT_SECRET}
-    expiration: 86400000  # 24 hours in milliseconds
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400000  # 24 hours in milliseconds
 
-  server:
-    port: 8080
-    servlet:
-      context-path: /
-    cors:
-      allowed-origins: ${CORS_ORIGINS} 
+server:
+  port: 8080
+  servlet:
+    context-path: /
+  cors:
+    allowed-origins: ${CORS_ORIGINS}

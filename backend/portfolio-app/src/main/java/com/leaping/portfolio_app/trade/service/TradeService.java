@@ -183,7 +183,8 @@ public class TradeService {
         Portfolio portfolio = order.getPortfolio();
         Instrument instrument = order.getInstrument();
 
-        Optional<Holding> existingHolding = holdingRepository.findByPortfolioAndInstrument(portfolio, instrument);
+        Optional<Holding> existingHolding = holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(
+            portfolio.getPortfolioId(), instrument.getInstrumentId());
 
         if (existingHolding.isPresent()) {
             Holding holding = existingHolding.get();

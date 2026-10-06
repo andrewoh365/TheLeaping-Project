@@ -2,6 +2,7 @@ package com.leaping.portfolio_app.portfolio.controller;
 
 import com.leaping.portfolio_app.auth.service.AuthService;
 import com.leaping.portfolio_app.portfolio.dto.PortfolioResponse;
+import com.leaping.portfolio_app.portfolio.dto.PortfolioSummaryResponse;
 import com.leaping.portfolio_app.portfolio.service.PortfolioService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -36,6 +37,33 @@ public class PortfolioController {
         PortfolioResponse response = portfolioService.getPortfolioForCustomer(customerId);
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get comprehensive portfolio summary with real-time market data and P&L
+     * 
+     * Returns:
+     * - Portfolio identifiers (ID, customer ID)
+     * - Cash balance and buying power
+     * - Total cost basis, current value, and overall gain/loss
+     * - All holdings with current prices and individual P&L
+     * 
+     * @return PortfolioSummaryResponse with full portfolio overview
+     */
+    @GetMapping("/summary")
+    public ResponseEntity<PortfolioSummaryResponse> getPortfolioSummary() {
+        
+        // Get email from JwtAuthenticationFilter
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        
+        // Get customer ID from AuthService
+        Long customerId = authService.getUserIdByEmail(email);
+        
+        // Get portfolio summary with market data and P&L
+        PortfolioSummaryResponse summary = portfolioService.getPortfolioSummary(customerId);
+        
+        return ResponseEntity.ok(summary);
     }
 
 }

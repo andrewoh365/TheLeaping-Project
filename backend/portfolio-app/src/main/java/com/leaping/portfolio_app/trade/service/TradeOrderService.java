@@ -152,7 +152,8 @@ public class TradeOrderService {
             }
         } else {
             Holding holding = holdingRepository
-                .findByPortfolioAndInstrument(portfolio, instrument)
+                .findByPortfolio_PortfolioIdAndInstrument_InstrumentId(
+                    portfolio.getPortfolioId(), instrument.getInstrumentId())
                 .orElseThrow(() -> new IllegalArgumentException("Cannot sell an instrument that is not owned"));
 
             if (holding.getQuantity().compareTo(request.getQuantity()) < 0) {
