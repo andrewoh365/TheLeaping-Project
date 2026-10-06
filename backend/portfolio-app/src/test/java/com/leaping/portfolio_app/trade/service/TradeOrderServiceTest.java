@@ -63,6 +63,7 @@ class TradeOrderServiceTest {
     @BeforeEach
     void setUp() {
         portfolio = new Portfolio();
+        portfolio.setPortfolioId(1L);
         portfolio.setCashBalanceUsd(new BigDecimal("10000.00"));
 
         Customer customer = new Customer();
@@ -136,7 +137,7 @@ class TradeOrderServiceTest {
 
         when(portfolioRepository.findByCustomerUserId(1L)).thenReturn(Optional.of(portfolio));
         when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
-        when(holdingRepository.findByPortfolioAndInstrument(portfolio, instrument)).thenReturn(Optional.empty());
+        when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L)).thenReturn(Optional.empty());
 
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,

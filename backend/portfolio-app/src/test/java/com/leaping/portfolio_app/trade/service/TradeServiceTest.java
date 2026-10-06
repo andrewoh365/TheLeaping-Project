@@ -74,6 +74,7 @@ class TradeServiceTest {
     @BeforeEach
     void setUp() {
         portfolio = new Portfolio();
+        portfolio.setPortfolioId(1L);
         portfolio.setCashBalanceUsd(new BigDecimal("1000.00"));
 
         Customer customer = new Customer();
@@ -118,7 +119,7 @@ class TradeServiceTest {
             trade.setTradeId(300L);
             return trade;
         });
-        when(holdingRepository.findByPortfolioAndInstrument(portfolio, instrument)).thenReturn(Optional.of(existing));
+        when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L)).thenReturn(Optional.of(existing));
         when(holdingRepository.save(any(Holding.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(portfolioRepository.save(any(Portfolio.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(cashTransactionRepository.save(any(CashTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));

@@ -1,7 +1,9 @@
 package com.leaping.portfolio_app.holdings;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -18,60 +20,110 @@ public class HoldingController {
     }
 
     /**
-     * Get all holdings for a portfolio
-     * 
+     * Get all holdings for a portfolio, sorted by most recently updated first.
+     * Includes real-time market prices and P&L calculations.
+     *
      * @param portfolioId the portfolio ID
-     * @return list of holdings for the portfolio
+     * @return ResponseEntity with list of holdings and their market data
+     * @throws ResponseStatusException 404 if portfolio not found
+     *
+     * <h3>Response Codes</h3>
+     * <ul>
+     *   <li><strong>200 OK</strong> - Holdings retrieved successfully (may be empty list)</li>
+     *   <li><strong>404 Not Found</strong> - Portfolio ID does not exist</li>
+     *   <li><strong>401 Unauthorized</strong> - No valid JWT token provided</li>
+     * </ul>
      */
     @GetMapping("/portfolio/{portfolioId}")
-    @ResponseStatus(HttpStatus.OK)
-    public List<HoldingResponse> getHoldingsByPortfolio(
+    public ResponseEntity<List<HoldingResponse>> getHoldingsByPortfolio(
             @PathVariable Long portfolioId
     ) {
-        holdingValidator.validatePortfolioExists(portfolioId);
-        return holdingService.getHoldingsByPortfolio(portfolioId);
+        try {
+            holdingValidator.validatePortfolioExists(portfolioId);
+        } catch (RuntimeException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        }
+        
+        List<HoldingResponse> holdings = holdingService.getHoldingsByPortfolio(portfolioId);
+        return ResponseEntity.ok(holdings);
     }
 
     /**
-     * Get a specific holding for a portfolio and instrument
-     * 
+     * Get a specific holding for a portfolio and instrument.
+     * Includes real-time market price and P&L calculations.
+     *
      * @param portfolioId the portfolio ID
      * @param instrumentId the instrument ID
-     * @return the holding details
+     * @return ResponseEntity with holding details including market data
+     * @throws ResponseStatusException 404 if portfolio or instrument not found, or if holding does not exist
+     *
+     * <h3>Response Codes</h3>
+     * <ul>
+     *   <li><strong>200 OK</strong> - Holding retrieved successfully</li>
+     *   <li><strong>404 Not Found</strong> - Portfolio, instrument, or holding not found</li>
+     *   <li><strong>401 Unauthorized</strong> - No valid JWT token provided</li>
+     * </ul>
      */
     @GetMapping("/portfolio/{portfolioId}/instrument/{instrumentId}")
-    @ResponseStatus(HttpStatus.OK)
-    public HoldingResponse getHolding(
+    public ResponseEntity<HoldingResponse> getHolding(
             @PathVariable Long portfolioId,
             @PathVariable Long instrumentId
     ) {
-        holdingValidator.validatePortfolioExists(portfolioId);
-        holdingValidator.validateInstrument(instrumentId);
-        return holdingService.getHolding(portfolioId, instrumentId);
+        try {
+            holdingValidator.validatePortfolioExists(portfolioId);
+            holdingValidator.validateInstrument(instrumentId);
+        } catch (RuntimeException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        }
+        
+        try {
+            HoldingResponse holding = holdingService.getHolding(portfolioId, instrumentId);
+            return ResponseEntity.ok(holding);
+        } catch (RuntimeException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, 
+                "Holding not found for portfolio " + portfolioId + " and instrument " + instrumentId);
+        }
     }
 
     /**
-     * Search holdings by instrument symbol
-     * 
+     * Search holdings by instrument symbol (case-insensitive).
+     * Returns all holdings matching the symbol search term.
+     * Includes real-time market prices and P&L calculations.
+     *
      * @param portfolioId the portfolio ID
-     * @param symbol the symbol to search for (case insensitive)
-     * @return list of holdings matching the symbol
+     * @param symbol the symbol to search for (e.g., "AAPL", "BTC", "EUR/USD")
+     * @return ResponseEntity with list of matching holdings (may be empty)
+     * @throws ResponseStatusException 400 if symbol parameter missing/empty, 404 if portfolio not found
+     *
+     * <h3>Response Codes</h3>
+     * <ul>
+     *   <li><strong>200 OK</strong> - Search completed successfully (may return empty list)</li>
+     *   <li><strong>400 Bad Request</strong> - Symbol parameter missing or empty</li>
+     *   <li><strong>404 Not Found</strong> - Portfolio ID does not exist</li>
+     *   <li><strong>401 Unauthorized</strong> - No valid JWT token provided</li>
+     * </ul>
      */
     @GetMapping("/portfolio/{portfolioId}/search")
-    @ResponseStatus(HttpStatus.OK)
-    public List<HoldingResponse> searchHoldingsBySymbol(
+    public ResponseEntity<List<HoldingResponse>> searchHoldingsBySymbol(
             @PathVariable Long portfolioId,
-            @RequestParam String symbol
+            @RequestParam(required = false) String symbol
     ) {
-        holdingValidator.validatePortfolioExists(portfolioId);
-        
+        // Validate symbol parameter
         if (symbol == null || symbol.trim().isEmpty()) {
-            throw new org.springframework.web.server.ResponseStatusException(
+            throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "Symbol parameter is required"
+                "Symbol parameter is required and cannot be empty"
             );
         }
         
-        return holdingService.searchHoldingsBySymbol(portfolioId, symbol);
+        // Validate portfolio exists
+        try {
+            holdingValidator.validatePortfolioExists(portfolioId);
+        } catch (RuntimeException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        }
+        
+        List<HoldingResponse> results = holdingService.searchHoldingsBySymbol(portfolioId, symbol.trim());
+        return ResponseEntity.ok(results);
     }
 }
