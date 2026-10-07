@@ -1,0 +1,101 @@
+﻿region,asset_class,market_name,symbol,name,instrument_type,price_currency_code,base_price,daily_volatility_bps,is_tradeable,is_active
+US,EQUITY,NASDAQ,AAPL,Apple Inc,STOCK,USD,343.43,262,true,true
+US,EQUITY,NYSE,MSFT,Microsoft Corp,STOCK,USD,231.8,153,true,true
+US,EQUITY,NASDAQ,NVDA,NVIDIA Corp,STOCK,USD,191.84,275,true,true
+US,EQUITY,NYSE,AMZN,Amazon.com Inc,STOCK,USD,80.19,139,true,true
+US,EQUITY,NASDAQ,GOOGL,Alphabet Class A,STOCK,USD,229.7,213,true,true
+US,EQUITY,NYSE,META,Meta Platforms,STOCK,USD,238.74,95,true,true
+US,EQUITY,NASDAQ,TSLA,Tesla Inc,STOCK,USD,173.51,285,true,true
+US,EQUITY,NYSE,JPM,JPMorgan Chase,STOCK,USD,158.25,318,true,true
+US,EQUITY,NASDAQ,V,Visa Inc,STOCK,USD,182.58,128,true,true
+US,EQUITY,NYSE,MA,Mastercard Inc,STOCK,USD,337.75,304,true,true
+US,EQUITY,NASDAQ,HD,Home Depot,STOCK,USD,55.47,212,true,true
+US,EQUITY,NYSE,PG,Procter Gamble,STOCK,USD,402.97,160,true,true
+US,EQUITY,NASDAQ,KO,Coca Cola Co,STOCK,USD,254.05,187,true,true
+US,EQUITY,NYSE,PEP,PepsiCo Inc,STOCK,USD,114.56,273,true,true
+US,EQUITY,NASDAQ,DIS,Walt Disney Co,STOCK,USD,281.14,288,true,true
+US,EQUITY,NYSE,BAC,Bank of America,STOCK,USD,354.16,120,true,true
+US,EQUITY,NASDAQ,XOM,Exxon Mobil,STOCK,USD,321.06,197,true,true
+US,EQUITY,NYSE,CVX,Chevron Corp,STOCK,USD,279.3,130,true,true
+US,EQUITY,NASDAQ,INTC,Intel Corp,STOCK,USD,192.86,249,true,true
+US,EQUITY,NYSE,CSCO,Cisco Systems,STOCK,USD,190.79,282,true,true
+India,EQUITY,NSE,RELIANCE,Reliance Industries,STOCK,INR,842.34,148,true,true
+India,EQUITY,NSE,TCS,Tata Consultancy Services,STOCK,INR,1031.63,230,true,true
+India,EQUITY,NSE,INFY,Infosys Ltd,STOCK,INR,1126.3,238,true,true
+India,EQUITY,NSE,HDFCBANK,HDFC Bank,STOCK,INR,2247.55,117,true,true
+India,EQUITY,NSE,ICICIBANK,ICICI Bank,STOCK,INR,1874.48,152,true,true
+India,EQUITY,NSE,SBIN,State Bank of India,STOCK,INR,1612.8,121,true,true
+India,EQUITY,NSE,BHARTIARTL,Bharti Airtel,STOCK,INR,431.54,317,true,true
+India,EQUITY,NSE,ITC,ITC Ltd,STOCK,INR,2236.41,186,true,true
+India,EQUITY,NSE,LT,Larsen Toubro,STOCK,INR,1407.68,246,true,true
+India,EQUITY,NSE,HINDUNILVR,Hindustan Unilever,STOCK,INR,1887.33,239,true,true
+India,EQUITY,NSE,KOTAKBANK,Kotak Mahindra Bank,STOCK,INR,1607.21,150,true,true
+India,EQUITY,NSE,BAJFINANCE,Bajaj Finance,STOCK,INR,1693.24,214,true,true
+India,EQUITY,NSE,ASIANPAINT,Asian Paints,STOCK,INR,824.33,300,true,true
+India,EQUITY,NSE,MARUTI,Maruti Suzuki,STOCK,INR,356.11,205,true,true
+India,EQUITY,NSE,SUNPHARMA,Sun Pharma,STOCK,INR,3599.16,110,true,true
+India,EQUITY,NSE,TITAN,Titan Company,STOCK,INR,3170.07,248,true,true
+India,EQUITY,NSE,ULTRACEMCO,UltraTech Cement,STOCK,INR,3034.59,281,true,true
+India,EQUITY,NSE,NESTLEIND,Nestle India,STOCK,INR,356.17,106,true,true
+India,EQUITY,NSE,WIPRO,Wipro Ltd,STOCK,INR,282.49,266,true,true
+India,EQUITY,NSE,POWERGRID,Power Grid Corp,STOCK,INR,2855.64,286,true,true
+UK,EQUITY,LSE,HSBA,HSBC Holdings,STOCK,GBP,483.61,128,true,true
+UK,EQUITY,LSE,ULVR,Unilever PLC,STOCK,GBP,377.38,274,true,true
+UK,EQUITY,LSE,BP,BP PLC,STOCK,GBP,418.61,113,true,true
+UK,EQUITY,LSE,SHEL,Shell PLC,STOCK,GBP,217.54,269,true,true
+UK,EQUITY,LSE,AZN,AstraZeneca PLC,STOCK,GBP,502.71,260,true,true
+UK,EQUITY,LSE,GSK,GSK PLC,STOCK,GBP,260.97,274,true,true
+UK,EQUITY,LSE,RIO,Rio Tinto PLC,STOCK,GBP,337.82,178,true,true
+UK,EQUITY,LSE,BARC,Barclays PLC,STOCK,GBP,410.74,100,true,true
+UK,EQUITY,LSE,LLOY,Lloyds Banking Group,STOCK,GBP,200.1,171,true,true
+UK,EQUITY,LSE,DGE,Diageo PLC,STOCK,GBP,401.75,309,true,true
+UK,EQUITY,LSE,VOD,Vodafone Group,STOCK,GBP,176.9,140,true,true
+UK,EQUITY,LSE,NG,National Grid PLC,STOCK,GBP,173.91,276,true,true
+UK,EQUITY,LSE,RR,Rolls Royce Holdings,STOCK,GBP,197.05,121,true,true
+UK,EQUITY,LSE,PRU,Prudential PLC,STOCK,GBP,421.8,133,true,true
+UK,EQUITY,LSE,GLEN,Glencore PLC,STOCK,GBP,336.22,309,true,true
+UK,EQUITY,LSE,REL,RELX PLC,STOCK,GBP,368.7,109,true,true
+UK,EQUITY,LSE,SMIN,Smiths Group,STOCK,GBP,78.67,173,true,true
+UK,EQUITY,LSE,AHT,Ashtead Group,STOCK,GBP,423.51,122,true,true
+UK,EQUITY,LSE,EXPN,Experian PLC,STOCK,GBP,347,248,true,true
+UK,EQUITY,LSE,III,3i Group,STOCK,GBP,77.55,243,true,true
+Global,DIGITAL_ASSET,CRYPTO,BTC-USD,Bitcoin,CRYPTO,USD,65822.49,605,true,true
+Global,DIGITAL_ASSET,CRYPTO,ETH-USD,Ethereum,CRYPTO,USD,51176.97,299,true,true
+Global,DIGITAL_ASSET,CRYPTO,SOLUSD,Solana,CRYPTO,USD,67397.91,395,true,true
+Global,DIGITAL_ASSET,CRYPTO,XRPUSD,XRP,CRYPTO,USD,34888.91,746,true,true
+Global,DIGITAL_ASSET,CRYPTO,BNBUSD,BNB,CRYPTO,USD,57016.72,263,true,true
+Global,DIGITAL_ASSET,CRYPTO,ADAUSD,Cardano,CRYPTO,USD,8373.23,888,true,true
+Global,DIGITAL_ASSET,CRYPTO,DOGEUSD,Dogecoin,CRYPTO,USD,29617.81,813,true,true
+Global,DIGITAL_ASSET,CRYPTO,AVAXUSD,Avalanche,CRYPTO,USD,41378.3,492,true,true
+Global,DIGITAL_ASSET,CRYPTO,DOTUSD,Polkadot,CRYPTO,USD,17393.34,573,true,true
+Global,DIGITAL_ASSET,CRYPTO,MATICUSD,Polygon,CRYPTO,USD,62222.9,816,true,true
+Global,DIGITAL_ASSET,CRYPTO,LINKUSD,Chainlink,CRYPTO,USD,28244.51,399,true,true
+Global,DIGITAL_ASSET,CRYPTO,LTCUSD,Litecoin,CRYPTO,USD,65235.26,696,true,true
+Global,DIGITAL_ASSET,CRYPTO,BCHUSD,Bitcoin Cash,CRYPTO,USD,17659.9,287,true,true
+Global,DIGITAL_ASSET,CRYPTO,UNIUSD,Uniswap,CRYPTO,USD,12033.18,426,true,true
+Global,DIGITAL_ASSET,CRYPTO,ATOMUSD,Cosmos,CRYPTO,USD,59933.44,254,true,true
+Global,DIGITAL_ASSET,CRYPTO,ETCUSD,Ethereum Classic,CRYPTO,USD,33678.44,877,true,true
+Global,DIGITAL_ASSET,CRYPTO,XLMUSD,Stellar,CRYPTO,USD,30206.62,875,true,true
+Global,DIGITAL_ASSET,CRYPTO,FILUSD,Filecoin,CRYPTO,USD,31137.64,576,true,true
+Global,DIGITAL_ASSET,CRYPTO,AAVEUSD,Aave,CRYPTO,USD,4961.16,498,true,true
+Global,DIGITAL_ASSET,CRYPTO,NEARUSD,NEAR Protocol,CRYPTO,USD,26480.55,759,true,true
+Global,FX,FOREX,EUR/USD,Euro vs US Dollar,FOREX,USD,1.29429,52,true,true
+Global,FX,FOREX,USDJPY,US Dollar vs Japanese Yen,FOREX,USD,0.75332,47,true,true
+Global,FX,FOREX,GBP/USD,British Pound vs US Dollar,FOREX,USD,0.58221,37,true,true
+Global,FX,FOREX,AUDUSD,Australian Dollar vs US Dollar,FOREX,USD,1.48957,86,true,true
+Global,FX,FOREX,USDCAD,US Dollar vs Canadian Dollar,FOREX,USD,0.84614,77,true,true
+Global,FX,FOREX,USDCHF,US Dollar vs Swiss Franc,FOREX,USD,1.12962,49,true,true
+Global,FX,FOREX,NZDUSD,New Zealand Dollar vs US Dollar,FOREX,USD,1.58264,119,true,true
+Global,FX,FOREX,EURGBP,Euro vs British Pound,FOREX,USD,1.37673,32,true,true
+Global,FX,FOREX,EURJPY,Euro vs Japanese Yen,FOREX,USD,0.57583,85,true,true
+Global,FX,FOREX,GBPJPY,British Pound vs Japanese Yen,FOREX,USD,0.86448,23,true,true
+Global,FX,FOREX,AUDJPY,Australian Dollar vs Japanese Yen,FOREX,USD,1.24013,116,true,true
+Global,FX,FOREX,CHFJPY,Swiss Franc vs Japanese Yen,FOREX,USD,0.62266,84,true,true
+Global,FX,FOREX,EURAUD,Euro vs Australian Dollar,FOREX,USD,0.86067,52,true,true
+Global,FX,FOREX,GBPAUD,British Pound vs Australian Dollar,FOREX,USD,0.64346,35,true,true
+Global,FX,FOREX,CADJPY,Canadian Dollar vs Japanese Yen,FOREX,USD,1.46955,75,true,true
+Global,FX,FOREX,EURCHF,Euro vs Swiss Franc,FOREX,USD,1.01565,50,true,true
+Global,FX,FOREX,GBPCHF,British Pound vs Swiss Franc,FOREX,USD,0.63156,69,true,true
+Global,FX,FOREX,AUDCAD,Australian Dollar vs Canadian Dollar,FOREX,USD,0.69522,36,true,true
+Global,FX,FOREX,NZDJPY,New Zealand Dollar vs Japanese Yen,FOREX,USD,0.61344,106,true,true
+Global,FX,FOREX,USDSEK,US Dollar vs Swedish Krona,FOREX,USD,1.31336,105,true,true
