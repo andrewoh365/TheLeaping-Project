@@ -5,7 +5,6 @@ import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.service.InstrumentService;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,7 +15,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/instruments")
-@CrossOrigin(origins = "*")
 public class InstrumentController {
 
     private final InstrumentService instrumentService;

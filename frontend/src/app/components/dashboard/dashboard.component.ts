@@ -70,7 +70,7 @@ interface ApiError {
   styleUrls: ['./dashboard.component.scss']
 })
 export class DashboardComponent implements OnInit, OnDestroy {
-  private readonly TRADE_API_URL = 'http://localhost:8080/api/trade';
+  private readonly TRADE_API_URL = '/api/trade';
 
   currentUser: User | null = null;
   searchQuery: string = '';

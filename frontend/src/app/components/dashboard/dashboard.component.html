@@ -38,16 +38,27 @@
         placeholder="Enter a symbol or name"
         aria-label="Search"
       />
+
       <mat-icon class="search-icon">search</mat-icon>
-    </div>
-    <div class="search-results">
-      <div *ngFor="let result of searchResults" class="search-result-item"> 
-        <div class="result-header">
-          <h3>{{ result?.symbol }}</h3>
+
+      <div
+        class="search-results"
+        *ngIf="searchResults.length > 0"
+      >
+        <div
+          *ngFor="let result of searchResults"
+          class="search-result-item"
+        >
+          <span class="result-symbol">
+            {{ result.symbol }}
+          </span>
+
+          <span class="result-name">
+            {{ result.name }}
+          </span>
         </div>
       </div>
     </div>
-
   </div>
 
   <div class="dashboard-content">
