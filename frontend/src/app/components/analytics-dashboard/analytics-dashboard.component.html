@@ -1,9 +1,48 @@
 <div class="analytics-page">
 
+  <!-- ADMIN-ONLY PRESENTATION NAVIGATION -->
+  <nav
+    class="admin-nav"
+    *ngIf="isAdmin"
+    aria-label="Trading Operations navigation">
+
+    <div class="admin-nav-brand">
+      <span class="admin-nav-product">
+        LEAP
+      </span>
+
+      <span class="admin-role-badge">
+        Trading Operations
+      </span>
+    </div>
+
+    <div class="admin-nav-links">
+      <span class="admin-nav-link active">
+        Dashboard
+      </span>
+
+      <span class="admin-nav-link">
+        Clients
+      </span>
+
+      <span class="admin-nav-link">
+        Trade Lookup
+      </span>
+    </div>
+
+  </nav>
+
+
   <header class="analytics-header">
+
     <div>
-      <h1>Trading Analytics</h1>
-      <p>Internal trading activity and client insights</p>
+      <h1>
+        Trading Analytics
+      </h1>
+
+      <p>
+        Internal trading activity and client insights
+      </p>
     </div>
 
     <button
@@ -12,38 +51,52 @@
       (click)="logout()">
       Logout
     </button>
+
   </header>
 
 
   <!-- FILTERS -->
   <mat-card class="filter-card">
+
     <div class="filter-grid">
+
 
       <!-- FROM DATE -->
       <mat-form-field appearance="outline">
-        <mat-label>From</mat-label>
+
+        <mat-label>
+          From
+        </mat-label>
 
         <input
           matInput
           type="date"
           [(ngModel)]="dateFrom">
+
       </mat-form-field>
 
 
       <!-- TO DATE -->
       <mat-form-field appearance="outline">
-        <mat-label>To</mat-label>
+
+        <mat-label>
+          To
+        </mat-label>
 
         <input
           matInput
           type="date"
           [(ngModel)]="dateTo">
+
       </mat-form-field>
 
 
       <!-- ASSET TYPE -->
       <mat-form-field appearance="outline">
-        <mat-label>Asset Type</mat-label>
+
+        <mat-label>
+          Asset Type
+        </mat-label>
 
         <mat-select [(ngModel)]="assetType">
 
@@ -64,12 +117,16 @@
           </mat-option>
 
         </mat-select>
+
       </mat-form-field>
 
 
       <!-- MARKET -->
       <mat-form-field appearance="outline">
-        <mat-label>Market</mat-label>
+
+        <mat-label>
+          Market
+        </mat-label>
 
         <mat-select [(ngModel)]="market">
 
@@ -80,16 +137,22 @@
           <mat-option
             *ngFor="let marketOption of markets"
             [value]="marketOption">
+
             {{ marketOption }}
+
           </mat-option>
 
         </mat-select>
+
       </mat-form-field>
 
 
       <!-- ORDER STATUS -->
       <mat-form-field appearance="outline">
-        <mat-label>Order Status</mat-label>
+
+        <mat-label>
+          Order Status
+        </mat-label>
 
         <mat-select [(ngModel)]="orderStatus">
 
@@ -118,6 +181,7 @@
           </mat-option>
 
         </mat-select>
+
       </mat-form-field>
 
 
@@ -142,6 +206,7 @@
       </div>
 
     </div>
+
   </mat-card>
 
 
@@ -165,7 +230,9 @@
   </mat-card>
 
 
-  <ng-container *ngIf="dashboard && !loading">
+  <ng-container
+    *ngIf="dashboard && !loading">
+
 
     <!-- SUMMARY CARDS -->
     <section class="summary-grid">

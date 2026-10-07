@@ -78,6 +78,11 @@ export class AnalyticsDashboardComponent
     loading = false;
     errorMessage = '';
 
+    // Presentation-only role-aware navigation.
+    // ADMIN reuses the shared analytics dashboard but sees
+    // the extra Trading Operations navigation above it.
+    isAdmin = false;
+
     dateFrom = '';
     dateTo = '';
 
@@ -110,6 +115,7 @@ export class AnalyticsDashboardComponent
     ) { }
 
     ngOnInit(): void {
+        this.isAdmin = this.authService.hasRole('ADMIN');
         this.loadDashboard();
     }
 

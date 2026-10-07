@@ -132,14 +132,15 @@ export class LoginComponent implements OnInit {
           );
 
           /*
-           * Internal users go to analytics.
-           * Customers continue to the client dashboard.
+           * Each role gets its own presentation landing page.
+           * Admin reuses analytics with extra operations navigation.
            */
           const defaultRoute =
-            response.role === 'ADMIN' ||
-            response.role === 'ANALYST'
-              ? '/analytics'
-              : '/dashboard';
+            response.role === 'ADMIN'
+              ? '/admin'
+              : response.role === 'ANALYST'
+                ? '/analytics'
+                : '/dashboard';
 
           /*
            * If an AuthGuard originally sent the user

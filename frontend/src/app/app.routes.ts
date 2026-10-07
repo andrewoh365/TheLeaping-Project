@@ -44,6 +44,15 @@ export const routes: Routes = [
   },
 
   {
+    path: 'admin',
+    component: AnalyticsDashboardComponent,
+    canActivate: [RoleGuard],
+    data: {
+      roles: ['ADMIN']
+    }
+  },
+
+  {
     path: '**',
     redirectTo: '/dashboard'
   }
