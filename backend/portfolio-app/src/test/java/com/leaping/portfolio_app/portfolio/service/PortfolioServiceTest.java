@@ -1,12 +1,12 @@
 package com.leaping.portfolio_app.portfolio.service;
 
-import com.leaping.portfolio_app.market.service.PricingService;
+import com.leaping.portfolio_app.market.service.MarketPriceService;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
-import com.leaping.portfolio_app.portfolio.dto.HoldingResponse;
+import com.leaping.portfolio_app.holdings.HoldingResponse;
 import com.leaping.portfolio_app.portfolio.dto.PortfolioResponse;
-import com.leaping.portfolio_app.portfolio.entity.Holding;
+import com.leaping.portfolio_app.holdings.Holding;
 import com.leaping.portfolio_app.portfolio.entity.Portfolio;
-import com.leaping.portfolio_app.portfolio.repository.HoldingRepository;
+import com.leaping.portfolio_app.holdings.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +42,7 @@ class PortfolioServiceTest {
     private HoldingRepository holdingRepository;
     
     @Mock
-    private PricingService pricingService;
+    private MarketPriceService marketPriceService;
 
     // Mockito builds a real PortfolioService, but hands it the two @Mock
     // fields above instead of real repositories - same constructor
@@ -61,7 +61,7 @@ class PortfolioServiceTest {
         // Tell the fake repositories what to hand back when PortfolioService calls them
         when(portfolioRepository.findByCustomer_UserId(customerId))
                 .thenReturn(Optional.of(portfolio));
-        when(holdingRepository.findByPortfolio_PortfolioId(10L))
+        when(holdingRepository.findAllByPortfolio_PortfolioIdOrderByUpdatedAtDesc(10L))
                 .thenReturn(List.of());
 
         PortfolioResponse response = portfolioService.getPortfolioForCustomer(customerId);
@@ -86,7 +86,7 @@ class PortfolioServiceTest {
 
         when(portfolioRepository.findByCustomer_UserId(customerId))
                 .thenReturn(Optional.of(portfolio));
-        when(holdingRepository.findByPortfolio_PortfolioId(10L))
+        when(holdingRepository.findAllByPortfolio_PortfolioIdOrderByUpdatedAtDesc(10L))
                 .thenReturn(List.of(holding));
 
         PortfolioResponse response = portfolioService.getPortfolioForCustomer(customerId);
@@ -94,7 +94,7 @@ class PortfolioServiceTest {
         assertEquals(1, response.getHoldings().size());
 
         HoldingResponse holdingResponse = response.getHoldings().get(0);
-        assertEquals("AAPL", holdingResponse.getInstrumentSymbol());
+        assertEquals("AAPL", holdingResponse.getSymbol());
         assertEquals("Apple Inc.", holdingResponse.getInstrumentName());
         assertEquals(new BigDecimal("10.5"), holdingResponse.getQuantity());
         assertEquals(new BigDecimal("172.30"), holdingResponse.getAverageCostUsd());

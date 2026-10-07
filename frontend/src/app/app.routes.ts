@@ -12,7 +12,7 @@ import { RoleGuard } from './guards/role.guard';
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: '/dashboard',
+    redirectTo: '/login',
     pathMatch: 'full'
   },
 
@@ -30,7 +30,8 @@ export const routes: Routes = [
 
   {
     path: 'dashboard',
-    component: DashboardComponent
+    component: DashboardComponent,
+    canActivate: [AuthGuard]
   },
 
   {

@@ -11,6 +11,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatListModule } from '@angular/material/list';
 import { Subject } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { takeUntil, debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrumentService';
@@ -102,9 +103,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private http: HttpClient
   ) {}
 
-  navigateToInvest(): void {
-    this.router.navigate(['/invest']);
-  }
+
 
   onSearchInput(): void {
     this.searchSubject$.next(this.searchQuery);
@@ -195,12 +194,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private performSearch(query: string): void {
+    if (!this.searchQuery.trim()) {
+      this.searchResults = [];
+      return;
+    }
+
     this.instrumentService.searchInstruments(query)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (results) => {
           this.searchResults = results;
-          console.log('Search results:', results);
+          
         },
         error: (error) => {
           console.error('Search error:', error);
@@ -208,9 +212,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
         }
       });
   }
+
+  navigationToInstrument(symbol: string | undefined): void {
+    if (symbol) {
+      this.router.navigate(['/instruments-expanded', symbol]);
+    }
+  }
+
+
   ngOnInit(): void {
+    this.authService.fetchUserDetails(); 
+    
     this.authService.currentUser$
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        takeUntil(this.destroy$),
+        filter(user => user !== null) 
+      )
       .subscribe(user => {
         this.currentUser = user;
       });
@@ -227,6 +244,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+
     this.destroy$.next();
     this.destroy$.complete();
   }

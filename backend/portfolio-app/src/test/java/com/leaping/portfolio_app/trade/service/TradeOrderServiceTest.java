@@ -23,9 +23,9 @@ import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.service.MarketPriceService;
-import com.leaping.portfolio_app.portfolio.entity.Holding;
+import com.leaping.portfolio_app.holdings.Holding;
+import com.leaping.portfolio_app.holdings.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.entity.Portfolio;
-import com.leaping.portfolio_app.portfolio.repository.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
 import com.leaping.portfolio_app.trade.dto.OrderResponse;
 import com.leaping.portfolio_app.trade.dto.PlaceOrderRequest;
@@ -63,6 +63,7 @@ class TradeOrderServiceTest {
     @BeforeEach
     void setUp() {
         portfolio = new Portfolio();
+        portfolio.setPortfolioId(1L);
         portfolio.setCashBalanceUsd(new BigDecimal("10000.00"));
 
         Customer customer = new Customer();
@@ -87,7 +88,7 @@ class TradeOrderServiceTest {
         request.setQuantity(new BigDecimal("10"));
         request.setTimeInForce("DAY");
 
-        when(portfolioRepository.findByCustomerUserId(1L)).thenReturn(Optional.of(portfolio));
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
         when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
         when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.00"));
         when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> {
@@ -114,7 +115,7 @@ class TradeOrderServiceTest {
         request.setOrderType("MARKET");
         request.setQuantity(new BigDecimal("100"));
 
-        when(portfolioRepository.findByCustomerUserId(1L)).thenReturn(Optional.of(portfolio));
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
         when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
         when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("200.00"));
 
@@ -134,9 +135,9 @@ class TradeOrderServiceTest {
         request.setOrderType("MARKET");
         request.setQuantity(new BigDecimal("2"));
 
-        when(portfolioRepository.findByCustomerUserId(1L)).thenReturn(Optional.of(portfolio));
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
         when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
-        when(holdingRepository.findByPortfolioAndInstrument(portfolio, instrument)).thenReturn(Optional.empty());
+        when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L)).thenReturn(Optional.empty());
 
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
