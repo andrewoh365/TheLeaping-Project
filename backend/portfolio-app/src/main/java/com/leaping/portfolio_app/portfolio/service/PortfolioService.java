@@ -43,6 +43,11 @@ public class PortfolioService {
         List<HoldingResponse> holdingResponses = new ArrayList<>(); 
         for (Holding holding : holdings){
 
+            //Skip fully sold positions
+            if (holding.getQuantity() == null || holding.getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
             //Look up instruments latest price (does not exist yet)
             Optional<Price> latestPrice = pricingService.getLatestPriceBySymbol(
                     holding.getInstrument().getSymbol());
