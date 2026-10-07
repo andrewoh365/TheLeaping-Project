@@ -3,7 +3,10 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject, of } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 
-export type UserRole = 'ADMIN' | 'ANALYST' | 'CUSTOMER';
+export type UserRole =
+  | 'ADMIN'
+  | 'ANALYST'
+  | 'CUSTOMER';
 
 export interface AuthResponse {
   token: string;
@@ -19,6 +22,8 @@ export interface User {
   id?: string;
   email: string;
   username?: string;
+  firstName?: string;
+  lastName?: string;
   role?: UserRole;
 }
 
@@ -26,29 +31,42 @@ export interface User {
   providedIn: 'root'
 })
 export class AuthService {
+
   private readonly API_URL = '/api';
-  private readonly TOKEN_KEY = 'jwt_token';
-  private readonly REFRESH_TOKEN_KEY = 'refresh_token';
-  private readonly USER_KEY = 'user';
+
+  private readonly TOKEN_KEY =
+    'jwt_token';
+
+  private readonly REFRESH_TOKEN_KEY =
+    'refresh_token';
+
+  private readonly USER_KEY =
+    'user';
 
   private currentUserSubject =
-    new BehaviorSubject<User | null>(this.getUserFromStorage());
+    new BehaviorSubject<User | null>(
+      this.getUserFromStorage()
+    );
 
   public currentUser$ =
     this.currentUserSubject.asObservable();
 
   private isAuthenticatedSubject =
-    new BehaviorSubject<boolean>(this.hasValidToken());
+    new BehaviorSubject<boolean>(
+      this.hasValidToken()
+    );
 
   public isAuthenticated$ =
     this.isAuthenticatedSubject.asObservable();
 
-  constructor(private http: HttpClient) {
+  constructor(
+    private http: HttpClient
+  ) {
     this.checkTokenExpiration();
   }
 
   /**
-   * Register a new user
+   * Register a new user.
    */
   register(
     firstName: string,
@@ -59,6 +77,7 @@ export class AuthService {
     dateOfBirth: string,
     taxId: string
   ): Observable<AuthResponse> {
+
     const body = {
       firstName,
       lastName,
@@ -94,12 +113,13 @@ export class AuthService {
   }
 
   /**
-   * Login with email and password
+   * Login with email and password.
    */
   login(
     email: string,
     password: string
   ): Observable<AuthResponse> {
+
     const body = {
       email,
       password
@@ -112,26 +132,34 @@ export class AuthService {
       )
       .pipe(
         tap(response => {
+
           this.storeToken(
             response.token,
             response.refreshToken
           );
 
-          this.isAuthenticatedSubject.next(true);
+          this.isAuthenticatedSubject
+            .next(true);
 
           /*
-           * Preserve role information when the backend returns it.
-           * If no role is returned, still keep the minimal user
-           * record so existing login behavior continues to work.
+           * Login gives us enough information
+           * to establish authentication and role.
+           *
+           * Full user details are loaded separately
+           * from GET /api/auth/me.
            */
           const user: User = {
-            email: response.email ?? email,
+            email:
+              response.email ?? email,
+
             ...(response.role
               ? { role: response.role }
               : {})
           };
 
-          this.currentUserSubject.next(user);
+          this.currentUserSubject
+            .next(user);
+
           this.storeUser(user);
         }),
 
@@ -147,42 +175,104 @@ export class AuthService {
   }
 
   /**
-   * Logout the current user
+   * Load the currently authenticated user's
+   * full profile from GET /api/auth/me.
+   *
+   * The backend returns:
+   * - id
+   * - email
+   * - firstName
+   * - lastName
+   *
+   * Role is preserved from the login response,
+   * because /auth/me currently does not return it.
    */
-  logout(): void {
-    this.clearToken();
+  fetchUserDetails(): void {
 
-    this.currentUserSubject.next(null);
-    this.isAuthenticatedSubject.next(false);
+    this.http
+      .get<User>(
+        `${this.API_URL}/auth/me`
+      )
+      .pipe(
+        catchError(error => {
+          console.error(
+            'Failed to fetch user details:',
+            error
+          );
+
+          return of(null);
+        })
+      )
+      .subscribe(userDetails => {
+
+        if (!userDetails) {
+          return;
+        }
+
+        const existingUser =
+          this.currentUserSubject.value;
+
+        const mergedUser: User = {
+          ...(existingUser ?? {}),
+          ...userDetails,
+          email:
+            userDetails.email ??
+            existingUser?.email ??
+            ''
+        };
+
+        this.currentUserSubject
+          .next(mergedUser);
+
+        this.storeUser(mergedUser);
+      });
   }
 
   /**
-   * Get the current JWT token
+   * Logout the current user.
+   */
+  logout(): void {
+
+    this.clearToken();
+
+    this.currentUserSubject
+      .next(null);
+
+    this.isAuthenticatedSubject
+      .next(false);
+  }
+
+  /**
+   * Get the current JWT token.
    */
   getToken(): string | null {
+
     return localStorage.getItem(
       this.TOKEN_KEY
     );
   }
 
   /**
-   * Check if user is authenticated
+   * Check whether user is authenticated.
    */
   isAuthenticated(): boolean {
+
     return this.hasValidToken();
   }
 
   /**
-   * Get current user
+   * Get current user.
    */
   getCurrentUser(): User | null {
+
     return this.currentUserSubject.value;
   }
 
   /**
-   * Get current user's role
+   * Get current user's role.
    */
   getCurrentRole(): UserRole | null {
+
     return (
       this.currentUserSubject.value?.role ??
       null
@@ -191,10 +281,14 @@ export class AuthService {
 
   /**
    * Check whether current user has
-   * one of the provided roles.
+   * one of the supplied roles.
    */
-  hasRole(...roles: UserRole[]): boolean {
-    const role = this.getCurrentRole();
+  hasRole(
+    ...roles: UserRole[]
+  ): boolean {
+
+    const role =
+      this.getCurrentRole();
 
     return (
       role !== null &&
@@ -203,23 +297,22 @@ export class AuthService {
   }
 
   /**
-   * Refresh the JWT token
+   * Refresh the JWT token.
    */
-  refreshToken(): Observable<AuthResponse> {
+  refreshToken():
+    Observable<AuthResponse> {
+
     const refreshToken =
       localStorage.getItem(
         this.REFRESH_TOKEN_KEY
       );
 
     if (!refreshToken) {
-      return of({} as AuthResponse).pipe(
-        catchError(() => {
-          this.logout();
 
-          throw new Error(
-            'No refresh token available'
-          );
-        })
+      this.logout();
+
+      throw new Error(
+        'No refresh token available'
       );
     }
 
@@ -234,6 +327,7 @@ export class AuthService {
       )
       .pipe(
         tap(response => {
+
           this.storeToken(
             response.token,
             response.refreshToken
@@ -241,6 +335,7 @@ export class AuthService {
         }),
 
         catchError(() => {
+
           this.logout();
 
           throw new Error(
@@ -251,18 +346,20 @@ export class AuthService {
   }
 
   /**
-   * Store token in localStorage
+   * Store JWT and refresh token.
    */
   private storeToken(
     token: string,
     refreshToken?: string
   ): void {
+
     localStorage.setItem(
       this.TOKEN_KEY,
       token
     );
 
     if (refreshToken) {
+
       localStorage.setItem(
         this.REFRESH_TOKEN_KEY,
         refreshToken
@@ -271,9 +368,10 @@ export class AuthService {
   }
 
   /**
-   * Clear tokens and user data
+   * Clear authentication data.
    */
   private clearToken(): void {
+
     localStorage.removeItem(
       this.TOKEN_KEY
     );
@@ -288,10 +386,11 @@ export class AuthService {
   }
 
   /**
-   * Check if token exists
-   * and is not expired
+   * Check that a JWT exists and
+   * has not expired.
    */
   private hasValidToken(): boolean {
+
     const token =
       localStorage.getItem(
         this.TOKEN_KEY
@@ -302,6 +401,7 @@ export class AuthService {
     }
 
     try {
+
       const payload =
         this.parseJwt(token);
 
@@ -309,16 +409,22 @@ export class AuthService {
         payload.exp * 1000;
 
       return expiresIn > Date.now();
+
     } catch {
+
       return false;
     }
   }
 
   /**
-   * Parse JWT token payload
+   * Parse JWT payload.
    */
-  private parseJwt(token: string): any {
+  private parseJwt(
+    token: string
+  ): any {
+
     try {
+
       const base64Url =
         token.split('.')[1];
 
@@ -347,7 +453,9 @@ export class AuthService {
       return JSON.parse(
         jsonPayload
       );
+
     } catch {
+
       throw new Error(
         'Invalid token'
       );
@@ -355,11 +463,12 @@ export class AuthService {
   }
 
   /**
-   * Store user data
+   * Store current user.
    */
   private storeUser(
     user: User
   ): void {
+
     localStorage.setItem(
       this.USER_KEY,
       JSON.stringify(user)
@@ -367,7 +476,7 @@ export class AuthService {
   }
 
   /**
-   * Retrieve user data
+   * Retrieve stored user.
    */
   private getUserFromStorage():
     User | null {
@@ -383,17 +492,19 @@ export class AuthService {
   }
 
   /**
-   * Check token expiration
-   * once per minute
+   * Check JWT expiration once per minute.
    */
   private checkTokenExpiration(): void {
+
     setInterval(() => {
+
       if (
         !this.hasValidToken() &&
         this.isAuthenticatedSubject.value
       ) {
         this.logout();
       }
+
     }, 60000);
   }
 }
