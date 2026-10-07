@@ -37,6 +37,8 @@ import {
     OrderStatus
 } from '../../services/analytics.service';
 
+import { InternalNavComponent } from '../internal-nav/internal-nav.component';
+
 Chart.register(...registerables);
 
 @Component({
@@ -50,7 +52,8 @@ Chart.register(...registerables);
         MatFormFieldModule,
         MatInputModule,
         MatProgressSpinnerModule,
-        MatSelectModule
+        MatSelectModule,
+        InternalNavComponent
     ],
     templateUrl: './analytics-dashboard.component.html',
     styleUrls: ['./analytics-dashboard.component.scss']

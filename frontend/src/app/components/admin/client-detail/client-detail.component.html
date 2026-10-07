@@ -1,0 +1,307 @@
+<app-internal-nav></app-internal-nav>
+
+<div class="client-detail-page">
+
+  <!-- BACK / BREADCRUMB -->
+  <button
+    mat-button
+    type="button"
+    class="back-button"
+    (click)="goBack()">
+    ← Clients
+  </button>
+
+
+  <!-- LOADING -->
+  <div
+    class="loading-container"
+    *ngIf="loading">
+
+    <mat-spinner diameter="42"></mat-spinner>
+
+  </div>
+
+
+  <!-- ERROR -->
+  <mat-card
+    class="error-card"
+    *ngIf="errorMessage">
+
+    {{ errorMessage }}
+
+  </mat-card>
+
+
+  <!-- CLIENT DETAILS -->
+  <ng-container
+    *ngIf="client && !loading">
+
+
+    <!-- CLIENT HEADER -->
+    <header class="client-header">
+
+      <div>
+
+        <div class="client-title-row">
+
+          <h1>
+            {{ client.firstName || '' }}
+            {{ client.lastName || '' }}
+          </h1>
+
+          <span
+            class="status-badge"
+            [class.status-active]="client.status === 'ACTIVE'"
+            [class.status-inactive]="client.status === 'INACTIVE'">
+
+            {{ client.status || 'UNKNOWN' }}
+
+          </span>
+
+        </div>
+
+        <p>
+          Client ID: {{ client.clientId }}
+        </p>
+
+      </div>
+
+    </header>
+
+
+    <!-- SUMMARY CARDS -->
+    <section class="summary-grid">
+
+      <mat-card class="summary-card">
+
+        <span class="summary-label">
+          Cash Balance
+        </span>
+
+        <strong class="summary-value">
+          {{
+            client.cashBalanceUsd
+              | currency:'USD':'symbol':'1.2-2'
+          }}
+        </strong>
+
+      </mat-card>
+
+
+      <mat-card class="summary-card">
+
+        <span class="summary-label">
+          Portfolio ID
+        </span>
+
+        <strong class="summary-value">
+          {{ client.portfolioId || '—' }}
+        </strong>
+
+      </mat-card>
+
+    </section>
+
+
+    <!-- CLIENT TABS -->
+    <mat-card class="details-card">
+
+      <mat-tab-group>
+
+
+        <!-- OVERVIEW -->
+        <mat-tab label="Overview">
+
+          <div class="tab-content">
+
+            <h2>
+              Client Information
+            </h2>
+
+            <div class="details-grid">
+
+
+              <div class="detail-item">
+
+                <span class="detail-label">
+                  Client ID
+                </span>
+
+                <span class="detail-value">
+                  {{ client.clientId }}
+                </span>
+
+              </div>
+
+
+              <div class="detail-item">
+
+                <span class="detail-label">
+                  Name
+                </span>
+
+                <span class="detail-value">
+                  {{ client.firstName || '' }}
+                  {{ client.lastName || '' }}
+                </span>
+
+              </div>
+
+
+              <div class="detail-item">
+
+                <span class="detail-label">
+                  Email
+                </span>
+
+                <span class="detail-value">
+                  {{ client.email || '—' }}
+                </span>
+
+              </div>
+
+
+              <div class="detail-item">
+
+                <span class="detail-label">
+                  Account Status
+                </span>
+
+                <span class="detail-value">
+                  {{ client.status || '—' }}
+                </span>
+
+              </div>
+
+
+              <div class="detail-item">
+
+                <span class="detail-label">
+                  Member Since
+                </span>
+
+                <span class="detail-value">
+                  {{
+                    client.createdAt
+                      ? (client.createdAt | date:'mediumDate')
+                      : '—'
+                  }}
+                </span>
+
+              </div>
+
+
+              <div class="detail-item">
+
+                <span class="detail-label">
+                  Last Login
+                </span>
+
+                <span class="detail-value">
+                  {{
+                    client.lastLogin
+                      ? (client.lastLogin | date:'medium')
+                      : 'No recorded login'
+                  }}
+                </span>
+
+              </div>
+
+
+              <div class="detail-item">
+
+                <span class="detail-label">
+                  Portfolio ID
+                </span>
+
+                <span class="detail-value">
+                  {{ client.portfolioId || '—' }}
+                </span>
+
+              </div>
+
+
+              <div class="detail-item">
+
+                <span class="detail-label">
+                  Cash Balance
+                </span>
+
+                <span class="detail-value">
+                  {{
+                    client.cashBalanceUsd
+                      | currency:'USD':'symbol':'1.2-2'
+                  }}
+                </span>
+
+              </div>
+
+
+            </div>
+
+          </div>
+
+        </mat-tab>
+
+
+        <!-- HOLDINGS -->
+        <mat-tab label="Holdings & Cash">
+
+          <div class="placeholder-tab">
+
+            <h2>
+              Holdings & Cash
+            </h2>
+
+            <p>
+              Client holdings and cash activity will appear here.
+            </p>
+
+          </div>
+
+        </mat-tab>
+
+
+        <!-- ORDERS -->
+        <mat-tab label="Orders & Trades">
+
+          <div class="placeholder-tab">
+
+            <h2>
+              Orders & Trades
+            </h2>
+
+            <p>
+              Client order and trade history will appear here.
+            </p>
+
+          </div>
+
+        </mat-tab>
+
+
+        <!-- ACTIVITY -->
+        <mat-tab label="Activity">
+
+          <div class="placeholder-tab">
+
+            <h2>
+              Activity
+            </h2>
+
+            <p>
+              Client trading and audit activity will appear here.
+            </p>
+
+          </div>
+
+        </mat-tab>
+
+
+      </mat-tab-group>
+
+    </mat-card>
+
+  </ng-container>
+
+</div>

@@ -1,0 +1,259 @@
+<app-internal-nav></app-internal-nav>
+
+<div class="clients-page">
+
+  <header class="clients-header">
+    <div>
+      <h1>Clients</h1>
+      <p>
+        Search and review client accounts for trading operations.
+      </p>
+    </div>
+  </header>
+
+
+  <!-- SEARCH / FILTERS -->
+  <mat-card class="filter-card">
+
+    <div class="filter-grid">
+
+      <mat-form-field appearance="outline">
+        <mat-label>
+          Search clients
+        </mat-label>
+
+        <input
+          matInput
+          type="text"
+          placeholder="Name, email, or client ID"
+          [(ngModel)]="search"
+          (keyup.enter)="applyFilters()">
+      </mat-form-field>
+
+
+      <mat-form-field appearance="outline">
+        <mat-label>
+          Status
+        </mat-label>
+
+        <mat-select [(ngModel)]="status">
+
+          <mat-option value="">
+            All
+          </mat-option>
+
+          <mat-option value="ACTIVE">
+            Active
+          </mat-option>
+
+          <mat-option value="INACTIVE">
+            Inactive
+          </mat-option>
+
+        </mat-select>
+      </mat-form-field>
+
+
+      <div class="filter-actions">
+
+        <button
+          mat-flat-button
+          color="primary"
+          type="button"
+          (click)="applyFilters()">
+          Search
+        </button>
+
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="resetFilters()">
+          Reset
+        </button>
+
+      </div>
+
+    </div>
+
+  </mat-card>
+
+
+  <!-- LOADING -->
+  <div
+    class="loading-container"
+    *ngIf="loading">
+
+    <mat-spinner diameter="42"></mat-spinner>
+
+  </div>
+
+
+  <!-- ERROR -->
+  <mat-card
+    class="error-card"
+    *ngIf="errorMessage">
+
+    {{ errorMessage }}
+
+  </mat-card>
+
+
+  <!-- CLIENT TABLE -->
+  <mat-card
+    class="table-card"
+    *ngIf="!loading && !errorMessage">
+
+    <div class="table-header">
+
+      <div>
+        <h2>
+          Client Accounts
+        </h2>
+
+        <p>
+          {{ clients.length }}
+          {{ clients.length === 1 ? 'client' : 'clients' }}
+        </p>
+      </div>
+
+    </div>
+
+
+    <div
+      class="table-wrapper"
+      *ngIf="clients.length > 0">
+
+      <table
+        mat-table
+        [dataSource]="clients"
+        class="clients-table">
+
+
+        <!-- CLIENT ID -->
+        <ng-container matColumnDef="clientId">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Client ID
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let client">
+
+            {{ client.clientId }}
+
+          </td>
+
+        </ng-container>
+
+
+        <!-- CLIENT NAME -->
+        <ng-container matColumnDef="client">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Client
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let client">
+
+            <div class="client-name">
+              {{ client.firstName || '' }}
+              {{ client.lastName || '' }}
+            </div>
+
+          </td>
+
+        </ng-container>
+
+
+        <!-- EMAIL -->
+        <ng-container matColumnDef="email">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Email
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let client">
+
+            {{ client.email || '—' }}
+
+          </td>
+
+        </ng-container>
+
+
+        <!-- STATUS -->
+        <ng-container matColumnDef="status">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Status
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let client">
+
+            <span
+              class="status-badge"
+              [class.status-active]="client.status === 'ACTIVE'"
+              [class.status-inactive]="client.status === 'INACTIVE'">
+
+              {{ client.status || 'UNKNOWN' }}
+
+            </span>
+
+          </td>
+
+        </ng-container>
+
+
+        <tr
+          mat-header-row
+          *matHeaderRowDef="displayedColumns">
+        </tr>
+
+        <tr
+          mat-row
+          *matRowDef="
+            let row;
+            columns: displayedColumns
+          "
+          class="client-row"
+          (click)="openClient(row)">
+        </tr>
+
+      </table>
+
+    </div>
+
+
+    <!-- EMPTY STATE -->
+    <div
+      class="empty-state"
+      *ngIf="clients.length === 0">
+
+      <h3>
+        No clients found
+      </h3>
+
+      <p>
+        Try changing your search or status filter.
+      </p>
+
+    </div>
+
+  </mat-card>
+
+</div>

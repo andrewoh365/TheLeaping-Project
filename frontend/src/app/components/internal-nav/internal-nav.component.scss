@@ -1,0 +1,93 @@
+.internal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 0 24px;
+  background: #111111;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.internal-nav-brand,
+.internal-nav-links {
+  display: flex;
+  align-items: center;
+}
+
+.internal-nav-brand {
+  gap: 12px;
+}
+
+.internal-nav-product {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-color);
+}
+
+.internal-role-badge {
+  padding: 4px 9px;
+  border: 1px solid rgba(38, 208, 124, 0.45);
+  border-radius: 999px;
+  color: var(--primary-accent-color);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.internal-nav-links {
+  gap: 4px;
+}
+
+.internal-nav-link,
+.logout-link {
+  padding: 19px 16px 17px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.internal-nav-link:hover,
+.logout-link:hover {
+  color: var(--text-color);
+}
+
+.internal-nav-link.active {
+  color: var(--text-color);
+  border-bottom-color: var(--primary-accent-color);
+}
+
+.internal-nav-link.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.logout-link {
+  margin-left: 8px;
+}
+
+@media (max-width: 700px) {
+  .internal-nav {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px 0;
+  }
+
+  .internal-nav-links {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .internal-nav-link,
+  .logout-link {
+    white-space: nowrap;
+  }
+}

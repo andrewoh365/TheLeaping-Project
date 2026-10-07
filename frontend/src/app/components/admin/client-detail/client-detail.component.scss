@@ -1,0 +1,193 @@
+.client-detail-page {
+  min-height: calc(100vh - 58px);
+  padding: 24px 20px;
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.back-button {
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.client-header {
+  margin-bottom: 24px;
+}
+
+.client-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-color);
+  }
+}
+
+.client-header p {
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.status-active {
+  color: var(--primary-accent-color);
+  background: rgba(38, 208, 124, 0.1);
+  border: 1px solid rgba(38, 208, 124, 0.3);
+}
+
+.status-inactive {
+  color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.summary-card {
+  padding: 20px;
+  background: var(--secondary-background-color);
+  color: var(--text-color);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.summary-label {
+  display: block;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+}
+
+.summary-value {
+  display: block;
+  margin-top: 8px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.details-card {
+  padding: 0;
+  overflow: hidden;
+  background: var(--secondary-background-color);
+  color: var(--text-color);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tab-content,
+.placeholder-tab {
+  padding: 24px;
+}
+
+.tab-content h2,
+.placeholder-tab h2 {
+  margin: 0 0 20px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.placeholder-tab p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.detail-label {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.detail-value {
+  color: var(--text-color);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  padding: 48px 20px;
+}
+
+.error-card {
+  padding: 16px;
+  margin-bottom: 24px;
+  background: var(--secondary-background-color);
+  color: #ff8383;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 131, 131, 0.2);
+}
+
+/* Keep Material tabs consistent with the dark internal UI */
+:host ::ng-deep .details-card {
+  .mat-mdc-tab-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .mdc-tab__text-label {
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  .mdc-tab--active .mdc-tab__text-label {
+    color: var(--text-color);
+  }
+
+  .mdc-tab-indicator__content--underline {
+    border-color: var(--primary-accent-color) !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .client-detail-page {
+    padding: 16px;
+  }
+
+  .summary-grid,
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tab-content,
+  .placeholder-tab {
+    padding: 18px;
+  }
+}

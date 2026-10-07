@@ -7,60 +7,6 @@
   padding: 0;
 }
 
-.admin-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 58px;
-  padding: 0 24px;
-  background: #111111;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.admin-nav-brand,
-.admin-nav-links {
-  display: flex;
-  align-items: center;
-}
-
-.admin-nav-brand {
-  gap: 12px;
-}
-
-.admin-nav-product {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.admin-role-badge {
-  padding: 4px 9px;
-  border: 1px solid rgba(38, 208, 124, 0.45);
-  border-radius: 999px;
-  color: var(--primary-accent-color);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.admin-nav-links {
-  gap: 4px;
-}
-
-.admin-nav-link {
-  padding: 19px 16px 17px;
-  border-bottom: 2px solid transparent;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.admin-nav-link.active {
-  color: var(--text-color);
-  border-bottom-color: var(--primary-accent-color);
-}
-
 .analytics-header {
   display: flex;
   align-items: center;
@@ -281,24 +227,6 @@
   border: 1px solid rgba(255, 131, 131, 0.2);
 }
 
-@media (max-width: 700px) {
-  .admin-nav {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
-    padding: 14px 16px 0;
-  }
-
-  .admin-nav-links {
-    width: 100%;
-    overflow-x: auto;
-  }
-
-  .admin-nav-link {
-    white-space: nowrap;
-  }
-}
-
 @media (max-width: 1200px) {
   .filter-grid {
     grid-template-columns: repeat(3, 1fr);
@@ -359,36 +287,3 @@
   }
 }
 
-@media (max-width: 1200px) {
-  .filter-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .summary-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 700px) {
-  .analytics-page {
-    padding: 16px;
-  }
-
-  .analytics-header {
-    align-items: flex-start;
-  }
-
-  .filter-grid,
-  .summary-grid,
-  .charts-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .chart-wide {
-    grid-column: span 1;
-  }
-
-  .filter-actions {
-    flex-wrap: wrap;
-  }
-}

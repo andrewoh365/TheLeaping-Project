@@ -1,37 +1,6 @@
 <div class="analytics-page">
 
-  <!-- ADMIN-ONLY PRESENTATION NAVIGATION -->
-  <nav
-    class="admin-nav"
-    *ngIf="isAdmin"
-    aria-label="Trading Operations navigation">
-
-    <div class="admin-nav-brand">
-      <span class="admin-nav-product">
-        LEAP
-      </span>
-
-      <span class="admin-role-badge">
-        Trading Operations
-      </span>
-    </div>
-
-    <div class="admin-nav-links">
-      <span class="admin-nav-link active">
-        Dashboard
-      </span>
-
-      <span class="admin-nav-link">
-        Clients
-      </span>
-
-      <span class="admin-nav-link">
-        Trade Lookup
-      </span>
-    </div>
-
-  </nav>
-
+  <app-internal-nav *ngIf="isAdmin"></app-internal-nav>
 
   <header class="analytics-header">
 
