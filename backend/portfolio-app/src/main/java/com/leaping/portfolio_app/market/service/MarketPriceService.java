@@ -1,19 +1,31 @@
 package com.leaping.portfolio_app.market.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Map;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.leaping.portfolio_app.market.entity.Currency;
+import com.leaping.portfolio_app.market.entity.Price;
 
 /**
- * MarketPriceService provides current market prices for all tradeable instruments.
- * 
- * Currently uses hardcoded prices for testing and development.
- * Can be extended to fetch from real market data APIs (Alpha Vantage, CoinGecko, etc.)
- * 
- * Prices are in USD as of September 28, 2026.
+ * MarketPriceService provides current market prices (in USD) for all tradeable instruments.
+ *
+ * Uses the latest stored price from the prices table, converted to USD via the
+ * price currency's exchange rate. Falls back to the hardcoded prices below when
+ * no stored price exists for a symbol.
+ *
+ * Hardcoded prices are in USD as of September 28, 2026.
  */
 @Service
 public class MarketPriceService {
+
+    private final PricingService pricingService;
+
+    public MarketPriceService(PricingService pricingService) {
+        this.pricingService = pricingService;
+    }
 
     /**
      * Hardcoded market prices for supported instruments.
@@ -86,13 +98,29 @@ public class MarketPriceService {
      * Get the current market price for an instrument by symbol.
      * 
      * @param symbol The instrument symbol (e.g., "AAPL", "BTC", "EURUSD")
-     * @return The current price in USD, or null if symbol not found
+     * @return The current price in USD, or null if no stored or hardcoded price exists
      */
+    @Transactional(readOnly = true)
     public BigDecimal getCurrentPrice(String symbol) {
         if (symbol == null || symbol.trim().isEmpty()) {
             return null;
         }
-        return CURRENT_PRICES.get(symbol.toUpperCase());
+        return pricingService.getLatestPriceBySymbol(symbol.trim())
+                .map(this::toUsd)
+                .orElseGet(() -> CURRENT_PRICES.get(symbol.trim().toUpperCase()));
+    }
+
+    /**
+     * Convert a stored price from its quote currency to USD using the
+     * currency's current exchange rate. Returns null if no rate is available.
+     */
+    private BigDecimal toUsd(Price price) {
+        Currency currency = price.getPriceCurrency();
+        BigDecimal rate = currency == null ? null : currency.getCurrentExchangeRateToUsd();
+        if (price.getPrice() == null || rate == null || rate.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        return price.getPrice().multiply(rate).setScale(8, RoundingMode.HALF_UP);
     }
 
     /**
@@ -102,7 +130,7 @@ public class MarketPriceService {
      * @return true if price data is available, false otherwise
      */
     public boolean hasPriceData(String symbol) {
-        return symbol != null && CURRENT_PRICES.containsKey(symbol.toUpperCase());
+        return getCurrentPrice(symbol) != null;
     }
 
     /**
