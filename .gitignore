@@ -23,4 +23,9 @@ Thumbs.db
 
 # Environment
 .env
+application.yaml
 application-local.yaml
+application-dev.yaml
+application-test.yaml
+backend/portfolio-app/src/main/resources/application-*.yaml
+backend/portfolio-app/src/test/resources/application-test.yaml

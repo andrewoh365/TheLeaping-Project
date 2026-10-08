@@ -1,19 +1,19 @@
 package com.leaping.portfolio_app.instrument.controller;
 
+import com.leaping.portfolio_app.instrument.dto.InstrumentDTO;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.service.InstrumentService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/instruments")
-@CrossOrigin(origins = "*")
+@RequestMapping("/api/auth/instrument")
 public class InstrumentController {
     private final InstrumentService instrumentService;
 
@@ -22,15 +22,24 @@ public class InstrumentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Instrument>> getAllInstruments() {
-        List<Instrument> instruments = instrumentService.getAllInstruments();
-        return ResponseEntity.ok(instruments);
+    public ResponseEntity<List<InstrumentDTO>> getAllInstruments() {
+        return ResponseEntity.ok(toDtos(instrumentService.getAllInstruments()));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<InstrumentDTO>> searchInstruments(@RequestParam String query) {
+        return ResponseEntity.ok(toDtos(instrumentService.searchInstruments(query)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Instrument> getInstrumentById(@PathVariable Long id) {
+    public ResponseEntity<InstrumentDTO> getInstrumentById(@PathVariable Long id) {
         return instrumentService.getInstrumentById(id)
+            .map(InstrumentDTO::new)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    private List<InstrumentDTO> toDtos(List<Instrument> instruments) {
+        return instruments.stream().map(InstrumentDTO::new).toList();
     }
 }

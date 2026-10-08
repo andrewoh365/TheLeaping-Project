@@ -175,3 +175,25 @@ body {
     height: 24px !important;
   }
 }
+
+.mat-mdc-menu-panel {
+  background-color: #2a2a2a !important;
+  border-radius: 4px !important;
+
+  .mat-mdc-menu-item {
+    color: #fafafa !important;
+    transition: all 0.2s ease;
+    font-size: 14px !important;
+    font-weight: 500;
+    
+    &:hover {
+      background-color: var(--secondary-accent-color) !important;
+      color: #ffffff !important;
+      .mat-icon {
+        color: #ffffff !important;
+      }
+    }
+
+
+  }
+}

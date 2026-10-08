@@ -23,12 +23,12 @@ import com.leaping.portfolio_app.auth.model.Customer;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.service.MarketPriceService;
+import com.leaping.portfolio_app.holdings.Holding;
+import com.leaping.portfolio_app.holdings.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.entity.CashTransaction;
-import com.leaping.portfolio_app.portfolio.entity.Holding;
 import com.leaping.portfolio_app.portfolio.entity.Portfolio;
 import com.leaping.portfolio_app.portfolio.enums.CashTransactionType;
 import com.leaping.portfolio_app.portfolio.repository.CashTransactionRepository;
-import com.leaping.portfolio_app.portfolio.repository.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
 import com.leaping.portfolio_app.trade.dto.TradeConfirmationResponse;
 import com.leaping.portfolio_app.trade.entity.ExecutionAttempt;
@@ -74,6 +74,7 @@ class TradeServiceTest {
     @BeforeEach
     void setUp() {
         portfolio = new Portfolio();
+        portfolio.setPortfolioId(1L);
         portfolio.setCashBalanceUsd(new BigDecimal("1000.00"));
 
         Customer customer = new Customer();
@@ -118,7 +119,7 @@ class TradeServiceTest {
             trade.setTradeId(300L);
             return trade;
         });
-        when(holdingRepository.findByPortfolioAndInstrument(portfolio, instrument)).thenReturn(Optional.of(existing));
+        when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L)).thenReturn(Optional.of(existing));
         when(holdingRepository.save(any(Holding.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(portfolioRepository.save(any(Portfolio.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(cashTransactionRepository.save(any(CashTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
