@@ -215,6 +215,12 @@ public class TradeService {
                     );
                 }
                 
+                if (newQuantity.compareTo(BigDecimal.ZERO) == 0) {
+                    // Position fully closed: remove the holding
+                    holdingRepository.delete(holding);
+                    return;
+                }
+
                 holding.setQuantity(newQuantity);
                 // Average cost stays the same
             }
