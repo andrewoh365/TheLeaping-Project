@@ -28,6 +28,7 @@ import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -40,13 +41,16 @@ import java.util.Locale;
 public class MarketDataIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(MarketDataIngestionService.class);
-    private static final String PROVIDER = "csv-universe-mock";
+    private static final String HISTORY_PROVIDER = "csv-universe-mock";
+    private final Object liveTickLock = new Object();
 
     private final InstrumentRepository instrumentRepository;
     private final PriceRepository priceRepository;
     private final MarketRepository marketRepository;
     private final CurrencyRepository currencyRepository;
     private final ResourceLoader resourceLoader;
+    private final MarketHoursService marketHoursService;
+    private final PriceMovementSimulator priceMovementSimulator;
 
     @Value("${market.pricing.history-days:30}")
     private int historyDays;
@@ -54,40 +58,64 @@ public class MarketDataIngestionService {
     @Value("${market.universe.csv-path:classpath:data/mock_instrument_universe.csv}")
     private String universeCsvPath;
 
+    @Value("${market.simulation.enabled:true}")
+    private boolean simulationEnabled;
+
+    @Value("${market.simulation.tick-ms:30000}")
+    private long tickMs;
+
+    @Value("${market.simulation.respect-market-hours:true}")
+    private boolean respectMarketHours;
+
     public MarketDataIngestionService(
             InstrumentRepository instrumentRepository,
             PriceRepository priceRepository,
             MarketRepository marketRepository,
             CurrencyRepository currencyRepository,
-            ResourceLoader resourceLoader
+            ResourceLoader resourceLoader,
+            MarketHoursService marketHoursService,
+            PriceMovementSimulator priceMovementSimulator
     ) {
         this.instrumentRepository = instrumentRepository;
         this.priceRepository = priceRepository;
         this.marketRepository = marketRepository;
         this.currencyRepository = currencyRepository;
         this.resourceLoader = resourceLoader;
+        this.marketHoursService = marketHoursService;
+        this.priceMovementSimulator = priceMovementSimulator;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void initialBackfill() {
-        syncHistoricalPrices();
-    }
-
-    @Scheduled(fixedDelayString = "${market.pricing.refresh-ms:900000}")
-    @Transactional
-    public void scheduledRefresh() {
-        syncHistoricalPrices();
-    }
-
-    private void syncHistoricalPrices() {
         List<UniverseRow> universe = loadUniverseRows();
         if (universe.isEmpty()) {
             return;
         }
 
-        LocalDate to = LocalDate.now(ZoneOffset.UTC);
-        LocalDate from = to.minusDays(historyDays);
+        backfillHistoricalPrices(universe);
+        appendLiveTicks(universe);
+    }
+
+    @Scheduled(
+            initialDelayString = "${market.pricing.refresh-ms:30000}",
+            fixedDelayString = "${market.pricing.refresh-ms:30000}"
+    )
+    @Transactional
+    public void scheduledRefresh() {
+        List<UniverseRow> universe = loadUniverseRows();
+        if (universe.isEmpty()) {
+            return;
+        }
+
+        appendLiveTicks(universe);
+    }
+
+    private void backfillHistoricalPrices(List<UniverseRow> universe) {
+        // Stop at yesterday so a later live tick is always the latest quote.
+        LocalDate to = LocalDate.now(ZoneOffset.UTC).minusDays(1);
+        int days = Math.max(historyDays, 1);
+        LocalDate from = to.minusDays(days - 1L);
 
         for (UniverseRow row : universe) {
             Instrument instrument = upsertInstrument(row);
@@ -100,7 +128,7 @@ public class MarketDataIngestionService {
                 boolean alreadyExists = priceRepository.existsByInstrumentAndPriceTimestampAndProviderName(
                         instrument,
                         point.getTimestamp(),
-                        PROVIDER
+                        HISTORY_PROVIDER
                 );
                 if (alreadyExists) {
                     continue;
@@ -112,11 +140,86 @@ public class MarketDataIngestionService {
                         instrument.getPriceCurrency(),
                         point.getTimestamp(),
                         PriceSourceType.MOCK,
-                        PROVIDER
+                        HISTORY_PROVIDER
                 );
                 priceRepository.save(price);
             }
         }
+        priceRepository.flush();
+    }
+
+    private void appendLiveTicks(List<UniverseRow> universe) {
+        if (!simulationEnabled) {
+            return;
+        }
+        synchronized (liveTickLock) {
+            appendLiveTicksLocked(universe);
+        }
+    }
+
+    private void appendLiveTicksLocked(List<UniverseRow> universe) {
+        long safeTickMs = Math.max(1000L, tickMs);
+        long tickSeconds = safeTickMs / 1000L;
+        long bucketEpoch = OffsetDateTime.now(ZoneOffset.UTC).toEpochSecond() / tickSeconds * tickSeconds;
+        OffsetDateTime timestamp = OffsetDateTime.ofInstant(Instant.ofEpochSecond(bucketEpoch), ZoneOffset.UTC);
+        int inserted = 0;
+
+        for (UniverseRow row : universe) {
+            Instrument instrument = upsertInstrument(row);
+            if (instrument == null || !marketAcceptsTick(instrument)) {
+                continue;
+            }
+
+            boolean alreadyExists = priceRepository.existsByInstrumentAndPriceTimestampAndProviderName(
+                    instrument,
+                    timestamp,
+                    PriceMovementSimulator.PROVIDER
+            );
+            if (alreadyExists) {
+                continue;
+            }
+
+            BigDecimal lastPrice = priceRepository
+                    .findFirstByInstrumentSymbolIgnoreCaseOrderByPriceTimestampDesc(instrument.getSymbol())
+                    .map(Price::getPrice)
+                    .orElse(null);
+
+            BigDecimal simulatedPrice = priceMovementSimulator.nextPrice(
+                    row.symbol(),
+                    row.instrumentType(),
+                    lastPrice,
+                    row.basePrice(),
+                    row.dailyVolatilityBps(),
+                    timestamp,
+                    safeTickMs
+            );
+
+            Price tick = new Price(
+                    instrument,
+                    simulatedPrice,
+                    instrument.getPriceCurrency(),
+                    timestamp,
+                    PriceSourceType.MOCK,
+                    PriceMovementSimulator.PROVIDER
+            );
+            priceRepository.save(tick);
+            inserted++;
+        }
+
+        if (inserted > 0) {
+            log.debug("Appended {} simulated prices at {}", inserted, timestamp);
+        }
+    }
+
+    private boolean marketAcceptsTick(Instrument instrument) {
+        if (!respectMarketHours || instrument.getInstrumentType() != InstrumentType.STOCK) {
+            return true;
+        }
+        Market market = instrument.getMarket();
+        if (market == null) {
+            return false;
+        }
+        return marketHoursService.getMarketStatus(market).isOpen();
     }
 
     private List<UniverseRow> loadUniverseRows() {

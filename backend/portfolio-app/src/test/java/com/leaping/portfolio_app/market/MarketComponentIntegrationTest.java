@@ -40,7 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "spring.flyway.enabled=false",
                 "spring.profiles.active=test",
                 "jwt.secret=ThisIsATestOnlyJwtSecretKeyWithAtLeast64CharactersForHS512SigningAlgo",
-                "market.pricing.refresh-ms=31536000000"
+                "market.pricing.refresh-ms=31536000000",
+                "market.simulation.respect-market-hours=false"
         }
 )
 class MarketComponentIntegrationTest {
@@ -112,7 +113,7 @@ class MarketComponentIntegrationTest {
         mockMvc.perform(get("/api/market/instruments/price/latest").param("symbol", "AAPL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.symbol").value("AAPL"))
-                .andExpect(jsonPath("$.provider").value("csv-universe-mock"));
+                .andExpect(jsonPath("$.provider").value("price-simulator"));
 
         mockMvc.perform(get("/api/market/instruments/price/history")
                         .param("symbol", "AAPL")
@@ -124,7 +125,7 @@ class MarketComponentIntegrationTest {
         mockMvc.perform(get("/api/market/instruments/quote").param("symbol", "AAPL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.symbol").value("AAPL"))
-                .andExpect(jsonPath("$.provider").value("csv-universe-mock"));
+                .andExpect(jsonPath("$.provider").value("price-simulator"));
 
         mockMvc.perform(get("/api/market/quotes")
                         .param("symbols", "AAPL", "BTC-USD", "EUR/USD"))
