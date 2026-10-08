@@ -354,9 +354,15 @@
 
     <div class="result-card" *ngIf="placedOrder">
       <h3>Last Order</h3>
-      <p><strong>#{{ placedOrder.order_id }}</strong> {{ placedOrder.instrument_symbol || 'N/A' }}</p>
-      <p>{{ placedOrder.order_action }} {{ placedOrder.quantity | number:'1.2-4' }} · {{ placedOrder.order_status }}</p>
-      <p *ngIf="placedTrade">Executed at {{ placedTrade.execution_price | currency:'USD':'symbol':'1.2-2' }}</p>
+      <p><strong>Order ID:</strong> #{{ placedOrder.order_id }}</p>
+      <p><strong>Status:</strong> {{ placedOrder.order_status }}</p>
+      <p><strong>Symbol:</strong> {{ placedOrder.instrument_symbol || 'N/A' }}</p>
+      <p><strong>Action:</strong> {{ placedOrder.order_action }}</p>
+      <p><strong>Type:</strong> {{ placedOrder.order_type }}</p>
+      <p><strong>Quantity:</strong> {{ placedOrder.quantity | number:'1.2-4' }}</p>
+      <p *ngIf="placedOrder.rejection_reason"><strong>Reason:</strong> {{ placedOrder.rejection_reason }}</p>
+      <p *ngIf="placedTrade"><strong>Execution Price:</strong> {{ placedTrade.execution_price | currency:'USD':'symbol':'1.2-2' }}</p>
+      <p *ngIf="placedTrade"><strong>Total USD Value:</strong> {{ placedTrade.total_usd_value | currency:'USD':'symbol':'1.2-2' }}</p>
     </div>
 
     <div class="lookup-row drawer-lookup-row">
@@ -369,8 +375,13 @@
 
     <div class="result-card" *ngIf="lookupResult">
       <h3>Order Lookup</h3>
-      <p><strong>#{{ lookupResult.order_id }}</strong> {{ lookupResult.instrument_symbol || 'N/A' }}</p>
-      <p>{{ lookupResult.order_action }} {{ lookupResult.quantity | number:'1.2-4' }} · {{ lookupResult.order_status }}</p>
+      <p><strong>Order ID:</strong> #{{ lookupResult.order_id }}</p>
+      <p><strong>Status:</strong> {{ lookupResult.order_status }}</p>
+      <p><strong>Symbol:</strong> {{ lookupResult.instrument_symbol || 'N/A' }}</p>
+      <p><strong>Action:</strong> {{ lookupResult.order_action }}</p>
+      <p><strong>Type:</strong> {{ lookupResult.order_type }}</p>
+      <p><strong>Quantity:</strong> {{ lookupResult.quantity | number:'1.2-4' }}</p>
+      <p *ngIf="lookupResult.rejection_reason"><strong>Reason:</strong> {{ lookupResult.rejection_reason }}</p>
     </div>
   </aside>
 

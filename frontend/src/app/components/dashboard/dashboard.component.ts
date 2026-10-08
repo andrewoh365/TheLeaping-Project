@@ -104,7 +104,7 @@ interface ApiError {
   styleUrls: ['./dashboard.component.scss']
 })
 export class DashboardComponent implements OnInit, OnDestroy {
-  private readonly tradeApiUrl = 'http://localhost:8080/api/trade';
+  private readonly tradeApiUrl = '/api/trade';
   private readonly portfolioRanges: Record<RangeKey, { days: number; points: number }> = {
     '1D': { days: 1, points: 8 },
     '1W': { days: 7, points: 8 },
