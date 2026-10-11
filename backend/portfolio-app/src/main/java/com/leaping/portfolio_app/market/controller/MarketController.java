@@ -1,6 +1,8 @@
 package com.leaping.portfolio_app.market.controller;
 
 import com.leaping.portfolio_app.market.dto.MarketDto;
+import com.leaping.portfolio_app.market.dto.MarketMoversDto;
+import com.leaping.portfolio_app.market.dto.MarketNewsDto;
 import com.leaping.portfolio_app.market.dto.MarketStatusDto;
 import com.leaping.portfolio_app.market.dto.PricePointDto;
 import com.leaping.portfolio_app.market.dto.QuoteDto;
@@ -10,6 +12,7 @@ import com.leaping.portfolio_app.market.entity.Price;
 import com.leaping.portfolio_app.market.repository.CurrencyRepository;
 import com.leaping.portfolio_app.market.repository.MarketRepository;
 import com.leaping.portfolio_app.market.service.MarketHoursService;
+import com.leaping.portfolio_app.market.service.MarketInsightsService;
 import com.leaping.portfolio_app.market.service.PreTradeMarketService;
 import com.leaping.portfolio_app.market.service.MarketStatus;
 import com.leaping.portfolio_app.market.service.PricingService;
@@ -35,19 +38,38 @@ public class MarketController {
     private final MarketHoursService marketHoursService;
     private final PricingService pricingService;
         private final PreTradeMarketService preTradeMarketService;
+    private final MarketInsightsService marketInsightsService;
 
     public MarketController(
             MarketRepository marketRepository,
             CurrencyRepository currencyRepository,
             MarketHoursService marketHoursService,
                         PricingService pricingService,
-                        PreTradeMarketService preTradeMarketService
+                        PreTradeMarketService preTradeMarketService,
+            MarketInsightsService marketInsightsService
     ) {
         this.marketRepository = marketRepository;
         this.currencyRepository = currencyRepository;
         this.marketHoursService = marketHoursService;
         this.pricingService = pricingService;
                 this.preTradeMarketService = preTradeMarketService;
+        this.marketInsightsService = marketInsightsService;
+    }
+
+    /**
+     * Today's market headlines (cached; served stale if the provider is unavailable).
+     */
+    @GetMapping("/news")
+    public ResponseEntity<MarketNewsDto> getMarketNews() {
+        return ResponseEntity.ok(marketInsightsService.getNews());
+    }
+
+    /**
+     * Biggest gainers and losers among the most actively traded US stocks in the latest session.
+     */
+    @GetMapping("/movers")
+    public ResponseEntity<MarketMoversDto> getMarketMovers() {
+        return ResponseEntity.ok(marketInsightsService.getMovers());
     }
 
     @GetMapping("/exchanges")
