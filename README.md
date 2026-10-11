@@ -29,6 +29,15 @@ A full-stack online trading platform application for portfolio management and ma
 
 ## 🚀 Quick Start
 
+### One-command dev setup (recommended)
+```bash
+scripts/dev.sh              # reset + reseed the DB, start backend and frontend
+scripts/dev.sh --no-reset   # start both, keep existing data
+```
+Frees ports 8080/4200, rebuilds `leaping_db` to the same seed data every time, and starts both servers. See **[scripts/README.md](./scripts/README.md)** for first-time setup, options, demo logins and troubleshooting.
+
+The manual steps below still work if you prefer to run things yourself.
+
 ### Prerequisites
 - **Backend**: Java 21, Maven 3.6+, MySQL 8.0+
 - **Frontend**: Node.js v18+, npm or yarn
