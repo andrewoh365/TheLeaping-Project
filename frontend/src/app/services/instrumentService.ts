@@ -16,21 +16,33 @@ export interface Instrument {
   providedIn: 'root'
 })
 export class InstrumentService {
-  private readonly API_URL = 'http://localhost:8080/api/auth/instrument';
+
+  private readonly API_URL = '/api/instruments';
 
   constructor(private http: HttpClient) {}
 
   getAllInstruments(): Observable<Instrument[]> {
-    return this.http.get<Instrument[]>(this.API_URL);
+    return this.http.get<Instrument[]>(
+      this.API_URL
+    );
   }
 
-  getInstrumentById(id: string): Observable<Instrument> {
-    return this.http.get<Instrument>(`${this.API_URL}/${id}`);
+  getInstrumentById(
+    id: string
+  ): Observable<Instrument> {
+    return this.http.get<Instrument>(
+      `${this.API_URL}/${id}`
+    );
   }
 
-  searchInstruments(query: string): Observable<Instrument[]> {
-    return this.http.get<Instrument[]>(`${this.API_URL}/search`, {
-      params: { query }
-    });
+  searchInstruments(
+    query: string
+  ): Observable<Instrument[]> {
+    return this.http.get<Instrument[]>(
+      `${this.API_URL}/search`,
+      {
+        params: { query }
+      }
+    );
   }
 }
