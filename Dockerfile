@@ -2,7 +2,7 @@ FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
 COPY backend/portfolio-app/pom.xml .
 COPY backend/portfolio-app/src ./src
-RUN mvn -B clean package -DskipTests
+RUN mvn -B clean package
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app

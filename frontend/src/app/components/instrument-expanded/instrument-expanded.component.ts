@@ -1,9 +1,12 @@
-import { Component, Inject, OnInit, ViewChild, ElementRef } from '@angular/core';
-import { MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, Inject, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatButtonModule } from '@angular/material/button';
 import { CommonModule } from '@angular/common';
-import { Chart, Colors, registerables, Ticks } from 'chart.js';
+import { Chart, ChartOptions, registerables } from 'chart.js';
 import { InstrumentService, PricePointDto } from '../../services/instrumentService';
 import { ChartConfig } from '../../models/chart.model';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 
 Chart.register(...registerables);
 
@@ -20,26 +23,32 @@ export interface InstrumentExpandedData {
 @Component({
   selector: 'app-instrument-expanded',
   standalone: true,
-  imports: [CommonModule, MatDialogModule],
+  imports: [CommonModule, MatDialogModule, MatButtonModule],
   templateUrl: './instrument-expanded.component.html',
-  styleUrl: './instrument-expanded.component.scss'
+  styleUrl: './instrument-expanded.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class InstrumentExpandedComponent implements OnInit {
+export class InstrumentExpandedComponent implements OnInit, OnDestroy {
+  private static readonly MAX_CHART_POINTS = 240;
+  private readonly destroy$ = new Subject<void>();
+  private requestVersion = 0;
+
   @ViewChild('priceChart') priceChartRef?: ElementRef;
   chartConfig?: ChartConfig;
   isLoading = false;
   chart?: Chart;
   
-  chartOptions = {
+  chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: true,
+    animation: false,
+    normalized: true,
     layout: {
       padding: 10
     },
     plugins: {
       legend: {
         display: true,
-        color: '#fafafa',
         position: 'top' as const,
         title: {
           color: '#fafafa'
@@ -74,7 +83,10 @@ export class InstrumentExpandedComponent implements OnInit {
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: InstrumentExpandedData,
-    private instrumentService: InstrumentService
+    private instrumentService: InstrumentService,
+    private dialogRef: MatDialogRef<InstrumentExpandedComponent>,
+    private ngZone: NgZone,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -83,6 +95,9 @@ export class InstrumentExpandedComponent implements OnInit {
 
   loadPriceHistory(): void {
     this.isLoading = true;
+    this.cdr.markForCheck();
+    const requestVersion = ++this.requestVersion;
+
     const to = new Date();
     const from = new Date();
     from.setDate(from.getDate() - 30);
@@ -91,16 +106,31 @@ export class InstrumentExpandedComponent implements OnInit {
       this.data.symbol,
       from.toISOString(),
       to.toISOString()
-    ).subscribe({
+    )
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
       next: (prices: PricePointDto[]) => {
-        this.chartConfig = this.transformToChartData(prices);
+        if (requestVersion !== this.requestVersion) {
+          return;
+        }
 
-        setTimeout(() => this.renderChart(), 100);
+        const sampledPrices = this.downsamplePrices(prices, InstrumentExpandedComponent.MAX_CHART_POINTS);
+        this.chartConfig = this.transformToChartData(sampledPrices);
         this.isLoading = false;
+        this.cdr.markForCheck();
+        // Render after the template updates and the canvas is present.
+        requestAnimationFrame(() => {
+          this.ngZone.runOutsideAngular(() => this.renderChart());
+        });
       },
       error: (err) => {
+        if (requestVersion !== this.requestVersion) {
+          return;
+        }
+
         console.error('Failed to load price history', err);
         this.isLoading = false;
+        this.cdr.markForCheck();
       }
     });
   }
@@ -126,11 +156,29 @@ export class InstrumentExpandedComponent implements OnInit {
           borderColor: ds.borderColor,
           backgroundColor: ds.backgroundColor,
           tension: ds.tension,
+          pointRadius: 0,
+          borderWidth: 2,
           fill: true
         }))
       },
       options: this.chartOptions
     });
+  }
+
+  private downsamplePrices(prices: PricePointDto[], maxPoints: number): PricePointDto[] {
+    if (prices.length <= maxPoints || maxPoints < 2) {
+      return prices;
+    }
+
+    const step = (prices.length - 1) / (maxPoints - 1);
+    const sampled: PricePointDto[] = [];
+
+    for (let index = 0; index < maxPoints; index++) {
+      const sourceIndex = Math.round(index * step);
+      sampled.push(prices[sourceIndex]);
+    }
+
+    return sampled;
   }
 
   private transformToChartData(prices: PricePointDto[]): ChartConfig {
@@ -146,4 +194,19 @@ export class InstrumentExpandedComponent implements OnInit {
       }]
     };
   }
+
+  onClose(): void {
+    this.dialogRef.close();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+
+    if (this.chart) {
+      this.chart.destroy();
+      this.chart = undefined;
+    }
+  }
+
 }

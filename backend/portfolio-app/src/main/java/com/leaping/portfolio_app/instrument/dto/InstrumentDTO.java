@@ -18,10 +18,15 @@ public class InstrumentDTO {
         this.instrumentId = instrument.getInstrumentId();
         this.symbol = instrument.getSymbol();
         this.name = instrument.getName();
-        this.instrumentType = instrument.getInstrumentType().toString();
-        this.priceCurrencyCode = instrument.getPriceCurrency().getCurrencyCode();
-        this.isTradeable = instrument.getIsTradeable();
-        this.isActive = instrument.getIsActive();
+        this.instrumentType = instrument.getInstrumentType() != null 
+            ? instrument.getInstrumentType().toString() 
+            : "UNKNOWN";
+        this.priceCurrencyCode = instrument.getPriceCurrency() != null 
+            && instrument.getPriceCurrency().getCurrencyCode() != null
+            ? instrument.getPriceCurrency().getCurrencyCode() 
+            : "USD";
+        this.isTradeable = instrument.getIsTradeable() != null ? instrument.getIsTradeable() : false;
+        this.isActive = instrument.getIsActive() != null ? instrument.getIsActive() : true;
     }
 
     public Long getInstrumentId() {

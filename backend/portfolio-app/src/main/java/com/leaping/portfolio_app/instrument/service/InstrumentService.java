@@ -15,6 +15,10 @@ public class InstrumentService {
         this.instrumentRepository = instrumentRepository;
     }
 
+    public List<Instrument> getAllInstruments() {
+        return instrumentRepository.findAll();
+    }
+
     public Optional<Instrument> getInstrumentById(Long instrumentId) {
         return instrumentRepository.findByInstrumentId(instrumentId);   
     }
