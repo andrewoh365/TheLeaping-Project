@@ -56,7 +56,7 @@ export interface CashTransferResponse {
   providedIn: 'root'
 })
 export class PortfolioService {
-  private readonly apiUrl = 'http://localhost:8080/api/portfolio';
+  private readonly apiUrl = '/api/portfolio';
 
   constructor(private http: HttpClient) {}
 

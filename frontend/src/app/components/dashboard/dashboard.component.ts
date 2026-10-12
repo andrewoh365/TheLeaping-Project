@@ -484,8 +484,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
             this.orderForm.order_action,
             this.orderForm.quantity
           ).pipe(
-            catchError((error) => {
-              this.previewError = (error?.error as TradeApiError)?.message || 'Could not get a price right now.';
+            catchError((error: HttpErrorResponse) => {
+              if (error.status === 401 || error.status === 403) {
+                this.previewError = 'Your session expired. Please log in again to place trades.';
+              } else {
+                this.previewError = (error?.error as TradeApiError)?.message || 'Could not get a price right now.';
+              }
               return of<OrderPreview | null>(null);
             }),
             finalize(() => {

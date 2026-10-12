@@ -58,7 +58,7 @@ export interface PricePointResponse {
   providedIn: 'root'
 })
 export class MarketService {
-  private readonly apiUrl = 'http://localhost:8080/api/market';
+  private readonly apiUrl = '/api/market';
 
   constructor(private http: HttpClient) {}
 

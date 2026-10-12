@@ -84,7 +84,7 @@ export interface OrderPreview {
   providedIn: 'root'
 })
 export class TradeService {
-  private readonly apiUrl = 'http://localhost:8080/api/trade';
+  private readonly apiUrl = '/api/trade';
 
   constructor(private http: HttpClient) {}
 
