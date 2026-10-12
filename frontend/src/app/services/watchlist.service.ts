@@ -20,7 +20,7 @@ export interface WatchlistInstrumentResponse {
   providedIn: 'root'
 })
 export class WatchlistService {
-  private readonly apiUrl = 'http://localhost:8080/api/watchlists';
+  private readonly apiUrl = '/api/watchlists';
 
   constructor(private http: HttpClient) {}
 
