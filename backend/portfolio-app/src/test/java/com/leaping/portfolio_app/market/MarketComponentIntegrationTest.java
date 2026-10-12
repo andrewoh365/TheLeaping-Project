@@ -1,8 +1,11 @@
 package com.leaping.portfolio_app.market;
 
+import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.entity.Market;
+import com.leaping.portfolio_app.market.entity.Price;
+import com.leaping.portfolio_app.market.enums.PriceSourceType;
 import com.leaping.portfolio_app.market.repository.CurrencyRepository;
 import com.leaping.portfolio_app.market.repository.MarketRepository;
 import com.leaping.portfolio_app.market.repository.PriceRepository;
@@ -21,6 +24,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -150,6 +154,51 @@ class MarketComponentIntegrationTest {
         mockMvc.perform(get("/api/market/instruments/tradability").param("symbol", "ZZZ_UNKNOWN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reason").value("INSTRUMENT_NOT_FOUND"));
+    }
+
+    @Test
+    @WithMockUser(username = "market.tester@example.com", roles = {"CUSTOMER"})
+    void historicalMockBarDoesNotOverrideTheLiveWalk() throws Exception {
+        Instrument aapl = instrumentRepository.findBySymbolIgnoreCase("AAPL").orElseThrow();
+        Price live = priceRepository
+                .findFirstByInstrumentSymbolIgnoreCaseAndProviderNameOrderByPriceTimestampDesc(
+                        "AAPL",
+                        "price-simulator"
+                )
+                .orElseThrow();
+        OffsetDateTime overlayTimestamp = live.getPriceTimestamp().plusHours(3);
+        priceRepository.saveAndFlush(new Price(
+                aapl,
+                new BigDecimal("1.00000000"),
+                aapl.getPriceCurrency(),
+                overlayTimestamp,
+                PriceSourceType.MOCK,
+                "csv-universe-mock"
+        ));
+
+        mockMvc.perform(get("/api/market/instruments/price/latest").param("symbol", "AAPL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("price-simulator"));
+
+        marketDataIngestionService.initialBackfill();
+
+        assertFalse(priceRepository.existsByInstrumentAndPriceTimestampAndProviderName(
+                aapl,
+                overlayTimestamp,
+                "csv-universe-mock"
+        ));
+        assertTrue(priceRepository
+                .findByInstrumentSymbolIgnoreCaseAndPriceTimestampBetweenOrderByPriceTimestampAsc(
+                        "AAPL",
+                        OffsetDateTime.now(ZoneOffset.UTC).minusDays(40),
+                        live.getPriceTimestamp().minusSeconds(1)
+                )
+                .stream()
+                .anyMatch(price -> "csv-universe-mock".equals(price.getProviderName())));
+        assertTrue(priceRepository
+                .findFirstByInstrumentSymbolIgnoreCaseOrderByPriceTimestampDesc("AAPL")
+                .filter(price -> "price-simulator".equals(price.getProviderName()))
+                .isPresent());
     }
 
         @Test

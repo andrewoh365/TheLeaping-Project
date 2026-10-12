@@ -1,6 +1,5 @@
 package com.leaping.portfolio_app.market.service;
 
-import com.leaping.portfolio_app.market.repository.PriceRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -8,14 +7,14 @@ import java.math.BigDecimal;
 @Service
 public class MarketPriceService {
 
-    private final PriceRepository priceRepository;
+    private final PricingService pricingService;
 
-    public MarketPriceService(PriceRepository priceRepository) {
-        this.priceRepository = priceRepository;
+    public MarketPriceService(PricingService pricingService) {
+        this.pricingService = pricingService;
     }
 
     public BigDecimal getCurrentPrice(String symbol) {
-        return priceRepository.findFirstByInstrumentSymbolIgnoreCaseOrderByPriceTimestampDesc(symbol)
+        return pricingService.getLatestPriceBySymbol(symbol)
                 .map(price -> price.getPrice())
                 .orElse(null);
     }

@@ -36,6 +36,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 public class MarketDataIngestionService {
@@ -112,19 +113,33 @@ public class MarketDataIngestionService {
     }
 
     private void backfillHistoricalPrices(List<UniverseRow> universe) {
-        // Stop at yesterday so a later live tick is always the latest quote.
+        // Stop at yesterday. Daily bars are only the backdrop before the walk
+        // starts; a bar on top of an existing live print is removed so the
+        // quote and the next step stay on price-simulator.
         LocalDate to = LocalDate.now(ZoneOffset.UTC).minusDays(1);
         int days = Math.max(historyDays, 1);
         LocalDate from = to.minusDays(days - 1L);
+        int removedOverlays = 0;
 
         for (UniverseRow row : universe) {
             Instrument instrument = upsertInstrument(row);
             if (instrument == null) {
                 continue;
             }
+            removedOverlays += removeHistoryOnTopOfLiveWalk(instrument);
+            OffsetDateTime firstLiveTick = priceRepository
+                    .findFirstByInstrumentAndProviderNameOrderByPriceTimestampAsc(
+                            instrument,
+                            PriceMovementSimulator.PROVIDER
+                    )
+                    .map(Price::getPriceTimestamp)
+                    .orElse(null);
             List<MarketPricePoint> points = generateMockHistory(row, from, to);
 
             for (MarketPricePoint point : points) {
+                if (firstLiveTick != null && !point.getTimestamp().isBefore(firstLiveTick)) {
+                    continue;
+                }
                 boolean alreadyExists = priceRepository.existsByInstrumentAndPriceTimestampAndProviderName(
                         instrument,
                         point.getTimestamp(),
@@ -145,7 +160,32 @@ public class MarketDataIngestionService {
                 priceRepository.save(price);
             }
         }
+        if (removedOverlays > 0) {
+            log.info("Removed {} historical mock prices that were newer than the live walk", removedOverlays);
+        }
         priceRepository.flush();
+    }
+
+    private int removeHistoryOnTopOfLiveWalk(Instrument instrument) {
+        Optional<Price> firstLive = priceRepository
+                .findFirstByInstrumentAndProviderNameOrderByPriceTimestampAsc(
+                        instrument,
+                        PriceMovementSimulator.PROVIDER
+                );
+        if (firstLive.isEmpty()) {
+            return 0;
+        }
+
+        List<Price> overlays = priceRepository.findByInstrumentAndProviderNameAndPriceTimestampGreaterThanEqual(
+                instrument,
+                HISTORY_PROVIDER,
+                firstLive.get().getPriceTimestamp()
+        );
+        if (overlays.isEmpty()) {
+            return 0;
+        }
+        priceRepository.deleteAll(overlays);
+        return overlays.size();
     }
 
     private void appendLiveTicks(List<UniverseRow> universe) {
@@ -179,10 +219,7 @@ public class MarketDataIngestionService {
                 continue;
             }
 
-            BigDecimal lastPrice = priceRepository
-                    .findFirstByInstrumentSymbolIgnoreCaseOrderByPriceTimestampDesc(instrument.getSymbol())
-                    .map(Price::getPrice)
-                    .orElse(null);
+            BigDecimal lastPrice = latestWalkPrice(instrument);
 
             BigDecimal simulatedPrice = priceMovementSimulator.nextPrice(
                     row.symbol(),
@@ -209,6 +246,20 @@ public class MarketDataIngestionService {
         if (inserted > 0) {
             log.debug("Appended {} simulated prices at {}", inserted, timestamp);
         }
+    }
+
+    private BigDecimal latestWalkPrice(Instrument instrument) {
+        Optional<Price> live = priceRepository.findFirstByInstrumentAndProviderNameOrderByPriceTimestampDesc(
+                instrument,
+                PriceMovementSimulator.PROVIDER
+        );
+        if (live.isPresent()) {
+            return live.get().getPrice();
+        }
+        return priceRepository
+                .findFirstByInstrumentSymbolIgnoreCaseOrderByPriceTimestampDesc(instrument.getSymbol())
+                .map(Price::getPrice)
+                .orElse(null);
     }
 
     private boolean marketAcceptsTick(Instrument instrument) {
