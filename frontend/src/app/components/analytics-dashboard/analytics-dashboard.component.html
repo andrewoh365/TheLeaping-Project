@@ -1,0 +1,310 @@
+<div class="analytics-page">
+
+  <header class="analytics-header">
+    <div>
+      <h1>Trading Analytics</h1>
+      <p>Internal trading activity and client insights</p>
+    </div>
+
+    <button
+      mat-stroked-button
+      type="button"
+      (click)="logout()">
+      Logout
+    </button>
+  </header>
+
+
+  <!-- FILTERS -->
+  <mat-card class="filter-card">
+    <div class="filter-grid">
+
+      <!-- FROM DATE -->
+      <mat-form-field appearance="outline">
+        <mat-label>From</mat-label>
+
+        <input
+          matInput
+          type="date"
+          [(ngModel)]="dateFrom">
+      </mat-form-field>
+
+
+      <!-- TO DATE -->
+      <mat-form-field appearance="outline">
+        <mat-label>To</mat-label>
+
+        <input
+          matInput
+          type="date"
+          [(ngModel)]="dateTo">
+      </mat-form-field>
+
+
+      <!-- ASSET TYPE -->
+      <mat-form-field appearance="outline">
+        <mat-label>Asset Type</mat-label>
+
+        <mat-select [(ngModel)]="assetType">
+
+          <mat-option value="">
+            All
+          </mat-option>
+
+          <mat-option value="STOCK">
+            Stock
+          </mat-option>
+
+          <mat-option value="CRYPTO">
+            Crypto
+          </mat-option>
+
+          <mat-option value="FOREX">
+            Forex
+          </mat-option>
+
+        </mat-select>
+      </mat-form-field>
+
+
+      <!-- MARKET -->
+      <mat-form-field appearance="outline">
+        <mat-label>Market</mat-label>
+
+        <mat-select [(ngModel)]="market">
+
+          <mat-option value="">
+            All
+          </mat-option>
+
+          <mat-option
+            *ngFor="let marketOption of markets"
+            [value]="marketOption">
+            {{ marketOption }}
+          </mat-option>
+
+        </mat-select>
+      </mat-form-field>
+
+
+      <!-- ORDER STATUS -->
+      <mat-form-field appearance="outline">
+        <mat-label>Order Status</mat-label>
+
+        <mat-select [(ngModel)]="orderStatus">
+
+          <mat-option value="">
+            All
+          </mat-option>
+
+          <mat-option value="SUBMITTED">
+            Submitted
+          </mat-option>
+
+          <mat-option value="ACCEPTED">
+            Accepted
+          </mat-option>
+
+          <mat-option value="FILLED">
+            Filled
+          </mat-option>
+
+          <mat-option value="REJECTED">
+            Rejected
+          </mat-option>
+
+          <mat-option value="CANCELLED">
+            Cancelled
+          </mat-option>
+
+        </mat-select>
+      </mat-form-field>
+
+
+      <!-- FILTER BUTTONS -->
+      <div class="filter-actions">
+
+        <button
+          mat-flat-button
+          color="primary"
+          type="button"
+          (click)="applyFilters()">
+          Apply
+        </button>
+
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="resetFilters()">
+          Reset
+        </button>
+
+      </div>
+
+    </div>
+  </mat-card>
+
+
+  <!-- LOADING -->
+  <div
+    class="loading-container"
+    *ngIf="loading">
+
+    <mat-spinner diameter="42"></mat-spinner>
+
+  </div>
+
+
+  <!-- ERROR -->
+  <mat-card
+    class="error-card"
+    *ngIf="errorMessage">
+
+    {{ errorMessage }}
+
+  </mat-card>
+
+
+  <ng-container *ngIf="dashboard && !loading">
+
+    <!-- SUMMARY CARDS -->
+    <section class="summary-grid">
+
+      <mat-card class="summary-card">
+
+        <span class="summary-label">
+          Trading Volume
+        </span>
+
+        <strong class="summary-value">
+          {{
+            dashboard.summary.trading_volume_usd
+              | currency:'USD':'symbol':'1.0-2'
+          }}
+        </strong>
+
+      </mat-card>
+
+
+      <mat-card class="summary-card">
+
+        <span class="summary-label">
+          Total Orders
+        </span>
+
+        <strong class="summary-value">
+          {{
+            dashboard.summary.total_orders
+              | number
+          }}
+        </strong>
+
+      </mat-card>
+
+
+      <mat-card class="summary-card">
+
+        <span class="summary-label">
+          Active Clients
+        </span>
+
+        <strong class="summary-value">
+          {{
+            dashboard.summary.active_clients
+              | number
+          }}
+        </strong>
+
+      </mat-card>
+
+
+      <mat-card class="summary-card">
+
+        <span class="summary-label">
+          Filled Orders
+        </span>
+
+        <strong class="summary-value">
+          {{
+            dashboard.summary.filled_orders_percentage
+              | number:'1.0-2'
+          }}%
+        </strong>
+
+      </mat-card>
+
+    </section>
+
+
+    <!-- CHARTS -->
+    <section class="charts-grid">
+
+      <mat-card class="chart-card chart-wide">
+
+        <h2>
+          Trading Volume Over Time
+        </h2>
+
+        <div class="chart-container">
+          <canvas #volumeChart></canvas>
+        </div>
+
+      </mat-card>
+
+
+      <mat-card class="chart-card">
+
+        <h2>
+          Order Outcomes
+        </h2>
+
+        <div class="chart-container">
+          <canvas #outcomesChart></canvas>
+        </div>
+
+      </mat-card>
+
+
+      <mat-card class="chart-card">
+
+        <h2>
+          Most Active Instruments
+        </h2>
+
+        <div class="chart-container">
+          <canvas #instrumentsChart></canvas>
+        </div>
+
+      </mat-card>
+
+
+      <mat-card class="chart-card chart-wide">
+
+        <h2>
+          Client Activity Trend
+        </h2>
+
+        <div class="chart-container">
+          <canvas #clientsChart></canvas>
+        </div>
+
+      </mat-card>
+
+
+      <mat-card class="chart-card chart-wide">
+
+        <h2>
+          Top Rejection Reasons
+        </h2>
+
+        <div class="chart-container">
+          <canvas #rejectionsChart></canvas>
+        </div>
+
+      </mat-card>
+
+    </section>
+
+  </ng-container>
+
+</div>
