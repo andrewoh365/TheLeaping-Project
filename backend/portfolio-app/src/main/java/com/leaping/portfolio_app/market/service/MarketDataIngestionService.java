@@ -1,10 +1,10 @@
 package com.leaping.portfolio_app.market.service;
 
 import com.leaping.portfolio_app.instrument.entity.Instrument;
+import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import com.leaping.portfolio_app.market.entity.Price;
 import com.leaping.portfolio_app.market.enums.PriceSourceType;
 import com.leaping.portfolio_app.market.repository.PriceRepository;
-import com.leaping.portfolio_app.repository.InstrumentRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;

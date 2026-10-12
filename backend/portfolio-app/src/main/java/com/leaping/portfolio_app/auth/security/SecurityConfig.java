@@ -95,6 +95,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()      // Login, register, validate endpoints
                         .requestMatchers("/api/public/**").permitAll()    // Public endpoints
                         .requestMatchers("/auth/**").permitAll()          // Auth endpoints without /api prefix
+                        .requestMatchers("/api/market/instruments/price/history").permitAll()  // Market price history - public
                         .anyRequest().authenticated()                     // Everything else requires authentication
                 )
                 // Add JWT filter BEFORE the standard username/password filter

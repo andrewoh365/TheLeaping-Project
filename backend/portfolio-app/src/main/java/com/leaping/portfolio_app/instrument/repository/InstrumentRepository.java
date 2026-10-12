@@ -1,10 +1,8 @@
 
-package com.leaping.portfolio_app.repository;
+package com.leaping.portfolio_app.instrument.repository;
 
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.Optional;
 import java.util.List;
@@ -17,17 +15,19 @@ public interface InstrumentRepository extends JpaRepository<Instrument, Long> {
     
     Optional<Instrument> findBySymbolIgnoreCase(String symbol);
 
-    Optional<Instrument> findBySymbolIgnoreCaseAndIsActiveTrue(String symbol);
-    
+    List<Instrument> findBySymbolStartingWithIgnoreCaseOrNameStartingWithIgnoreCase(String symbolPrefix, String namePrefix);
+
     List<Instrument> findByIsActiveTrueAndIsTradeableTrue();
 
     
-    List<Instrument> findByNameContainingIgnoreCase(String query);
-    
-    @Query("SELECT DISTINCT i FROM Instrument i " +
-           "WHERE LOWER(i.symbol) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
-           "LOWER(i.name) LIKE LOWER(CONCAT('%', :query, '%'))")
-    List<Instrument> searchInstruments(@Param("query") String query);
+    default List<Instrument> searchInstruments(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return List.of();
+        }
+
+        String normalizedQuery = query.trim();
+        return findBySymbolStartingWithIgnoreCaseOrNameStartingWithIgnoreCase(normalizedQuery, normalizedQuery);
+    }
 
 }
 

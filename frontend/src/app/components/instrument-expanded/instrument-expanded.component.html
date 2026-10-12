@@ -1,0 +1,26 @@
+<div class="instrument-expanded-dialog">
+    <mat-dialog-actions align="end">
+        <button mat-button mat-dialog-close>X</button>
+    </mat-dialog-actions>
+   <h2 class="instrument-title">{{ data.name }}</h2>
+    <mat-dialog-content>
+        <div class="chart-container" *ngIf="!isLoading && chartConfig">
+            <canvas #priceChart></canvas>
+        </div>
+        <div class="instrument-details">
+            <div class="detail-row">
+            <span class="label">Symbol:</span>
+            <span class="value">{{ data.symbol }}</span>
+            </div>
+            <div class="detail-row">
+            <span class="label">Type:</span>
+            <span class="value">{{ data.instrumentType }}</span>
+            </div>
+            <div class="detail-row">
+            <span class="label">Currency:</span>
+            <span class="value">{{ data.priceCurrencyCode }}</span>
+            </div>
+        </div>
+    </mat-dialog-content>
+
+</div>

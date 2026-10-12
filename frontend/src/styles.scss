@@ -197,3 +197,26 @@ body {
 
   }
 }
+
+.mat-mdc-dialog-surface {
+  background-color: #1a1a1a !important;
+  border-radius: 8px !important;
+  margin: 0 !important;
+}
+
+.mat-mdc-dialog-content {
+  background-color: #1a1a1a !important;
+  color: #fafafa !important;
+}
+
+.mat-mdc-dialog-title {
+  color: #fafafa !important;
+}
+
+.mat-button.mat-dialog-close{
+  color: var(--secondary-accent-color);
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+
+}

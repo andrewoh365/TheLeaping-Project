@@ -4,7 +4,6 @@ import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.enums.InstrumentType;
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.entity.Market;
-import com.leaping.portfolio_app.repository.InstrumentRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -160,7 +159,7 @@ class InstrumentRepositoryTest {
     }
 
     /**
-     * Test: searchInstruments returns partial matches
+    * Test: searchInstruments returns partial symbol matches
      */
     @Test
     void searchInstruments_withPartialMatch_shouldReturnMatches() {
@@ -178,10 +177,10 @@ class InstrumentRepositoryTest {
     }
 
     /**
-     * Test: searchInstruments returns multiple matches with common name
+     * Test: searchInstruments does not return mid-name fragment matches
      */
     @Test
-    void searchInstruments_withCommonNamePart_shouldReturnAllMatches() {
+    void searchInstruments_withCommonNamePart_shouldReturnNoMatches() {
         // Arrange: Create instruments with "Inc." in name
         Instrument apple = new Instrument(market, "AAPL", "Apple Inc.", InstrumentType.STOCK, currency);
         Instrument google = new Instrument(market, "GOOGL", "Alphabet Inc.", InstrumentType.STOCK, currency);
@@ -190,9 +189,7 @@ class InstrumentRepositoryTest {
 
         List<Instrument> results = instrumentRepository.searchInstruments("Inc");
 
-        assertEquals(2, results.size());
-        assertTrue(results.stream().anyMatch(i -> "AAPL".equals(i.getSymbol())));
-        assertTrue(results.stream().anyMatch(i -> "GOOGL".equals(i.getSymbol())));
+        assertTrue(results.isEmpty());
     }
 
     /**
@@ -265,34 +262,20 @@ class InstrumentRepositoryTest {
     }
 
     /**
-     * Test: findBySymbolIgnoreCaseAndIsActiveTrue returns active instruments
+    * Test: symbol-prefix-or-name-prefix query returns name matches
      */
     @Test
-    void findBySymbolIgnoreCaseAndIsActiveTrue_withActiveInstrument_shouldReturn() {
-        Instrument active = new Instrument(market, "AAPL", "Apple Inc.", InstrumentType.STOCK, currency);
-        active.setIsActive(true);
-        instrumentRepository.save(active);
-        entityManager.flush();
-
-        Optional<Instrument> result = instrumentRepository.findBySymbolIgnoreCaseAndIsActiveTrue("aapl");
-
-        assertTrue(result.isPresent());
-        assertTrue(result.get().getIsActive());
-    }
-
-    /**
-     * Test: findByNameContainingIgnoreCase returns partial name matches
-     */
-    @Test
-    void findByNameContainingIgnoreCase_withPartialName_shouldReturnMatches() {
+    void findBySymbolPrefixOrNamePrefixIgnoreCase_withNamePrefix_shouldReturnMatches() {
         Instrument apple = new Instrument(market, "AAPL", "Apple Inc.", InstrumentType.STOCK, currency);
         Instrument appleMaps = new Instrument(market, "APPL", "Apple Maps", InstrumentType.STOCK, currency);
         instrumentRepository.saveAll(List.of(apple, appleMaps));
         entityManager.flush();
 
-        List<Instrument> results = instrumentRepository.findByNameContainingIgnoreCase("apple");
+        List<Instrument> results = instrumentRepository.findBySymbolStartingWithIgnoreCaseOrNameStartingWithIgnoreCase("does-not-exist", "apple");
 
         assertEquals(2, results.size());
+        assertTrue(results.stream().anyMatch(i -> "AAPL".equals(i.getSymbol())));
+        assertTrue(results.stream().anyMatch(i -> "APPL".equals(i.getSymbol())));
     }
 
     /**

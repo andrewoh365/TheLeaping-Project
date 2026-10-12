@@ -35,16 +35,17 @@
         class="search-input" 
         [(ngModel)]="searchQuery" 
         (input)="onSearchInput()"
-        placeholder="Enter a symbol or name"
+        placeholder="Enter an instrument symbol or name"
         aria-label="Search"
       />
       <mat-icon class="search-icon">search</mat-icon>
-    </div>
-    <div class="search-results">
-      <div *ngFor="let result of searchResults" class="search-result-item"> 
-        <div class="result-header">
-          <h3>{{ result?.symbol }}</h3>
-        </div>
+      <div class="search-results" *ngIf="searchResults.length > 0">
+        <button *ngFor="let result of searchResults" class="search-result-item" (click)="openInstrumentDialog(result)">
+          <div class="result-header">
+            <h3 class="result-symbol">{{ result?.symbol }}</h3>
+            <p class="result-name">{{ result?.name }}</p>
+          </div>
+        </button>
       </div>
     </div>
 

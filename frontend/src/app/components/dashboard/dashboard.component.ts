@@ -9,10 +9,12 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatCardModule } from '@angular/material/card';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatListModule } from '@angular/material/list';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { Subject } from 'rxjs';
 import { takeUntil, debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrumentService';
+import { InstrumentExpandedComponent } from '../instrument-expanded/instrument-expanded.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -26,7 +28,8 @@ import { InstrumentService, Instrument } from '../../services/instrumentService'
     MatMenuModule,
     MatCardModule,
     MatDividerModule,
-    MatListModule
+    MatListModule,
+    MatDialogModule,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss']
@@ -41,7 +44,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private router: Router,
-    private instrumentService: InstrumentService
+    private instrumentService: InstrumentService,
+    private dialog: MatDialog
   ) {}
 
 
@@ -87,6 +91,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .subscribe(query => {
         this.performSearch(query);
       });
+  }
+
+  openInstrumentDialog(instrument: Instrument): void {
+    this.dialog.open(InstrumentExpandedComponent, {
+      data: instrument,
+      width: '80vw',
+      height: '80vh'
+    });
   }
 
   ngOnDestroy(): void {

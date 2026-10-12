@@ -1,10 +1,10 @@
-package com.leaping.portfolio_app.service;
+package com.leaping.portfolio_app.instrument.service;
 
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.enums.InstrumentType;
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.entity.Market;
-import com.leaping.portfolio_app.repository.InstrumentRepository;
+import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

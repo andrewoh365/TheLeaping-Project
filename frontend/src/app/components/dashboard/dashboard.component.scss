@@ -123,18 +123,16 @@
     width: 20px;
   }
   .search-results {
-    font-size: 10x;
-    margin-top: 20px;
     display: flex;
     flex-direction: column;
     gap: 5x;
     position: absolute;
+    top: calc(100% + 12px);
+    left: 0;
     width: 100%;
     max-width: 500px;
-    margin-top: 3%;
     overflow-y: auto;
     z-index: 1000;
-    background: #1a1a1a;
     border-radius: 12px;
     outline: none;
    
@@ -144,19 +142,23 @@
     .search-result-item {
       cursor: pointer;
       transition: all 0.3s ease;
-      padding: 8px;
-      font-size: 10px;
       border: 1px solid rgba(38, 208, 124, 0.2);
+      background-color: var(--background-color);
+      color: var(--text-color);
 
       &:hover {
        border-color: var(--secondary-accent-color);
       }
 
     }
-
-
     .result-header {
       font-weight: 600;
+      .result-symbol {
+        font-size: 14px;
+      }
+      .result-name{
+        font-size: 12px;
+      }
     }
   }
 
