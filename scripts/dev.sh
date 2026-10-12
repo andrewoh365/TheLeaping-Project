@@ -48,6 +48,39 @@ log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m==>\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m==>\033[0m %s\n' "$*" >&2; exit 1; }
 
+package_install_hint() {
+  local package_name=$1
+  if command -v brew >/dev/null 2>&1; then
+    printf 'brew install %s' "$package_name"
+  elif command -v apt-get >/dev/null 2>&1; then
+    printf 'sudo apt-get install -y %s' "$package_name"
+  elif command -v dnf >/dev/null 2>&1; then
+    printf 'sudo dnf install -y %s' "$package_name"
+  elif command -v yum >/dev/null 2>&1; then
+    printf 'sudo yum install -y %s' "$package_name"
+  elif command -v zypper >/dev/null 2>&1; then
+    printf 'sudo zypper install %s' "$package_name"
+  elif command -v pacman >/dev/null 2>&1; then
+    printf 'sudo pacman -S %s' "$package_name"
+  elif command -v apk >/dev/null 2>&1; then
+    printf 'sudo apk add %s' "$package_name"
+  else
+    printf 'install %s with your system package manager' "$package_name"
+  fi
+}
+
+postgres_start_hint() {
+  if command -v brew >/dev/null 2>&1; then
+    printf 'brew services start postgresql@17'
+  elif command -v systemctl >/dev/null 2>&1; then
+    printf 'sudo systemctl start postgresql'
+  elif command -v service >/dev/null 2>&1; then
+    printf 'sudo service postgresql start'
+  else
+    printf 'start your local PostgreSQL service'
+  fi
+}
+
 # --- Config -----------------------------------------------------------------
 
 # Pull a value from the spring.datasource block of application-local.yaml.
@@ -62,11 +95,40 @@ read_local_config() {
     }' "$LOCAL_CONFIG"
 }
 
+# Resolve Spring-style placeholders like ${DB_USERNAME:postgres} or ${DB_PASSWORD}.
+resolve_spring_placeholder() {
+  local raw="$1"
+  local var_name default_value resolved_value
+
+  if [[ "$raw" =~ ^\$\{([A-Za-z_][A-Za-z0-9_]*)(:([^}]*))?\}$ ]]; then
+    var_name="${BASH_REMATCH[1]}"
+    default_value="${BASH_REMATCH[3]:-}"
+    resolved_value="${!var_name:-}"
+
+    if [[ -n "$resolved_value" ]]; then
+      printf '%s' "$resolved_value"
+    else
+      printf '%s' "$default_value"
+    fi
+    return 0
+  fi
+
+  printf '%s' "$raw"
+}
+
 [[ -f "$LOCAL_CONFIG" ]] || die "Missing $LOCAL_CONFIG - copy application-local.yaml.example and fill it in."
 
-DB_USER="${DB_USERNAME:-$(read_local_config username)}"
+DB_USER_RAW="$(read_local_config username)"
+DB_PASS_RAW="$(read_local_config password)"
+
+DB_USER="${DB_USERNAME:-$(resolve_spring_placeholder "$DB_USER_RAW")}"
 DB_USER="${DB_USER:-postgres}"
-DB_PASS="${DB_PASSWORD:-$(read_local_config password)}"
+DB_PASS="${DB_PASSWORD:-$(resolve_spring_placeholder "$DB_PASS_RAW")}"
+
+# Keep backend placeholder resolution aligned with what this script used.
+export DB_USERNAME="${DB_USERNAME:-$DB_USER}"
+export DB_PASSWORD="${DB_PASSWORD:-$DB_PASS}"
+export JWT_SECRET="${JWT_SECRET:-local-dev-jwt-secret-change-me}"
 export PGPASSWORD="$DB_PASS"
 
 psql_admin() { psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -v ON_ERROR_STOP=1 -qAt "$@"; }
@@ -168,12 +230,12 @@ reset_db() {
 
 # --- Main -------------------------------------------------------------------
 
-command -v psql >/dev/null || die "psql not found (brew install postgresql@17)"
-command -v lsof >/dev/null || die "lsof not found"
+command -v psql >/dev/null || die "psql not found ($(package_install_hint postgresql))"
+command -v lsof >/dev/null || die "lsof not found ($(package_install_hint lsof))"
 command -v npm  >/dev/null || die "npm not found (install Node.js)"
 
 pg_isready -h "$DB_HOST" -p "$DB_PORT" >/dev/null 2>&1 \
-  || die "Postgres is not accepting connections on $DB_HOST:$DB_PORT (brew services start postgresql@17)"
+  || die "Postgres is not accepting connections on $DB_HOST:$DB_PORT ($(postgres_start_hint))"
 
 mkdir -p "$LOG_DIR"
 set -m  # run background jobs in their own process groups so cleanup can kill them whole

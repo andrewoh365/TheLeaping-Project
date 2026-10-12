@@ -76,6 +76,21 @@ brew install postgresql@17 node openjdk@21
 brew services start postgresql@17
 ```
 
+On Debian/Ubuntu Linux:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y postgresql postgresql-client lsof nodejs npm openjdk-21-jdk
+sudo systemctl start postgresql
+```
+
+On Amazon Linux / RHEL / Fedora:
+
+```bash
+sudo dnf install -y postgresql postgresql-server lsof nodejs npm java-21-amazon-corretto-devel
+sudo systemctl enable --now postgresql
+```
+
 > **Postgres.app / EDB installer users:** `psql` may not be on your `PATH`. Add its `bin` folder, e.g.
 > `export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH"` or
 > `export PATH="/Library/PostgreSQL/17/bin:$PATH"` in your `~/.zshrc`.
@@ -142,7 +157,7 @@ The first run is slower (Maven downloads dependencies, `npm install` runs).
 |---|---|
 | `Missing .../application-local.yaml` | Do [step 3](#3-create-application-localyaml). |
 | `Postgres is not accepting connections` | Start Postgres: `brew services start postgresql@17` (macOS) or `sudo systemctl start postgresql` (Linux). |
-| `psql not found` | Install Postgres client tools or add them to your `PATH` (see step 1). |
+| `psql not found` | Install Postgres client tools or add them to your `PATH` (see step 1). On Linux that is usually `postgresql-client` or `postgresql`. |
 | `role "postgres" does not exist` | Homebrew install — see [step 2](#2-make-sure-you-have-a-database-user-that-can-create-databases). |
 | `password authentication failed` | The `password` in `application-local.yaml` doesn't match your Postgres user. |
 | `permission denied to create database` | Your DB user lacks `CREATEDB` — run `ALTER ROLE your_user CREATEDB;` as a superuser. |
