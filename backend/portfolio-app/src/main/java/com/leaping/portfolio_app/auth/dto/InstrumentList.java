@@ -1,15 +1,11 @@
-package com.leaping.portfolio_app.dto;
-
-import java.util.List;
+package com.leaping.portfolio_app.auth.dto;
 
 public class InstrumentList {
     private String instrumentId;
     private String symbol;
-     private String instrumentType;
+    private String instrumentType;
     private String priceCurrencyCode;
 
-    public InstrumentList() {
-    }
 
     public InstrumentList(String instrumentId, String symbol, String instrumentType, String priceCurrencyCode) {
         this.instrumentId = instrumentId;

@@ -1,7 +1,7 @@
-package com.leaping.portfolio_app.service;
+package com.leaping.portfolio_app.instrument.service;
 
 import com.leaping.portfolio_app.instrument.entity.Instrument;
-import com.leaping.portfolio_app.repository.InstrumentRepository;
+import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,11 +19,15 @@ public class InstrumentService {
         return instrumentRepository.findAll();
     }
 
-    public Optional<Instrument> getInstrumentById(Long id) {
-        return instrumentRepository.findById(id);
+    public Optional<Instrument> getInstrumentById(Long instrumentId) {
+        return instrumentRepository.findByInstrumentId(instrumentId);   
     }
 
     public Optional<Instrument> getActiveInstruments(Boolean isActive) {
         return instrumentRepository.findByIsActive(isActive);
+    }
+
+    public List<Instrument> searchInstruments(String query) {
+        return instrumentRepository.searchInstruments(query);
     }
 }

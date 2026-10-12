@@ -1,5 +1,6 @@
-package com.leaping.portfolio_app.portfolio.entity;
+package com.leaping.portfolio_app.holdings;
 
+import com.leaping.portfolio_app.portfolio.entity.Portfolio;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 
 import jakarta.persistence.Column;

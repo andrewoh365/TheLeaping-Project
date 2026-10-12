@@ -10,6 +10,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 
 import java.time.OffsetDateTime;
 
@@ -38,16 +40,9 @@ public class Watchlist {
     public Watchlist() {
     }
 
-    public Watchlist(
-            Customer customer,
-            String watchlistName,
-            OffsetDateTime createdAt,
-            OffsetDateTime updatedAt
-    ) {
+    public Watchlist(Customer customer, String watchlistName) {
         this.customer = customer;
         this.watchlistName = watchlistName;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
     }
 
     public Long getWatchlistId() {
@@ -88,5 +83,17 @@ public class Watchlist {
 
     public void setUpdatedAt(OffsetDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        OffsetDateTime now = OffsetDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = OffsetDateTime.now();
     }
 }
