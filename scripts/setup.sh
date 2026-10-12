@@ -400,7 +400,7 @@ ensure_spring_local_config() {
 # ============================================================
 
 server:
-  port: 8081
+  port: 8080
 
 spring:
   datasource:
