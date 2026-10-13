@@ -211,6 +211,8 @@
           </div>
 
           <ng-container *ngIf="!holdingsSearchLoading">
+            <div class="empty-state" *ngIf="holdingsSearchError" role="alert">{{ holdingsSearchError }}</div>
+
             <div class="table-cols-172">
               <p class="text-173"><span class="text-rgb-189-189-189">ASSET</span></p>
               <p class="text-174"><span class="text-rgb-189-189-189">SHARES</span></p>
@@ -234,7 +236,7 @@
               </div>
             </div>
 
-            <div class="empty-state" *ngIf="filteredHoldings.length === 0">{{ holdingsEmptyMessage }}</div>
+            <div class="empty-state" *ngIf="filteredHoldings.length === 0 && !holdingsSearchError">{{ holdingsEmptyMessage }}</div>
           </ng-container>
         </div>
 

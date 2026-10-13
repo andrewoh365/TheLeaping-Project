@@ -9,7 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
 import { Subject, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
+import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrumentService';
 import {
@@ -193,6 +193,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private holdingsSearchResults: DashboardHolding[] | null = null;
   private lastHoldingsFilterQuery = '';
   holdingsSearchLoading = false;
+  holdingsSearchError = '';
 
   constructor(
     private authService: AuthService,
@@ -496,13 +497,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
           }
 
           this.holdingsSearchLoading = true;
+          this.holdingsSearchError = '';
           return forkJoin({
-            rows: this.portfolioService.searchHoldingsBySymbol(portfolioId, normalized).pipe(
-              catchError(() => of<HoldingResponse[]>([]))
-            ),
+            rows: this.portfolioService.searchHoldingsBySymbol(portfolioId, normalized),
             minimumDisplayTime: timer(150)
           }).pipe(
             map(({ rows }) => this.toDashboardHoldingRows(rows)),
+            tap(() => {
+              this.holdingsSearchError = '';
+            }),
+            catchError(() => {
+              this.holdingsSearchError = 'Could not refresh holdings search. Showing the previous results.';
+              return of(this.holdingsSearchResults);
+            }),
             finalize(() => {
               this.holdingsSearchLoading = false;
             })
@@ -571,6 +578,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.holdingsSearchResults = null;
       this.lastHoldingsFilterQuery = '';
       this.holdingsSearchLoading = false;
+      this.holdingsSearchError = '';
       this.holdingsSearch$.next('');
       return;
     }
