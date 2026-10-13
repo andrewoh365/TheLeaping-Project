@@ -57,6 +57,44 @@ export interface AdminOrderLookup {
   executedAt: string | null;
 }
 
+export interface AdminOrderDetail {
+  orderId: number;
+
+  status: string | null;
+  side: string | null;
+  orderType: string | null;
+  timeInForce: string | null;
+
+  quantity: number | null;
+  limitPriceUsd: number | null;
+
+  clientId: number | null;
+  firstName: string | null;
+  lastName: string | null;
+  portfolioId: number | null;
+
+  instrumentId: number | null;
+  symbol: string | null;
+  instrumentName: string | null;
+
+  submittedAt: string | null;
+  acceptedAt: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
+  cancelledAt: string | null;
+  filledAt: string | null;
+
+  tradeId: number | null;
+
+  executionPrice: number | null;
+  executionPriceCurrencyCode: string | null;
+  exchangeRateToUsdAtExecution: number | null;
+  executionPriceUsd: number | null;
+  totalUsdValue: number | null;
+
+  executedAt: string | null;
+}
+
 export interface AdminOrderFilters {
   search?: string;
   status?: string;
@@ -132,6 +170,15 @@ export class AdminService {
     return this.http.get<AdminOrderLookup[]>(
       `${this.API_URL}/orders`,
       { params }
+    );
+  }
+
+  getOrder(
+    orderId: number
+  ): Observable<AdminOrderDetail> {
+
+    return this.http.get<AdminOrderDetail>(
+      `${this.API_URL}/orders/${orderId}`
     );
   }
 }

@@ -8,6 +8,7 @@ import { AnalyticsDashboardComponent } from './components/analytics-dashboard/an
 
 import { ClientsComponent } from './components/admin/clients/clients.component';
 import { ClientDetailComponent } from './components/admin/client-detail/client-detail.component';
+import { OrderDetailComponent } from './components/admin/order-detail/order-detail.component';
 import { TradeLookupComponent } from './components/admin/trade-lookup/trade-lookup.component';
 
 import { AuthGuard } from './guards/auth.guard';
@@ -69,6 +70,15 @@ export const routes: Routes = [
   {
     path: 'admin/clients/:clientId',
     component: ClientDetailComponent,
+    canActivate: [RoleGuard],
+    data: {
+      roles: ['ADMIN']
+    }
+  },
+
+  {
+    path: 'admin/orders/:orderId',
+    component: OrderDetailComponent,
     canActivate: [RoleGuard],
     data: {
       roles: ['ADMIN']

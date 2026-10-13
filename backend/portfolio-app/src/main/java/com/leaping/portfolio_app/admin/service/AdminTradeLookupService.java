@@ -1,5 +1,6 @@
 package com.leaping.portfolio_app.admin.service;
 
+import com.leaping.portfolio_app.admin.dto.AdminOrderDetailResponse;
 import com.leaping.portfolio_app.admin.dto.AdminOrderLookupResponse;
 import com.leaping.portfolio_app.auth.model.User;
 import com.leaping.portfolio_app.trade.entity.Trade;
@@ -7,8 +8,10 @@ import com.leaping.portfolio_app.trade.entity.TradeOrder;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
 import com.leaping.portfolio_app.trade.repository.TradeRepository;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Comparator;
 import java.util.List;
@@ -60,6 +63,85 @@ public class AdminTradeLookupService {
                         )
                 )
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public AdminOrderDetailResponse getOrder(Long orderId) {
+        TradeOrder order = tradeOrderRepository
+                .findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Order not found"
+                ));
+
+        Trade trade = tradeRepository
+                .findByOrderOrderId(orderId)
+                .orElse(null);
+
+        User user = null;
+        Long clientId = null;
+        Long portfolioId = null;
+
+        if (order.getPortfolio() != null) {
+            portfolioId = order.getPortfolio().getPortfolioId();
+
+            if (order.getPortfolio().getCustomer() != null) {
+                clientId = order.getPortfolio()
+                        .getCustomer()
+                        .getUserId();
+                user = order.getPortfolio()
+                        .getCustomer()
+                        .getUser();
+            }
+        }
+
+        return new AdminOrderDetailResponse(
+                order.getOrderId(),
+                order.getOrderStatus() != null
+                        ? order.getOrderStatus().name()
+                        : null,
+                order.getOrderAction() != null
+                        ? order.getOrderAction().name()
+                        : null,
+                order.getOrderType() != null
+                        ? order.getOrderType().name()
+                        : null,
+                order.getTimeInForce() != null
+                        ? order.getTimeInForce().name()
+                        : null,
+                order.getQuantity(),
+                order.getLimitPriceUsd(),
+                clientId,
+                user != null ? user.getFirstName() : null,
+                user != null ? user.getLastName() : null,
+                portfolioId,
+                order.getInstrument() != null
+                        ? order.getInstrument().getInstrumentId()
+                        : null,
+                order.getInstrument() != null
+                        ? order.getInstrument().getSymbol()
+                        : null,
+                order.getInstrument() != null
+                        ? order.getInstrument().getName()
+                        : null,
+                order.getSubmittedAt(),
+                order.getAcceptedAt(),
+                order.getRejectedAt(),
+                order.getRejectionReason(),
+                order.getCancelledAt(),
+                order.getFilledAt(),
+                trade != null ? trade.getTradeId() : null,
+                trade != null ? trade.getExecutionPrice() : null,
+                trade != null && trade.getExecutionPriceCurrency() != null
+                        ? trade.getExecutionPriceCurrency().getCurrencyCode()
+                        : null,
+                trade != null
+                        ? trade.getExchangeRateToUsdAtExecution()
+                        : null,
+                trade != null ? trade.getExecutionPriceUsd() : null,
+                trade != null ? trade.getTotalUsdValue() : null,
+                trade != null ? trade.getExecutedAt() : null
+        );
     }
 
     private boolean matchesSearch(
