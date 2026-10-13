@@ -10,13 +10,15 @@
     justify-content: center;
     padding-top: 10px;
     align-items: center;
-
+    width: min(100%, 760px);
+    height: clamp(240px, 42vh, 420px);
     max-width: 45vw;
     max-height: 45vh;
     position: relative;
     margin-bottom: 20px;
 
     canvas {
+      display: block;
       width: 100% !important;
       height: 100% !important;
     }
@@ -24,12 +26,12 @@
 
 
   .instrument-title {
-    font-size: 24px;
     font-weight: 800;
     color: var(--secondary-accent-color);
     text-align: center;
     margin-bottom: 20px;
     font: inherit;
+    font-size: 24px;
 
   }
 

@@ -8,6 +8,7 @@
   --background-color: #1a1a1a;
   --secondary-background-color: #2a2a2a;
   --text-color: #fafafa;
+  font-family: 'Inter', sans-serif;
 }
 
 html, body {
@@ -211,6 +212,8 @@ body {
 
 .mat-mdc-dialog-title {
   color: #fafafa !important;
+  font-weight: 800;
+  font-size: 24px !important;
 }
 
 .mat-button.mat-dialog-close{
@@ -220,3 +223,4 @@ body {
   cursor: pointer;
 
 }
+

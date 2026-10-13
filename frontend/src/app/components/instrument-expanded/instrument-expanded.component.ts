@@ -40,7 +40,7 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
   
   chartOptions: ChartOptions<'line'> = {
     responsive: true,
-    maintainAspectRatio: true,
+    maintainAspectRatio: false,
     animation: false,
     normalized: true,
     layout: {
@@ -50,12 +50,11 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
       legend: {
         display: true,
         position: 'top' as const,
-        title: {
-          color: '#fafafa'
-          
-        },
         labels: {
-          color: '#fafafa'
+          color: '#fafafa',
+          usePointStyle: true,
+          boxWidth: 8,
+          boxHeight: 8
         }
       }
     },
@@ -63,16 +62,19 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
       x: {
         grid: {
           display: true,
-          color: '#fafafa'
+          color: 'rgba(232, 245, 239, 0.18)'
         },
         ticks: {
-          color: '#fafafa'
+          color: '#fafafa',
+          maxRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 8
         }
       },
       y: {
         beginAtZero: false,
         grid: {
-          color: '#fafafa'
+          color: '#2c2c2c'
       },
       ticks: {
         color: '#fafafa'
