@@ -2,21 +2,46 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
-import { Subject, forkJoin, of } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, finalize, takeUntil } from 'rxjs/operators';
+import { Subject, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, switchMap, takeUntil } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrumentService';
-import { MarketService, MarketStatusResponse, PricePointResponse } from '../../services/market.service';
-import { HoldingResponse, PortfolioResponse, PortfolioService } from '../../services/portfolio.service';
+import {
+  MarketMover,
+  MarketMovers,
+  MarketNews,
+  MarketService,
+  MarketStatusResponse,
+  NewsItem,
+  PricePointResponse
+} from '../../services/market.service';
+import {
+  CashDirection,
+  CashTransferResponse,
+  HoldingResponse,
+  PortfolioResponse,
+  PortfolioService
+} from '../../services/portfolio.service';
 import { WatchlistInstrumentResponse, WatchlistResponse, WatchlistService } from '../../services/watchlist.service';
+import {
+  OrderAction,
+  OrderHistoryPage,
+  OrderPreview,
+  OrderResponse,
+  PlaceOrderRequest,
+  PlaceOrderSuccess,
+  TradeApiError,
+  TradeResponse,
+  TradeService
+} from '../../services/trade.service';
 
-type DashboardTab = 'holdings' | 'watchlist' | 'crypto';
+type DashboardTab = 'holdings' | 'watchlist' | 'crypto' | 'activity';
 type RangeKey = '1D' | '1W' | '1M' | '3M' | '1Y' | 'ALL';
 
 interface DashboardHolding extends HoldingResponse {
@@ -36,57 +61,30 @@ interface SummaryCard {
   value: number;
   changePercent: number | null;
   tone: 'positive' | 'negative' | 'neutral';
-  sparklinePath: string;
 }
 
-interface NewsItem {
-  source: string;
-  age: string;
+/** Outcome of the last order, shown on the ticket in plain language. */
+interface OrderResult {
+  kind: 'filled' | 'rejected' | 'pending' | 'error';
   title: string;
-  summary: string;
+  detail: string;
 }
 
-interface MarketMover {
+interface TicketInstrument {
+  instrumentId: number;
   symbol: string;
-  price: number;
-  changePercent: number;
+  name: string;
 }
 
-interface PlaceOrderRequest {
-  instrument_id: number;
-  order_action: 'BUY' | 'SELL';
-  order_type: 'MARKET' | 'LIMIT';
-  quantity: number;
-  limit_price: number | null;
-  time_in_force: 'DAY' | 'GTC';
-}
-
-interface OrderResponse {
-  order_id: number;
-  instrument_symbol: string;
-  order_action: string;
-  order_type: string;
-  order_status: string;
-  quantity: number;
-  limit_price?: number;
-  rejection_reason?: string;
-}
-
-interface TradeResponse {
-  trade_id: number;
-  execution_price: number;
-  total_usd_value: number;
-}
-
-interface PlaceOrderSuccess {
-  order: OrderResponse;
-  trade?: TradeResponse;
-}
-
-interface ApiError {
-  message: string;
-  order?: OrderResponse;
-}
+/** How often the dashboard refreshes portfolio, prices and order status while visible. */
+const LIVE_UPDATE_MS = 15000;
+/** How long a changed value stays highlighted. */
+const HIGHLIGHT_MS = 2000;
+/** News and movers change slowly and are cached server-side; refresh them every 5 minutes. */
+const MARKET_CONTEXT_MS = 5 * 60 * 1000;
+const NEWS_COLLAPSED_COUNT = 5;
+/** Matches the backend's per-transaction cap. */
+const MAX_CASH_TRANSFER_USD = 1_000_000;
 
 @Component({
   selector: 'app-dashboard',
@@ -104,9 +102,6 @@ interface ApiError {
   styleUrls: ['./dashboard.component.scss']
 })
 export class DashboardComponent implements OnInit, OnDestroy {
-
-  private readonly tradeApiUrl = '/api/trade';
-
   private readonly portfolioRanges: Record<RangeKey, { days: number; points: number }> = {
     '1D': { days: 1, points: 8 },
     '1W': { days: 7, points: 8 },
@@ -134,67 +129,60 @@ export class DashboardComponent implements OnInit, OnDestroy {
   watchlists: WatchlistResponse[] = [];
   watchlistInstruments: WatchlistInstrumentResponse[] = [];
   activeWatchlistName = 'Watchlist';
-  orderLookupId: number | null = null;
-  lookupResult: OrderResponse | null = null;
+  activityOrders: OrderResponse[] = [];
+  activityPage = 0;
+  activityHasMore = false;
+  activityLoading = false;
+  activityLoaded = false;
+  activityError = '';
+  expandedOrderId: number | null = null;
+  lastUpdated: Date | null = null;
+  chartHasHistory = true;
+  marketNews: MarketNews | null = null;
+  marketMovers: MarketMovers | null = null;
+  marketContextLoaded = false;
+  newsExpanded = false;
+  readonly newsSearchUrl = 'https://news.google.com/search?q=stock%20market&hl=en-US&gl=US&ceid=US:en';
+  changedSymbols = new Set<string>();
+  totalValueChanged = false;
+  private highlightTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Only market/day orders are offered: limit orders are not executed yet.
   orderForm: PlaceOrderRequest = {
-    instrument_id: 1,
+    instrument_id: 0,
     order_action: 'BUY',
     order_type: 'MARKET',
-    quantity: 1,
+    quantity: null,
     limit_price: null,
     time_in_force: 'DAY'
   };
 
+  ticketInstrument: TicketInstrument | null = null;
+  ticketSearchQuery = '';
+  ticketSearchResults: Instrument[] = [];
+  ticketSearchLoading = false;
+  preview: OrderPreview | null = null;
+  previewLoading = false;
+  previewError = '';
+
   orderSubmitInProgress = false;
   orderSubmitMessage = '';
   orderSubmitError = '';
-  placedOrder: OrderResponse | null = null;
-  placedTrade: TradeResponse | null = null;
+  orderResult: OrderResult | null = null;
   tradePanelOpen = false;
 
+  cashPanelOpen = false;
+  cashDirection: CashDirection = 'DEPOSIT';
+  cashAmount: number | null = null;
+  cashSubmitInProgress = false;
+  cashResult: OrderResult | null = null;
+  readonly quickDepositAmounts = [100, 1000, 10000];
+
   readonly rangeOptions: RangeKey[] = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
-  readonly marketNews: NewsItem[] = [
-    {
-      source: 'Bloomberg',
-      age: '10m ago',
-      title: 'Treasury yields steady as rate-cut timing stays in focus',
-      summary: 'Large-cap equities drift higher while traders price in a slower path for easing.'
-    },
-    {
-      source: 'TechCrunch',
-      age: '1h ago',
-      title: 'Chip infrastructure names lead another AI-heavy session',
-      summary: 'Semiconductor suppliers and cloud platforms extended gains on new enterprise demand signals.'
-    },
-    {
-      source: 'Reuters',
-      age: '3h ago',
-      title: 'Oil ticks up as supply expectations tighten into quarter-end',
-      summary: 'Energy shares firmed after inventory data and renewed focus on export constraints.'
-    },
-    {
-      source: 'CNBC',
-      age: '5h ago',
-      title: 'Bitcoin stabilizes after rally as ETF flows remain constructive',
-      summary: 'Crypto markets held recent gains as spot demand and risk appetite stayed resilient.'
-    }
-  ];
-
-  readonly topGainers: MarketMover[] = [
-    { symbol: 'NVDA', price: 875.12, changePercent: 5.82 },
-    { symbol: 'AMD', price: 184.22, changePercent: 4.11 },
-    { symbol: 'COIN', price: 241.5, changePercent: 3.85 }
-  ];
-
-  readonly topLosers: MarketMover[] = [
-    { symbol: 'TSLA', price: 179.24, changePercent: -3.15 },
-    { symbol: 'INTC', price: 42.15, changePercent: -2.45 },
-    { symbol: 'BABA', price: 71.9, changePercent: -1.82 }
-  ];
-
   private destroy$ = new Subject<void>();
   private searchSubject$ = new Subject<string>();
+  private ticketSearch$ = new Subject<string>();
+  private previewRequest$ = new Subject<void>();
 
   constructor(
     private authService: AuthService,
@@ -203,7 +191,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private portfolioService: PortfolioService,
     private marketService: MarketService,
     private watchlistService: WatchlistService,
-    private http: HttpClient
+    private tradeService: TradeService
   ) {}
 
   get displayName(): string {
@@ -291,27 +279,154 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return filtered;
   }
 
+  /** True only when the latest preview matches what's on the ticket and the backend would accept it. */
+  get canSubmitOrder(): boolean {
+    const preview = this.preview;
+    return !!this.ticketInstrument
+      && !!preview
+      && preview.can_submit
+      && !this.previewLoading
+      && !this.orderSubmitInProgress
+      && preview.instrument_id === this.ticketInstrument.instrumentId
+      && preview.order_action === this.orderForm.order_action
+      && Number(preview.quantity) === Number(this.orderForm.quantity);
+  }
+
+  get submitButtonLabel(): string {
+    if (this.orderSubmitInProgress) {
+      return 'Placing order...';
+    }
+    const verb = this.orderForm.order_action === 'BUY' ? 'Buy' : 'Sell';
+    if (!this.ticketInstrument || !this.orderForm.quantity || this.orderForm.quantity <= 0) {
+      return verb;
+    }
+    return `${verb} ${this.orderForm.quantity} ${this.ticketInstrument.symbol}`;
+  }
+
+  /** Show the preview's blocking reason, except the "enter a quantity" prompt before anything is typed. */
+  get ticketWarning(): string {
+    if (!this.ticketInstrument || !this.preview || this.preview.can_submit || this.previewLoading) {
+      return '';
+    }
+    const noQuantityYet = this.orderForm.quantity === null || this.orderForm.quantity === undefined;
+    const message = noQuantityYet && this.preview.tradable ? '' : this.preview.message ?? '';
+    // Don't repeat a reason the order result card is already showing
+    return message && this.orderResult?.detail.startsWith(message) ? '' : message;
+  }
+
+  get holdingsEmptyMessage(): string {
+    if (this.holdings.length === 0) {
+      return "You don't have any investments yet. Use Trade to buy your first one.";
+    }
+    if (this.selectedTab === 'crypto' && this.cryptoHoldings.length === 0) {
+      return "You don't hold any crypto yet.";
+    }
+    return 'No holdings match your search.';
+  }
+
+  get visibleNews(): NewsItem[] {
+    const items = this.marketNews?.items ?? [];
+    return this.newsExpanded ? items : items.slice(0, NEWS_COLLAPSED_COUNT);
+  }
+
+  get hasMoreNews(): boolean {
+    return (this.marketNews?.items.length ?? 0) > NEWS_COLLAPSED_COUNT;
+  }
+
+  toggleNews(): void {
+    this.newsExpanded = !this.newsExpanded;
+  }
+
+  /** "12m ago", "3h ago", or a date for anything older than a day. */
+  newsAge(publishedAt: string | null): string {
+    if (!publishedAt) {
+      return '';
+    }
+    const minutes = Math.max(0, Math.round((Date.now() - new Date(publishedAt).getTime()) / 60000));
+    if (minutes < 60) {
+      return `${minutes}m ago`;
+    }
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) {
+      return `${hours}h ago`;
+    }
+    return new Date(publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  /** Movers that are offered on the platform open the trade ticket; others are information only. */
+  openMover(mover: MarketMover): void {
+    if (mover.instrumentId === null) {
+      return;
+    }
+    const instrument = this.allInstruments.find((candidate) => Number(candidate.instrumentId) === mover.instrumentId);
+    this.setTicketInstrument({
+      instrumentId: mover.instrumentId,
+      symbol: mover.symbol,
+      name: instrument?.name ?? mover.name
+    });
+  }
+
+  /** Plain-language reason the cash form can't be submitted, or '' if it can. */
+  get cashAmountIssue(): string {
+    const amount = this.cashAmount;
+    if (amount === null || amount === undefined) {
+      return '';
+    }
+    if (!(amount > 0)) {
+      return 'Enter an amount greater than zero.';
+    }
+    if (Math.round(amount * 100) !== amount * 100) {
+      return "Amounts can't have more than 2 decimal places.";
+    }
+    if (amount > MAX_CASH_TRANSFER_USD) {
+      return `The most you can move at once is ${this.formatUsd(MAX_CASH_TRANSFER_USD)}.`;
+    }
+    if (this.cashDirection === 'WITHDRAW' && amount > this.cashBalance) {
+      return `You can't withdraw more than your cash balance of ${this.formatUsd(this.cashBalance)}.`;
+    }
+    return '';
+  }
+
+  get canSubmitCash(): boolean {
+    return !!this.cashAmount && this.cashAmount > 0 && !this.cashAmountIssue && !this.cashSubmitInProgress;
+  }
+
+  get cashBalanceAfter(): number | null {
+    if (!this.cashAmount || this.cashAmount <= 0) {
+      return null;
+    }
+    return this.cashDirection === 'DEPOSIT' ? this.cashBalance + this.cashAmount : this.cashBalance - this.cashAmount;
+  }
+
+  get cashSubmitLabel(): string {
+    if (this.cashSubmitInProgress) {
+      return this.cashDirection === 'DEPOSIT' ? 'Depositing...' : 'Withdrawing...';
+    }
+    const verb = this.cashDirection === 'DEPOSIT' ? 'Deposit' : 'Withdraw';
+    return this.cashAmount && this.cashAmount > 0 && !this.cashAmountIssue ? `${verb} ${this.formatUsd(this.cashAmount)}` : verb;
+  }
+
   get hasSearchResults(): boolean {
     return this.searchQuery.trim().length > 0 && this.searchResults.length > 0;
   }
 
   get accountCards(): SummaryCard[] {
+    const listedChange = this.getCategoryChangePercent('non-crypto');
+    const cryptoChange = this.getCategoryChangePercent('crypto');
     return [
       {
         title: 'Brokerage Account',
         subtitle: 'Cash plus listed holdings',
         value: this.brokerageValue,
-        changePercent: this.totalGainLossPercent,
-        tone: this.getTone(this.totalGainLossPercent),
-        sparklinePath: this.buildSparklinePath(this.chartPoints.slice(0, 7).map((point) => point.value), 176, 42)
+        changePercent: listedChange,
+        tone: this.getTone(listedChange)
       },
       {
         title: 'Crypto Wallet',
         subtitle: 'Digital asset exposure',
         value: this.cryptoHoldingsValue,
-        changePercent: this.getCategoryChangePercent('crypto'),
-        tone: this.getTone(this.getCategoryChangePercent('crypto')),
-        sparklinePath: this.buildSparklinePath(this.cryptoHoldings.map((holding) => this.getHoldingMarketValue(holding)), 176, 42)
+        changePercent: cryptoChange,
+        tone: this.getTone(cryptoChange)
       }
     ];
   }
@@ -333,10 +448,71 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.performSearch(query);
       });
 
+    this.ticketSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          if (!query.trim()) {
+            return of<Instrument[]>([]);
+          }
+          this.ticketSearchLoading = true;
+          return this.instrumentService.searchInstruments(query).pipe(
+            catchError(() => of<Instrument[]>([])),
+            finalize(() => {
+              this.ticketSearchLoading = false;
+            })
+          );
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((results) => {
+        this.ticketSearchResults = results.filter((instrument) => instrument.isActive).slice(0, 8);
+      });
+
+    // switchMap drops out-of-date previews if the client keeps typing
+    this.previewRequest$
+      .pipe(
+        debounceTime(250),
+        switchMap(() => {
+          if (!this.ticketInstrument) {
+            return of<OrderPreview | null>(null);
+          }
+          this.previewLoading = true;
+          this.previewError = '';
+          return this.tradeService.previewOrder(
+            this.ticketInstrument.instrumentId,
+            this.orderForm.order_action,
+            this.orderForm.quantity
+          ).pipe(
+            catchError((error: HttpErrorResponse) => {
+              if (error.status === 401 || error.status === 403) {
+                this.previewError = 'Your session expired. Please log in again to place trades.';
+              } else {
+                this.previewError = (error?.error as TradeApiError)?.message || 'Could not get a price right now.';
+              }
+              return of<OrderPreview | null>(null);
+            }),
+            finalize(() => {
+              this.previewLoading = false;
+            })
+          );
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((preview) => {
+        this.preview = preview;
+      });
+
     this.loadDashboard();
+    this.startLiveUpdates();
+    this.startMarketContextUpdates();
   }
 
   ngOnDestroy(): void {
+    if (this.highlightTimer) {
+      clearTimeout(this.highlightTimer);
+    }
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -347,6 +523,27 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   setSelectedTab(tab: DashboardTab): void {
     this.selectedTab = tab;
+    if (tab === 'activity' && !this.activityLoaded) {
+      this.loadActivity(true);
+    }
+  }
+
+  loadMoreActivity(): void {
+    this.loadActivity(false);
+  }
+
+  toggleOrderDetails(orderId: number): void {
+    this.expandedOrderId = this.expandedOrderId === orderId ? null : orderId;
+  }
+
+  orderStatusLabel(status: string): string {
+    switch (status) {
+      case 'FILLED': return 'Filled';
+      case 'REJECTED': return 'Rejected';
+      case 'CANCELLED': return 'Cancelled';
+      case 'SUBMITTED': return 'Pending';
+      default: return status.charAt(0) + status.slice(1).toLowerCase();
+    }
   }
 
   setActiveRange(range: RangeKey): void {
@@ -359,131 +556,214 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   selectInstrument(instrument: Instrument): void {
-    this.orderForm.instrument_id = Number(instrument.instrumentId);
-    this.searchQuery = instrument.symbol;
+    this.searchQuery = '';
     this.searchResults = [];
-    this.orderSubmitError = '';
-    this.orderSubmitMessage = `Selected ${instrument.symbol} for order entry.`;
-    this.tradePanelOpen = true;
+    this.setTicketInstrument({
+      instrumentId: Number(instrument.instrumentId),
+      symbol: instrument.symbol,
+      name: instrument.name
+    });
   }
 
-  setTradeAction(action: 'BUY' | 'SELL'): void {
+  setTradeAction(action: OrderAction): void {
     this.orderForm.order_action = action;
     this.orderSubmitError = '';
-    this.orderSubmitMessage = `${action} ticket is ready.`;
+    this.orderSubmitMessage = '';
+    this.cashPanelOpen = false;
     this.tradePanelOpen = true;
+    this.requestPreview();
   }
 
   openTradePanel(): void {
     this.orderSubmitError = '';
-    this.orderSubmitMessage = 'Trade ticket is ready.';
+    this.orderSubmitMessage = '';
+    this.cashPanelOpen = false;
     this.tradePanelOpen = true;
   }
 
-  showUnavailableAction(action: 'Transfer' | 'Deposit'): void {
-    this.orderSubmitError = '';
-    this.orderSubmitMessage = `${action} is not wired to an API yet.`;
+  openCashPanel(): void {
+    this.tradePanelOpen = false;
+    this.cashPanelOpen = true;
   }
 
-  openTradeForHolding(holding: DashboardHolding, action: 'BUY' | 'SELL'): void {
-    if (holding.instrumentId) {
-      this.orderForm.instrument_id = holding.instrumentId;
+  closeCashPanel(): void {
+    this.cashPanelOpen = false;
+  }
+
+  setCashDirection(direction: CashDirection): void {
+    this.cashDirection = direction;
+    this.cashResult = null;
+  }
+
+  setCashAmount(amount: number): void {
+    this.cashAmount = amount;
+  }
+
+  withdrawAll(): void {
+    this.cashAmount = Math.floor(this.cashBalance * 100) / 100;
+  }
+
+  dismissCashResult(): void {
+    this.cashResult = null;
+  }
+
+  submitCash(): void {
+    if (!this.canSubmitCash || this.cashAmount === null) {
+      return;
+    }
+
+    const direction = this.cashDirection;
+    this.cashResult = null;
+    this.cashSubmitInProgress = true;
+
+    this.portfolioService.transferCash(direction, this.cashAmount)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.cashSubmitInProgress = false;
+        })
+      )
+      .subscribe({
+        next: (transfer: CashTransferResponse) => {
+          const deposited = transfer.transactionType === 'DEPOSIT';
+          this.cashResult = {
+            kind: 'filled',
+            title: `${deposited ? 'Deposited' : 'Withdrew'} ${this.formatUsd(Math.abs(transfer.amountUsd))}`,
+            detail: `Your cash balance is now ${this.formatUsd(transfer.balanceAfterUsd)}.`
+          };
+          this.cashAmount = null;
+          this.refreshPortfolioSlice();
+          if (this.ticketInstrument) {
+            this.requestPreview();
+          }
+        },
+        error: (error: HttpErrorResponse) => {
+          this.cashResult = error.status === 0
+            ? {
+                kind: 'error',
+                title: "We couldn't reach the server",
+                detail: 'Check your connection and look at your cash balance before trying again.'
+              }
+            : {
+                kind: 'rejected',
+                title: direction === 'DEPOSIT' ? 'Deposit not completed' : 'Withdrawal not completed',
+                detail: (error.error as { message?: string } | null)?.message || 'Something went wrong. Please try again.'
+              };
+        }
+      });
+  }
+
+  openTradeForHolding(holding: DashboardHolding, action: OrderAction): void {
+    const instrument = this.allInstruments.find((candidate) => candidate.symbol === holding.instrumentSymbol);
+    const instrumentId = holding.instrumentId ?? (instrument ? Number(instrument.instrumentId) : null);
+    if (!instrumentId) {
+      return;
     }
 
     this.orderForm.order_action = action;
-    this.orderSubmitError = '';
-    this.orderSubmitMessage = `${action} ticket prepared for ${holding.instrumentSymbol}.`;
-    this.tradePanelOpen = true;
+    this.setTicketInstrument({
+      instrumentId,
+      symbol: holding.instrumentSymbol,
+      name: instrument?.name ?? holding.instrumentSymbol
+    });
   }
 
   toggleTradePanel(): void {
     this.tradePanelOpen = !this.tradePanelOpen;
+    if (this.tradePanelOpen) {
+      this.cashPanelOpen = false;
+    }
+  }
+
+  onTicketSearchInput(): void {
+    this.ticketSearch$.next(this.ticketSearchQuery);
+  }
+
+  pickTicketInstrument(instrument: Instrument): void {
+    this.setTicketInstrument({
+      instrumentId: Number(instrument.instrumentId),
+      symbol: instrument.symbol,
+      name: instrument.name
+    });
+  }
+
+  clearTicketInstrument(): void {
+    this.ticketInstrument = null;
+    this.orderForm.instrument_id = 0;
+    this.preview = null;
+    this.previewError = '';
+    this.ticketSearchQuery = '';
+    this.ticketSearchResults = [];
+  }
+
+  useMaxQuantity(): void {
+    const max = this.toNumber(this.preview?.max_quantity);
+    if (max > 0) {
+      this.orderForm.quantity = max;
+      this.requestPreview();
+    }
+  }
+
+  requestPreview(): void {
+    this.previewRequest$.next();
   }
 
   submitOrder(): void {
+    if (!this.canSubmitOrder || !this.ticketInstrument) {
+      return;
+    }
+
+    const symbol = this.ticketInstrument.symbol;
     this.orderSubmitError = '';
     this.orderSubmitMessage = '';
-    this.placedOrder = null;
-    this.placedTrade = null;
-
-    if (!this.orderForm.instrument_id || this.orderForm.instrument_id <= 0) {
-      this.orderSubmitError = 'Instrument ID is required.';
-      return;
-    }
-
-    if (!this.orderForm.quantity || this.orderForm.quantity <= 0) {
-      this.orderSubmitError = 'Quantity must be greater than zero.';
-      return;
-    }
-
-    if (this.orderForm.order_type === 'LIMIT' && (!this.orderForm.limit_price || this.orderForm.limit_price <= 0)) {
-      this.orderSubmitError = 'Limit price is required for LIMIT orders.';
-      return;
-    }
-
-    if (this.orderForm.order_type === 'MARKET') {
-      this.orderForm.limit_price = null;
-    }
-
+    this.orderResult = null;
     this.orderSubmitInProgress = true;
 
-    this.http.post<OrderResponse | PlaceOrderSuccess | ApiError>(`${this.tradeApiUrl}/orders`, this.orderForm)
-      .pipe(takeUntil(this.destroy$))
+    this.tradeService.placeOrder({ ...this.orderForm, order_type: 'MARKET', limit_price: null, time_in_force: 'DAY' })
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.orderSubmitInProgress = false;
+        })
+      )
       .subscribe({
         next: (response) => {
-          this.orderSubmitInProgress = false;
           const executed = response as PlaceOrderSuccess;
-          const orderOnly = response as OrderResponse;
-
-          if (executed.order) {
-            this.placedOrder = executed.order;
-            this.placedTrade = executed.trade ?? null;
-            this.orderSubmitMessage = 'Order placed successfully.';
-            this.refreshPortfolioSlice();
-            return;
-          }
-
-          if (orderOnly.order_id) {
-            this.placedOrder = orderOnly;
-            this.orderSubmitMessage = 'Order placed successfully.';
-            this.refreshPortfolioSlice();
-            return;
-          }
-
-          this.orderSubmitMessage = 'Request completed.';
+          const order = executed.order ?? (response as OrderResponse);
+          this.orderResult = this.describeAcceptedOrder(order, executed.trade ?? null, symbol);
+          // Clear the quantity so the same order can't be sent twice by accident
+          this.orderForm.quantity = null;
+          this.refreshPortfolioSlice();
+          this.refreshActivityIfLoaded();
+          this.requestPreview();
         },
-        error: (error) => {
-          this.orderSubmitInProgress = false;
-          const apiError = error?.error as ApiError;
-          this.orderSubmitError = apiError?.message || 'Failed to place order.';
-          this.placedOrder = apiError?.order ?? null;
-          this.placedTrade = null;
+        error: (error: HttpErrorResponse) => {
+          this.orderResult = this.describeFailedOrder(error);
+          if (this.orderResult.kind !== 'error') {
+            this.refreshPortfolioSlice();
+            this.refreshActivityIfLoaded();
+          }
+          this.requestPreview();
         }
       });
   }
 
-  fetchOrderById(): void {
+  dismissOrderResult(): void {
+    this.orderResult = null;
+  }
+
+  private setTicketInstrument(instrument: TicketInstrument): void {
+    this.ticketInstrument = instrument;
+    this.orderForm.instrument_id = instrument.instrumentId;
+    this.orderForm.quantity = null;
+    this.ticketSearchQuery = '';
+    this.ticketSearchResults = [];
+    this.preview = null;
     this.orderSubmitError = '';
     this.orderSubmitMessage = '';
-    this.lookupResult = null;
-
-    if (!this.orderLookupId || this.orderLookupId <= 0) {
-      this.orderSubmitError = 'Enter a valid order ID to lookup.';
-      return;
-    }
-
-    this.http.get<OrderResponse>(`${this.tradeApiUrl}/orders/${this.orderLookupId}`)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (order) => {
-          this.lookupResult = order;
-          this.orderSubmitMessage = 'Order loaded.';
-        },
-        error: (error) => {
-          const apiError = error?.error as ApiError;
-          this.orderSubmitError = apiError?.message || 'Failed to load order.';
-        }
-      });
+    this.cashPanelOpen = false;
+    this.tradePanelOpen = true;
+    this.requestPreview();
   }
 
   getPortfolioLinePath(): string {
@@ -530,6 +810,58 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   }
 
+  private describeAcceptedOrder(order: OrderResponse, trade: TradeResponse | null, symbol: string): OrderResult {
+    const quantity = this.formatQuantity(trade?.executed_quantity ?? order.quantity);
+    if (trade && order.order_status === 'FILLED') {
+      const verb = order.order_action === 'SELL' ? 'Sold' : 'Bought';
+      const total = this.formatUsd(trade.total_usd_value);
+      return {
+        kind: 'filled',
+        title: `${verb} ${quantity} ${symbol} at ${this.formatUsd(trade.execution_price)}`,
+        detail: `${order.order_action === 'SELL' ? 'You received' : 'Total cost'} ${total}. Your holdings and cash are updated. Order #${order.order_id}.`
+      };
+    }
+    return {
+      kind: 'pending',
+      title: 'Order received',
+      detail: `Order #${order.order_id} to ${order.order_action === 'SELL' ? 'sell' : 'buy'} ${quantity} ${symbol} is waiting to be filled.`
+    };
+  }
+
+  private describeFailedOrder(error: HttpErrorResponse): OrderResult {
+    if (error.status === 0) {
+      return {
+        kind: 'error',
+        title: "We couldn't reach the server",
+        detail: "Check your connection and try again. If you're not sure whether your order went through, check your order history before placing it again."
+      };
+    }
+
+    const apiError = error.error as TradeApiError | null;
+    const reason = apiError?.message || 'Something went wrong placing your order. Please try again.';
+    const order = apiError?.order;
+    if (order?.order_status === 'REJECTED') {
+      return {
+        kind: 'rejected',
+        title: 'Order not completed',
+        detail: `${reason} Nothing was charged. Order #${order.order_id} is recorded as rejected.`
+      };
+    }
+    if (order) {
+      // Accepted but execution failed and rolled back
+      return { kind: 'pending', title: 'Order not completed yet', detail: reason };
+    }
+    return { kind: 'rejected', title: 'Order not placed', detail: reason };
+  }
+
+  private formatUsd(value: number | null | undefined): string {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.toNumber(value));
+  }
+
+  private formatQuantity(value: number | null | undefined): string {
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 }).format(this.toNumber(value));
+  }
+
   logout(): void {
     this.authService.logout();
     this.router.navigate(['/login']);
@@ -560,11 +892,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
           this.dashboardError = 'Unable to load your portfolio data.';
           this.portfolio = null;
           this.holdings = [];
-          this.chartPoints = this.buildFallbackChart();
+          this.chartPoints = [];
+          this.chartHasHistory = false;
           return;
         }
 
         this.applyPortfolio(portfolio);
+        this.lastUpdated = new Date();
         this.loadPortfolioHistory();
 
         if (watchlists.length > 0) {
@@ -578,13 +912,131 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (portfolio: PortfolioResponse) => {
-          this.applyPortfolio(portfolio);
-          this.loadPortfolioHistory();
+          this.applyLivePortfolio(portfolio);
         },
         error: () => {
           this.dashboardError = 'Portfolio refresh failed after the latest trade.';
         }
       });
+  }
+
+  /**
+   * Poll while the page is visible, and refresh straight away when the client comes back to the tab.
+   * Polling pauses while the tab is hidden so idle dashboards don't load the backend.
+   */
+  private startLiveUpdates(): void {
+    const becameVisible$ = fromEvent(document, 'visibilitychange').pipe(filter(() => !document.hidden));
+
+    merge(timer(LIVE_UPDATE_MS, LIVE_UPDATE_MS), becameVisible$)
+      .pipe(
+        filter(() => !document.hidden && !this.isDashboardLoading && !this.orderSubmitInProgress),
+        // Skip a tick if the previous refresh is still in flight
+        exhaustMap(() => this.portfolioService.getMyPortfolio().pipe(catchError(() => of<PortfolioResponse | null>(null)))),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((portfolio) => {
+        if (portfolio) {
+          this.applyLivePortfolio(portfolio);
+        }
+        // Keep the first page of activity current (e.g. orders placed in another tab)
+        if (this.activityLoaded && this.activityPage === 0 && this.selectedTab === 'activity') {
+          this.loadActivity(true);
+        }
+        if (this.tradePanelOpen && this.ticketInstrument) {
+          this.requestPreview();
+        }
+      });
+  }
+
+  /** Apply a refreshed portfolio, highlight what changed, and reload the chart only if positions changed. */
+  private applyLivePortfolio(portfolio: PortfolioResponse): void {
+    const previousValues = new Map(this.holdings.map((holding) => [holding.instrumentSymbol, this.getHoldingMarketValue(holding)]));
+    const previousPositions = this.positionsKey();
+    const previousTotal = this.totalPortfolioValue;
+
+    this.applyPortfolio(portfolio);
+    this.lastUpdated = new Date();
+
+    const changed = new Set<string>();
+    for (const holding of this.holdings) {
+      const before = previousValues.get(holding.instrumentSymbol);
+      if (before === undefined || Math.abs(before - this.getHoldingMarketValue(holding)) >= 0.005) {
+        changed.add(holding.instrumentSymbol);
+      }
+    }
+    const totalChanged = Math.abs(previousTotal - this.totalPortfolioValue) >= 0.005;
+
+    if (changed.size > 0 || totalChanged) {
+      this.changedSymbols = changed;
+      this.totalValueChanged = totalChanged;
+      if (this.highlightTimer) {
+        clearTimeout(this.highlightTimer);
+      }
+      this.highlightTimer = setTimeout(() => {
+        this.changedSymbols = new Set<string>();
+        this.totalValueChanged = false;
+      }, HIGHLIGHT_MS);
+    }
+
+    if (this.positionsKey() !== previousPositions) {
+      this.loadPortfolioHistory();
+    }
+  }
+
+  private positionsKey(): string {
+    return this.holdings
+      .map((holding) => `${holding.instrumentSymbol}:${holding.quantity}`)
+      .sort()
+      .join('|');
+  }
+
+  private startMarketContextUpdates(): void {
+    timer(0, MARKET_CONTEXT_MS)
+      .pipe(
+        filter(() => !document.hidden),
+        exhaustMap(() => forkJoin({
+          news: this.marketService.getNews().pipe(catchError(() => of<MarketNews | null>(null))),
+          movers: this.marketService.getMovers().pipe(catchError(() => of<MarketMovers | null>(null)))
+        })),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(({ news, movers }) => {
+        // Keep showing what we had if a refresh fails
+        this.marketNews = news ?? this.marketNews;
+        this.marketMovers = movers ?? this.marketMovers;
+        this.marketContextLoaded = true;
+      });
+  }
+
+  private loadActivity(reset: boolean): void {
+    const page = reset ? 0 : this.activityPage + 1;
+    this.activityLoading = true;
+    this.activityError = '';
+
+    this.tradeService.getOrderHistory(page)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.activityLoading = false;
+        })
+      )
+      .subscribe({
+        next: (history: OrderHistoryPage) => {
+          this.activityOrders = reset ? history.orders : [...this.activityOrders, ...history.orders];
+          this.activityPage = history.page;
+          this.activityHasMore = history.has_more;
+          this.activityLoaded = true;
+        },
+        error: () => {
+          this.activityError = 'We couldn\'t load your order history. Please try again.';
+        }
+      });
+  }
+
+  private refreshActivityIfLoaded(): void {
+    if (this.activityLoaded) {
+      this.loadActivity(true);
+    }
   }
 
   private loadWatchlistInstruments(watchlistId: number, watchlistName: string): void {
@@ -619,7 +1071,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const holdings = this.holdings.filter((holding) => this.toNumber(holding.quantity) > 0);
 
     if (holdings.length === 0) {
-      this.chartPoints = this.buildFallbackChart();
+      this.chartPoints = [];
+      this.chartHasHistory = false;
       return;
     }
 
@@ -642,7 +1095,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
         })
       )
       .subscribe((histories: PricePointResponse[][]) => {
-        this.chartPoints = this.buildChartPoints(holdings, histories, from, to, range.points);
+        // A line needs at least two real prices; otherwise say so rather than draw a made-up trend
+        this.chartHasHistory = histories.some((history) => history.length >= 2);
+        this.chartPoints = this.chartHasHistory
+          ? this.buildChartPoints(holdings, histories, from, to, range.points)
+          : [];
       });
   }
 
@@ -665,7 +1122,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         const history = [...histories[historyIndex]].sort((left, right) => {
           return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
         });
-        const price = this.findHistoricalPrice(history, targetTime, this.toNumber(holding.currentPriceUsd || holding.averageCostUsd));
+        const currentPriceUsd = this.toNumber(holding.currentPriceUsd || holding.averageCostUsd);
+        const usdRate = this.historyToUsdRate(history, currentPriceUsd);
+        const price = this.findHistoricalPrice(history, targetTime, currentPriceUsd / usdRate) * usdRate;
         return sum + this.toNumber(holding.quantity) * price;
       }, 0);
 
@@ -676,12 +1135,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  private buildFallbackChart(): ChartPoint[] {
-    const baseValue = this.totalPortfolioValue || 0;
-    return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].map((label, index) => ({
-      label,
-      value: baseValue * (0.98 + index * 0.01)
-    }));
+  /**
+   * History prices come in the instrument's own currency (GBP, INR, ...) but holdings are valued in USD.
+   * Derive the conversion from the latest history price vs. the current USD price.
+   */
+  private historyToUsdRate(history: PricePointResponse[], currentPriceUsd: number): number {
+    const latest = history[history.length - 1];
+    if (!latest || latest.currencyCode === 'USD' || !currentPriceUsd || !this.toNumber(latest.price)) {
+      return 1;
+    }
+    return currentPriceUsd / this.toNumber(latest.price);
   }
 
   private findHistoricalPrice(history: PricePointResponse[], targetTime: number, fallback: number): number {
@@ -733,11 +1196,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     const linePath = this.buildLinePath(values, width, height);
     return `${linePath} L ${width} ${height} L 0 ${height} Z`;
-  }
-
-  private buildSparklinePath(values: number[], width: number, height: number): string {
-    const safeValues = values.length > 1 ? values : [0, values[0] ?? 0, values[0] ?? 0];
-    return this.buildLinePath(safeValues, width, height);
   }
 
   private inferInstrumentType(symbol: string): string {

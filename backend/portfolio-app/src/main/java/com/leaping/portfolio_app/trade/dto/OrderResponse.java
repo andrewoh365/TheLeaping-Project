@@ -48,6 +48,16 @@ public class OrderResponse {
     @JsonProperty("time_in_force")
     private String timeInForce;
 
+    // Fill details, populated in order history when the order has a trade
+    @JsonProperty("instrument_name")
+    private String instrumentName;
+
+    @JsonProperty("execution_price")
+    private BigDecimal executionPrice;
+
+    @JsonProperty("total_usd_value")
+    private BigDecimal totalUsdValue;
+
     public OrderResponse() {
     }
 
@@ -153,5 +163,29 @@ public class OrderResponse {
 
     public void setTimeInForce(String timeInForce) {
         this.timeInForce = timeInForce;
+    }
+
+    public String getInstrumentName() {
+        return instrumentName;
+    }
+
+    public void setInstrumentName(String instrumentName) {
+        this.instrumentName = instrumentName;
+    }
+
+    public BigDecimal getExecutionPrice() {
+        return executionPrice;
+    }
+
+    public void setExecutionPrice(BigDecimal executionPrice) {
+        this.executionPrice = executionPrice;
+    }
+
+    public BigDecimal getTotalUsdValue() {
+        return totalUsdValue;
+    }
+
+    public void setTotalUsdValue(BigDecimal totalUsdValue) {
+        this.totalUsdValue = totalUsdValue;
     }
 }

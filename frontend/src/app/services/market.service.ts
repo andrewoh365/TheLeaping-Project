@@ -12,6 +12,39 @@ export interface MarketStatusResponse {
   nextClose: string | null;
 }
 
+export interface NewsItem {
+  title: string;
+  source: string | null;
+  url: string;
+  publishedAt: string | null;
+}
+
+export interface MarketNews {
+  items: NewsItem[];
+  provider: string;
+  fetchedAt: string | null;
+  stale: boolean;
+}
+
+export interface MarketMover {
+  symbol: string;
+  name: string;
+  price: number | null;
+  change: number | null;
+  changePercent: number;
+  instrumentId: number | null;
+}
+
+export interface MarketMovers {
+  gainers: MarketMover[];
+  losers: MarketMover[];
+  asOf: string | null;
+  universe: string | null;
+  provider: string;
+  fetchedAt: string | null;
+  stale: boolean;
+}
+
 export interface PricePointResponse {
   symbol: string;
   price: number;
@@ -40,5 +73,13 @@ export class MarketService {
       .set('to', to);
 
     return this.http.get<PricePointResponse[]>(`${this.apiUrl}/instruments/price/history`, { params });
+  }
+
+  getNews(): Observable<MarketNews> {
+    return this.http.get<MarketNews>(`${this.apiUrl}/news`);
+  }
+
+  getMovers(): Observable<MarketMovers> {
+    return this.http.get<MarketMovers>(`${this.apiUrl}/movers`);
   }
 }

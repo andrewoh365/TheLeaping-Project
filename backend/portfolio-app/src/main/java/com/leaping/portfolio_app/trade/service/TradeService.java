@@ -5,6 +5,9 @@ import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +28,7 @@ import com.leaping.portfolio_app.trade.entity.TradeOrder;
 import com.leaping.portfolio_app.trade.enums.ExecutionAttemptStatus;
 import com.leaping.portfolio_app.trade.enums.OrderAction;
 import com.leaping.portfolio_app.trade.enums.OrderStatus;
+import com.leaping.portfolio_app.trade.exception.TradeRejectedException;
 import com.leaping.portfolio_app.trade.repository.ExecutionAttemptRepository;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
 import com.leaping.portfolio_app.trade.repository.TradeRepository;
@@ -50,6 +54,7 @@ public class TradeService {
     private final HoldingRepository holdingRepository;
     private final CashTransactionRepository cashTransactionRepository;
     private final MarketPriceService priceService;
+    private final EntityManager entityManager;
 
     public TradeService(
             TradeRepository tradeRepository,
@@ -58,7 +63,8 @@ public class TradeService {
             PortfolioRepository portfolioRepository,
             HoldingRepository holdingRepository,
             CashTransactionRepository cashTransactionRepository,
-            MarketPriceService priceService
+            MarketPriceService priceService,
+            EntityManager entityManager
     ) {
         this.tradeRepository = tradeRepository;
         this.tradeOrderRepository = tradeOrderRepository;
@@ -67,58 +73,93 @@ public class TradeService {
         this.holdingRepository = holdingRepository;
         this.cashTransactionRepository = cashTransactionRepository;
         this.priceService = priceService;
+        this.entityManager = entityManager;
     }
 
     /**
      * Execute a submitted order.
-     * 
+     *
      * Workflow:
-     * 1. Validate order is in SUBMITTED status
-     * 2. Get current market price
-     * 3. Create ExecutionAttempt record
-     * 4. Create Trade record
-     * 5. Update holdings
-     * 6. Update cash balance
+     * 1. Lock the order and validate it is in SUBMITTED status
+     * 2. Lock the portfolio so concurrent orders on it are serialised
+     * 3. Get current market price
+     * 4. Re-check cash (BUY) or holding (SELL) against the execution price
+     * 5. Create ExecutionAttempt and Trade records
+     * 6. Update holdings and cash balance
      * 7. Mark order as FILLED
-     * 
+     *
+     * All rejection checks run before anything is written, so a rejection never
+     * leaves a partial fill behind. Rejections throw TradeRejectedException, which
+     * does not roll back, so the REJECTED status and reason are persisted.
+     * Any other failure rolls back entirely and leaves the order SUBMITTED.
+     *
      * @param orderId The order to execute
      * @return Trade confirmation details
-     * @throws IllegalArgumentException if order cannot be executed
+     * @throws TradeRejectedException if the order was rejected (and recorded as such)
+     * @throws IllegalArgumentException if the order cannot be executed
      */
+    @Transactional(noRollbackFor = TradeRejectedException.class)
     public TradeConfirmationResponse executeTrade(Long orderId) {
-        // 1. Load order
+        // 1. Load and lock order.
+        // refresh(..., PESSIMISTIC_WRITE) re-reads the row with SELECT ... FOR UPDATE. A plain
+        // locking query is not enough: with open-session-in-view the entity may already be cached
+        // from order placement, and Hibernate would hand back that stale copy after acquiring the lock.
         TradeOrder order = tradeOrderRepository.findById(orderId)
             .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+        entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
 
-        // 2. Validate order status
         if (!OrderStatus.SUBMITTED.equals(order.getOrderStatus())) {
             throw new IllegalArgumentException(
                 String.format("Order cannot be executed in %s status", order.getOrderStatus())
             );
         }
 
+        // 2. Lock portfolio (held until commit). Every cash/holding change for this portfolio
+        // goes through this lock, so concurrent orders are serialised.
+        Portfolio portfolio = order.getPortfolio();
+        entityManager.refresh(portfolio, LockModeType.PESSIMISTIC_WRITE);
+
         Instrument instrument = order.getInstrument();
 
         // 3. Get current price
         BigDecimal currentPrice = priceService.getCurrentPrice(instrument.getSymbol());
         if (currentPrice == null || currentPrice.compareTo(BigDecimal.ZERO) <= 0) {
-            rejectOrder(order, "No valid price available for execution");
-            throw new IllegalArgumentException("Cannot execute: no current price available for " + instrument.getSymbol());
+            throw reject(order, String.format(
+                "We don't have a current price for %s, so the order couldn't be filled.", instrument.getSymbol()));
         }
 
-        // 4. Create ExecutionAttempt record
-        ExecutionAttempt attempt = createExecutionAttempt(order, currentPrice);
+        // 4. Re-check funds under the lock, at the actual execution price
+        BigDecimal totalUsdValue = currentPrice.multiply(order.getQuantity());
+        if (OrderAction.BUY.equals(order.getOrderAction())) {
+            if (portfolio.getCashBalanceUsd().compareTo(totalUsdValue) < 0) {
+                throw reject(order, String.format(
+                    "Not enough cash. This order costs $%,.2f and you have $%,.2f available.",
+                    totalUsdValue, portfolio.getCashBalanceUsd()));
+            }
+        } else {
+            Optional<Holding> holding = holdingRepository
+                .findByPortfolio_PortfolioIdAndInstrument_InstrumentId(
+                    portfolio.getPortfolioId(), instrument.getInstrumentId());
+            // Re-read under the portfolio lock in case a stale copy is cached.
+            holding.ifPresent(entityManager::refresh);
+            BigDecimal owned = holding.map(Holding::getQuantity).orElse(BigDecimal.ZERO);
+            if (owned.compareTo(order.getQuantity()) < 0) {
+                throw reject(order, owned.compareTo(BigDecimal.ZERO) <= 0
+                    ? String.format("You don't own any %s to sell.", instrument.getSymbol())
+                    : String.format("You only own %s %s.",
+                        owned.stripTrailingZeros().toPlainString(), instrument.getSymbol()));
+            }
+        }
 
-        // 5. Create Trade record
+        // 5. Create ExecutionAttempt and Trade records
+        ExecutionAttempt attempt = createExecutionAttempt(order, currentPrice);
         Trade trade = createTrade(order, attempt, currentPrice);
 
-        // 6. Update holdings
+        // 6. Update holdings and cash
         updateHoldings(order, trade);
+        updateCashBalance(portfolio, order, trade);
 
-        // 7. Update cash balance
-        updateCashBalance(order, trade);
-
-        // 8. Update order status to FILLED
+        // 7. Update order status to FILLED
         order.setOrderStatus(OrderStatus.FILLED);
         order.setFilledAt(OffsetDateTime.now());
         tradeOrderRepository.save(order);
@@ -253,8 +294,7 @@ public class TradeService {
      * 
      * Records transaction for audit trail.
      */
-    private void updateCashBalance(TradeOrder order, Trade trade) {
-        Portfolio portfolio = order.getPortfolio();
+    private void updateCashBalance(Portfolio portfolio, TradeOrder order, Trade trade) {
         BigDecimal balanceBefore = portfolio.getCashBalanceUsd();
         BigDecimal transactionAmount;
         BigDecimal balanceAfter;
@@ -292,13 +332,15 @@ public class TradeService {
     }
 
     /**
-     * Reject an order with a specific reason.
+     * Mark an order REJECTED with a reason and return the exception to throw.
+     * The caller must throw it so the transaction commits the rejection.
      */
-    private void rejectOrder(TradeOrder order, String reason) {
+    private TradeRejectedException reject(TradeOrder order, String reason) {
         order.setOrderStatus(OrderStatus.REJECTED);
         order.setRejectedAt(OffsetDateTime.now());
         order.setRejectionReason(reason);
         tradeOrderRepository.save(order);
+        return new TradeRejectedException(reason);
     }
 
     /**
