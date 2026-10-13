@@ -279,6 +279,16 @@ button {
   outline: none;
   color: rgba(58, 58, 58, 1);
   font-size: 13px;
+  line-height: 20px;
+}
+
+.node-169 input {
+  color: rgba(250, 250, 250, 1);
+}
+
+.node-169 input::placeholder {
+  color: rgba(158, 158, 158, 1);
+  opacity: 1;
 }
 
 .search-results-figma {
@@ -551,6 +561,12 @@ button {
   height: 260px;
 }
 
+.chart-header-105 {
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
 .chart-surface {
   position: relative;
 }
@@ -590,6 +606,11 @@ button {
 }
 
 .time-toggles-109 {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
   gap: 4px;
   padding: 3px;
   background-color: rgba(42, 42, 42, 1);
@@ -598,10 +619,20 @@ button {
 }
 
 .toggle-range {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  height: 30px;
   border: 0;
   background: transparent;
   padding: 6px 10px;
   border-radius: 6px;
+}
+
+.toggle-range p {
+  margin: 0;
+  line-height: 1;
 }
 
 .toggle-3m-116 {
@@ -639,14 +670,145 @@ button {
 
 .table-actions-165 {
   gap: 12px;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .node-169 {
-  width: 220px;
+  flex: 0 0 220px;
+  box-sizing: border-box;
   padding: 8px 14px;
   background-color: rgba(26, 26, 26, 1);
   border: 1px solid rgba(58, 58, 58, 1);
   border-radius: 8px;
+}
+
+.holdings-filter-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  color: rgba(189, 189, 189, 1);
+  font-size: 12px;
+}
+
+.holdings-filter-segmented {
+  display: inline-flex;
+  padding: 3px;
+  background-color: rgba(26, 26, 26, 1);
+  border-radius: 8px;
+  border: 1px solid rgba(58, 58, 58, 1);
+}
+
+.holdings-filter-segmented button {
+  padding: 6px 10px;
+  color: rgba(189, 189, 189, 1);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.holdings-filter-segmented button.active {
+  color: rgba(250, 250, 250, 1);
+  background-color: rgba(58, 58, 58, 1);
+}
+
+.holdings-search-skeleton {
+  width: 100%;
+}
+
+.holding-skeleton-header,
+.holding-skeleton-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.6fr) repeat(4, minmax(100px, 0.8fr)) minmax(130px, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.holding-skeleton-header {
+  min-height: 43px;
+  box-sizing: border-box;
+  background-color: rgba(42, 42, 42, 1);
+  border-radius: 8px;
+}
+
+.holding-skeleton-header span {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(92, 92, 92, 0.75);
+}
+
+.holding-skeleton-header span:first-child {
+  width: 48%;
+}
+
+.holding-skeleton-header span:nth-child(2),
+.holding-skeleton-header span:nth-child(5) {
+  width: 38%;
+}
+
+.holding-skeleton-header span:nth-child(3),
+.holding-skeleton-header span:nth-child(4) {
+  width: 56%;
+}
+
+.holding-skeleton-header span:last-child {
+  width: 52%;
+  justify-self: end;
+}
+
+.holding-skeleton-row {
+  min-height: 58px;
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(58, 58, 58, 1);
+}
+
+.holding-skeleton-row span {
+  display: block;
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(58, 58, 58, 0.7) 25%, rgba(92, 92, 92, 0.9) 50%, rgba(58, 58, 58, 0.7) 75%);
+  background-size: 200% 100%;
+  animation: holdings-skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+.holding-skeleton-row .skeleton-asset {
+  width: 82%;
+  height: 32px;
+}
+
+.holding-skeleton-row span:nth-child(2) {
+  width: 58%;
+}
+
+.holding-skeleton-row span:nth-child(3) {
+  width: 72%;
+}
+
+.holding-skeleton-row span:nth-child(4) {
+  width: 78%;
+}
+
+.holding-skeleton-row span:nth-child(5) {
+  width: 64%;
+}
+
+.holding-skeleton-row span:nth-child(6) {
+  width: 84%;
+  justify-self: end;
+}
+
+@keyframes holdings-skeleton-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
 }
 
 .holdings-list-171 {
@@ -661,6 +823,11 @@ button {
   grid-template-columns: minmax(180px, 1.6fr) repeat(4, minmax(100px, 0.8fr)) minmax(130px, 1fr);
   align-items: center;
   gap: 12px;
+}
+
+.table-cols-172 > :not(:first-child),
+.holding-row > :not(:first-child) {
+  text-align: right;
 }
 
 .table-cols-172 {
@@ -1508,11 +1675,13 @@ button {
 /* ===== Market news & movers (live data) ===== */
 
 .view-all-link {
+  color: rgba(0, 171, 104, 1);
   text-decoration: none;
 }
 
 .view-all-link:hover,
 .view-all-link:focus-visible {
+  color: rgba(0, 171, 104, 1);
   text-decoration: underline;
 }
 

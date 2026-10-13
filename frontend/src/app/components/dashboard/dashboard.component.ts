@@ -9,7 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
 import { Subject, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, switchMap, takeUntil } from 'rxjs/operators';
+import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrumentService';
 import {
@@ -117,6 +117,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   selectedTab: DashboardTab = 'holdings';
   activeRange: RangeKey = '3M';
   holdingsFilterQuery = '';
+  holdingsFilterType = 'ALL';
+  readonly holdingsFilterOptions = [
+    { value: 'ALL', label: 'All' },
+    { value: 'STOCK', label: 'Stocks' },
+    { value: 'CRYPTO', label: 'Crypto' },
+    { value: 'FOREX', label: 'Forex' }
+  ];
   isDashboardLoading = true;
   isChartLoading = false;
   dashboardError = '';
@@ -180,8 +187,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly rangeOptions: RangeKey[] = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
   private destroy$ = new Subject<void>();
   private searchSubject$ = new Subject<string>();
+  private holdingsSearch$ = new Subject<string>();
   private ticketSearch$ = new Subject<string>();
   private previewRequest$ = new Subject<void>();
+  private holdingsSearchResults: DashboardHolding[] | null = null;
+  private lastHoldingsFilterQuery = '';
+  holdingsSearchLoading = false;
 
   constructor(
     private authService: AuthService,
@@ -270,12 +281,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get filteredHoldings(): DashboardHolding[] {
-    const filtered = this.filterByQuery(this.holdings, this.holdingsFilterQuery);
-    if (this.selectedTab === 'crypto') {
-      return filtered.filter((holding) => holding.instrumentType === 'CRYPTO');
-    }
+    const base = this.holdingsSearchResults ?? this.filterByQuery(this.holdings, this.holdingsFilterQuery);
+    const scoped = this.selectedTab === 'crypto'
+      ? base.filter((holding) => holding.instrumentType === 'CRYPTO')
+      : this.holdingsFilterType === 'ALL'
+        ? base
+        : base.filter((holding) => holding.instrumentType === this.holdingsFilterType);
 
-    return filtered;
+    return [...scoped].sort((left, right) => this.getHoldingMarketValue(right) - this.getHoldingMarketValue(left));
   }
 
   /** True only when the latest preview matches what's on the ticket and the backend would accept it. */
@@ -469,6 +482,38 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.ticketSearchResults = results.filter((instrument) => instrument.isActive).slice(0, 8);
       });
 
+    this.holdingsSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          const normalized = query.trim();
+          const portfolioId = this.portfolio?.portfolioId;
+
+          if (!normalized || !portfolioId) {
+            this.holdingsSearchLoading = false;
+            return of<DashboardHolding[] | null>(null);
+          }
+
+          this.holdingsSearchLoading = true;
+          return forkJoin({
+            rows: this.portfolioService.searchHoldingsBySymbol(portfolioId, normalized).pipe(
+              catchError(() => of<HoldingResponse[]>([]))
+            ),
+            minimumDisplayTime: timer(150)
+          }).pipe(
+            map(({ rows }) => this.toDashboardHoldingRows(rows)),
+            finalize(() => {
+              this.holdingsSearchLoading = false;
+            })
+          );
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((rows: DashboardHolding[] | null) => {
+        this.holdingsSearchResults = rows;
+      });
+
     // switchMap drops out-of-date previews if the client keeps typing
     this.previewRequest$
       .pipe(
@@ -518,6 +563,27 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   onSearchInput(): void {
     this.searchSubject$.next(this.searchQuery);
+  }
+
+  onHoldingsFilterInput(): void {
+    const query = this.holdingsFilterQuery.trim();
+    if (!query) {
+      this.holdingsSearchResults = null;
+      this.lastHoldingsFilterQuery = '';
+      this.holdingsSearchLoading = false;
+      this.holdingsSearch$.next('');
+      return;
+    }
+
+    if (this.holdingsSearchResults === null) {
+      this.holdingsSearchResults = this.filterByQuery(this.holdings, this.lastHoldingsFilterQuery);
+    }
+    this.lastHoldingsFilterQuery = query;
+    this.holdingsSearch$.next(query);
+  }
+
+  setHoldingsFilterType(type: string): void {
+    this.holdingsFilterType = type;
   }
 
   setSelectedTab(tab: DashboardTab): void {
@@ -663,7 +729,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.setTicketInstrument({
       instrumentId,
       symbol: holding.instrumentSymbol,
-      name: instrument?.name ?? holding.instrumentSymbol
+      name: holding.instrumentName || instrument?.name || holding.instrumentSymbol
     });
   }
 
@@ -899,6 +965,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.applyPortfolio(portfolio);
         this.lastUpdated = new Date();
         this.loadPortfolioHistory();
+        this.refreshHoldingsFromApi();
 
         if (watchlists.length > 0) {
           this.loadWatchlistInstruments(watchlists[0].watchlistId, watchlists[0].watchlistName);
@@ -912,6 +979,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (portfolio: PortfolioResponse) => {
           this.applyLivePortfolio(portfolio);
+          this.refreshHoldingsFromApi();
         },
         error: () => {
           this.dashboardError = 'Portfolio refresh failed after the latest trade.';
@@ -1054,15 +1122,43 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private applyPortfolio(portfolio: PortfolioResponse): void {
     this.portfolio = portfolio;
-    this.holdings = portfolio.holdings.map((holding: HoldingResponse) => {
+    this.holdings = this.toDashboardHoldingRows(portfolio.holdings);
+  }
+
+  private toDashboardHoldingRows(rows: HoldingResponse[]): DashboardHolding[] {
+    return rows.map((holding: HoldingResponse) => {
       const matchedInstrument = this.allInstruments.find((instrument) => instrument.symbol === holding.instrumentSymbol);
       return {
         ...holding,
-        instrumentId: matchedInstrument ? Number(matchedInstrument.instrumentId) : null,
+        instrumentId: holding.instrumentId ?? (matchedInstrument ? Number(matchedInstrument.instrumentId) : null),
         instrumentType: matchedInstrument?.instrumentType ?? this.inferInstrumentType(holding.instrumentSymbol),
         todaysChangePercent: holding.gainLossPercent ?? null
       };
     });
+  }
+
+  private refreshHoldingsFromApi(): void {
+    const portfolioId = this.portfolio?.portfolioId;
+    if (!portfolioId) {
+      this.holdings = [];
+      this.holdingsSearchResults = null;
+      this.holdingsSearchLoading = false;
+      return;
+    }
+
+    this.portfolioService.getHoldingsByPortfolio(portfolioId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (rows) => {
+          this.holdings = this.toDashboardHoldingRows(rows);
+          if (this.holdingsFilterQuery.trim()) {
+            this.holdingsSearch$.next(this.holdingsFilterQuery.trim());
+          }
+        },
+        error: () => {
+          // Keep currently shown holdings if the dedicated holdings endpoint is temporarily unavailable.
+        }
+      });
   }
 
   private loadPortfolioHistory(): void {
