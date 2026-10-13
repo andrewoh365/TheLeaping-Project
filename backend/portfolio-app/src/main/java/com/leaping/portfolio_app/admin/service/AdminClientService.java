@@ -5,6 +5,8 @@ import com.leaping.portfolio_app.admin.dto.AdminClientSummaryResponse;
 import com.leaping.portfolio_app.auth.model.Customer;
 import com.leaping.portfolio_app.auth.model.User;
 import com.leaping.portfolio_app.auth.repository.CustomerRepository;
+import com.leaping.portfolio_app.holdings.HoldingResponse;
+import com.leaping.portfolio_app.holdings.HoldingService;
 import com.leaping.portfolio_app.portfolio.entity.Portfolio;
 import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
 import org.springframework.http.HttpStatus;
@@ -21,13 +23,16 @@ public class AdminClientService {
 
     private final CustomerRepository customerRepository;
     private final PortfolioRepository portfolioRepository;
+        private final HoldingService holdingService;
 
     public AdminClientService(
             CustomerRepository customerRepository,
-            PortfolioRepository portfolioRepository
+                        PortfolioRepository portfolioRepository,
+                        HoldingService holdingService
     ) {
         this.customerRepository = customerRepository;
         this.portfolioRepository = portfolioRepository;
+                this.holdingService = holdingService;
     }
 
     @Transactional(readOnly = true)
@@ -89,6 +94,28 @@ public class AdminClientService {
                 user.getLastLogin(),
                 portfolio.getPortfolioId(),
                 portfolio.getCashBalanceUsd()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<HoldingResponse> getClientHoldings(Long clientId) {
+
+        customerRepository
+                .findById(clientId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Client not found"
+                ));
+
+        Portfolio portfolio = portfolioRepository
+                .findByCustomer_UserId(clientId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Portfolio not found for client"
+                ));
+
+        return holdingService.getHoldingsByPortfolio(
+                portfolio.getPortfolioId()
         );
     }
 

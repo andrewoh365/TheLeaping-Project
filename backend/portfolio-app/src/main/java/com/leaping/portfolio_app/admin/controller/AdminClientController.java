@@ -1,8 +1,11 @@
 package com.leaping.portfolio_app.admin.controller;
 
 import com.leaping.portfolio_app.admin.dto.AdminClientDetailResponse;
+import com.leaping.portfolio_app.admin.dto.AdminOrderLookupResponse;
 import com.leaping.portfolio_app.admin.dto.AdminClientSummaryResponse;
 import com.leaping.portfolio_app.admin.service.AdminClientService;
+import com.leaping.portfolio_app.admin.service.AdminTradeLookupService;
+import com.leaping.portfolio_app.holdings.HoldingResponse;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,11 +23,14 @@ import java.util.List;
 public class AdminClientController {
 
     private final AdminClientService adminClientService;
+        private final AdminTradeLookupService adminTradeLookupService;
 
     public AdminClientController(
-            AdminClientService adminClientService
+                        AdminClientService adminClientService,
+                        AdminTradeLookupService adminTradeLookupService
     ) {
         this.adminClientService = adminClientService;
+                this.adminTradeLookupService = adminTradeLookupService;
     }
 
     // GET ALL CLIENTS
@@ -56,4 +62,26 @@ public class AdminClientController {
 
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/{clientId}/holdings")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<HoldingResponse>> getClientHoldings(
+            @PathVariable Long clientId
+    ) {
+        List<HoldingResponse> response =
+                adminClientService.getClientHoldings(clientId);
+
+        return ResponseEntity.ok(response);
+    }
+
+        @GetMapping("/{clientId}/orders")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<List<AdminOrderLookupResponse>> getClientOrders(
+                        @PathVariable Long clientId
+        ) {
+                List<AdminOrderLookupResponse> response =
+                                adminTradeLookupService.getOrdersByClient(clientId);
+
+                return ResponseEntity.ok(response);
+        }
 }

@@ -32,6 +32,23 @@ export interface AdminClientDetail {
   cashBalanceUsd: number | null;
 }
 
+export interface AdminHolding {
+  holding_id: number;
+  instrument_id: number;
+
+  symbol: string;
+  instrument_name: string;
+
+  quantity: number;
+  average_cost_usd: number;
+
+  current_price: number;
+  current_value_usd: number;
+
+  gain_loss_usd: number;
+  gain_loss_percent: number;
+}
+
 export interface AdminClientFilters {
   search?: string;
   status?: ClientStatus | '';
@@ -147,6 +164,15 @@ export class AdminService {
     );
   }
 
+  getClientHoldings(
+    clientId: number
+  ): Observable<AdminHolding[]> {
+
+    return this.http.get<AdminHolding[]>(
+      `${this.API_URL}/clients/${clientId}/holdings`
+    );
+  }
+
   getOrders(
     filters: AdminOrderFilters = {}
   ): Observable<AdminOrderLookup[]> {
@@ -170,6 +196,15 @@ export class AdminService {
     return this.http.get<AdminOrderLookup[]>(
       `${this.API_URL}/orders`,
       { params }
+    );
+  }
+
+  getClientOrders(
+    clientId: number
+  ): Observable<AdminOrderLookup[]> {
+
+    return this.http.get<AdminOrderLookup[]>(
+      `${this.API_URL}/clients/${clientId}/orders`
     );
   }
 

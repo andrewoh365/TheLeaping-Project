@@ -8,6 +8,7 @@ import com.leaping.portfolio_app.trade.entity.TradeOrder;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
 import com.leaping.portfolio_app.trade.repository.TradeRepository;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +55,30 @@ public class AdminTradeLookupService {
                                 normalizedStatus
                         )
                 )
+                .sorted(
+                        Comparator.comparing(
+                                AdminOrderLookupResponse::getSubmittedAt,
+                                Comparator.nullsLast(
+                                        Comparator.reverseOrder()
+                                )
+                        )
+                )
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminOrderLookupResponse> getOrdersByClient(
+            Long clientId
+    ) {
+
+        return tradeOrderRepository
+                .findByPortfolio_Customer_UserId(
+                        clientId,
+                        Pageable.unpaged()
+                )
+                .getContent()
+                .stream()
+                .map(this::toLookupResponse)
                 .sorted(
                         Comparator.comparing(
                                 AdminOrderLookupResponse::getSubmittedAt,

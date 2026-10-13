@@ -247,33 +247,428 @@
         <!-- HOLDINGS -->
         <mat-tab label="Holdings & Cash">
 
-          <div class="placeholder-tab">
+          <div class="tab-content holdings-tab">
 
-            <h2>
-              Holdings & Cash
-            </h2>
+            <div class="holdings-header">
 
-            <p>
-              Client holdings and cash activity will appear here.
-            </p>
+              <div>
+                <h2>
+                  Holdings & Cash
+                </h2>
+
+                <p>
+                  Current portfolio positions and market values.
+                </p>
+              </div>
+
+              <div class="cash-summary">
+
+                <span>
+                  Cash Balance
+                </span>
+
+                <strong>
+                  {{
+                    client.cashBalanceUsd
+                      | currency:'USD':'symbol':'1.2-2'
+                  }}
+                </strong>
+
+              </div>
+
+            </div>
+
+            <!-- HOLDINGS LOADING -->
+            <div
+              class="holdings-loading"
+              *ngIf="holdingsLoading">
+
+              <mat-spinner diameter="36"></mat-spinner>
+
+            </div>
+
+            <!-- HOLDINGS ERROR -->
+            <div
+              class="holdings-error"
+              *ngIf="holdingsErrorMessage">
+
+              {{ holdingsErrorMessage }}
+
+            </div>
+
+            <!-- HOLDINGS TABLE -->
+            <div
+              class="holdings-table-wrapper"
+              *ngIf="
+                !holdingsLoading &&
+                !holdingsErrorMessage &&
+                holdings.length > 0
+              ">
+
+              <table class="holdings-table">
+
+                <thead>
+
+                  <tr>
+
+                    <th>
+                      Asset
+                    </th>
+
+                    <th>
+                      Quantity
+                    </th>
+
+                    <th>
+                      Avg Cost
+                    </th>
+
+                    <th>
+                      Market Price
+                    </th>
+
+                    <th>
+                      Gain / Loss
+                    </th>
+
+                    <th>
+                      Total Value
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+                <tbody>
+
+                  <tr
+                    *ngFor="let holding of holdings">
+
+                    <!-- ASSET -->
+                    <td>
+
+                      <div class="asset-cell">
+
+                        <strong>
+                          {{ holding.symbol }}
+                        </strong>
+
+                        <span>
+                          {{ holding.instrument_name }}
+                        </span>
+
+                      </div>
+
+                    </td>
+
+                    <!-- QUANTITY -->
+                    <td>
+
+                      {{
+                        holding.quantity
+                          | number:'1.0-8'
+                      }}
+
+                    </td>
+
+                    <!-- AVG COST -->
+                    <td>
+
+                      {{
+                        holding.average_cost_usd
+                          | currency:'USD':'symbol':'1.2-2'
+                      }}
+
+                    </td>
+
+                    <!-- MARKET PRICE -->
+                    <td>
+
+                      {{
+                        holding.current_price
+                          | currency:'USD':'symbol':'1.2-2'
+                      }}
+
+                    </td>
+
+                    <!-- GAIN / LOSS -->
+                    <td>
+
+                      <div
+                        class="gain-loss-cell"
+                        [class.positive-value]="holding.gain_loss_usd >= 0"
+                        [class.negative-value]="holding.gain_loss_usd < 0">
+
+                        <strong>
+                          {{
+                            holding.gain_loss_usd
+                              | currency:'USD':'symbol':'1.2-2'
+                          }}
+                        </strong>
+
+                        <span>
+                          {{
+                            holding.gain_loss_percent
+                              | number:'1.2-2'
+                          }}%
+                        </span>
+
+                      </div>
+
+                    </td>
+
+                    <!-- TOTAL VALUE -->
+                    <td>
+
+                      <strong>
+                        {{
+                          holding.current_value_usd
+                            | currency:'USD':'symbol':'1.2-2'
+                        }}
+                      </strong>
+
+                    </td>
+
+                  </tr>
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+            <!-- EMPTY STATE -->
+            <div
+              class="holdings-empty"
+              *ngIf="
+                !holdingsLoading &&
+                !holdingsErrorMessage &&
+                holdings.length === 0
+              ">
+
+              <h3>
+                No Holdings
+              </h3>
+
+              <p>
+                This client currently has no portfolio positions.
+              </p>
+
+            </div>
 
           </div>
 
         </mat-tab>
 
 
-        <!-- ORDERS -->
+        <!-- ORDERS & TRADES -->
         <mat-tab label="Orders & Trades">
 
-          <div class="placeholder-tab">
+          <div class="tab-content orders-tab">
 
-            <h2>
-              Orders & Trades
-            </h2>
+            <div class="orders-header">
 
-            <p>
-              Client order and trade history will appear here.
-            </p>
+              <div>
+                <h2>
+                  Orders & Trades
+                </h2>
+
+                <p>
+                  Order history for this client.
+                </p>
+              </div>
+
+              <span class="orders-count">
+                {{ orders.length }}
+                {{ orders.length === 1 ? 'order' : 'orders' }}
+              </span>
+
+            </div>
+
+            <!-- LOADING -->
+            <div
+              class="orders-loading"
+              *ngIf="ordersLoading">
+
+              <mat-spinner diameter="36"></mat-spinner>
+
+            </div>
+
+            <!-- ERROR -->
+            <div
+              class="orders-error"
+              *ngIf="ordersErrorMessage">
+
+              {{ ordersErrorMessage }}
+
+            </div>
+
+            <!-- TABLE -->
+            <div
+              class="orders-table-wrapper"
+              *ngIf="
+                !ordersLoading &&
+                !ordersErrorMessage &&
+                orders.length > 0
+              ">
+
+              <table class="client-orders-table">
+
+                <thead>
+
+                  <tr>
+
+                    <th>
+                      Order
+                    </th>
+
+                    <th>
+                      Trade
+                    </th>
+
+                    <th>
+                      Instrument
+                    </th>
+
+                    <th>
+                      Side
+                    </th>
+
+                    <th>
+                      Quantity
+                    </th>
+
+                    <th>
+                      Status
+                    </th>
+
+                    <th>
+                      Submitted
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+                <tbody>
+
+                  <tr
+                    *ngFor="let order of orders"
+                    class="client-order-row"
+                    (click)="openOrder(order)">
+
+                    <!-- ORDER -->
+                    <td>
+                      <strong>
+                        #{{ order.orderId }}
+                      </strong>
+                    </td>
+
+                    <!-- TRADE -->
+                    <td>
+                      {{
+                        order.tradeId !== null
+                          ? '#' + order.tradeId
+                          : '—'
+                      }}
+                    </td>
+
+                    <!-- INSTRUMENT -->
+                    <td>
+
+                      <div class="order-instrument-cell">
+
+                        <strong>
+                          {{ order.symbol || '—' }}
+                        </strong>
+
+                        <span>
+                          {{ order.instrumentName || '—' }}
+                        </span>
+
+                      </div>
+
+                    </td>
+
+                    <!-- SIDE -->
+                    <td>
+
+                      <span
+                        class="side-badge"
+                        [class.side-buy]="order.side === 'BUY'"
+                        [class.side-sell]="order.side === 'SELL'">
+
+                        {{ order.side || '—' }}
+
+                      </span>
+
+                    </td>
+
+                    <!-- QUANTITY -->
+                    <td>
+
+                      {{
+                        order.quantity !== null
+                          ? (order.quantity | number:'1.0-8')
+                          : '—'
+                      }}
+
+                    </td>
+
+                    <!-- STATUS -->
+                    <td>
+
+                      <span
+                        class="status-badge"
+                        [class.status-filled]="order.status === 'FILLED'"
+                        [class.status-rejected]="order.status === 'REJECTED'"
+                        [class.status-cancelled]="order.status === 'CANCELLED'"
+                        [class.status-accepted]="order.status === 'ACCEPTED'"
+                        [class.status-submitted]="order.status === 'SUBMITTED'">
+
+                        {{ order.status || 'UNKNOWN' }}
+
+                      </span>
+
+                    </td>
+
+                    <!-- SUBMITTED -->
+                    <td>
+
+                      {{
+                        order.submittedAt
+                          ? (order.submittedAt | date:'medium')
+                          : '—'
+                      }}
+
+                    </td>
+
+                  </tr>
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+            <!-- EMPTY STATE -->
+            <div
+              class="orders-empty"
+              *ngIf="
+                !ordersLoading &&
+                !ordersErrorMessage &&
+                orders.length === 0
+              ">
+
+              <h3>
+                No Orders
+              </h3>
+
+              <p>
+                This client does not have any order history.
+              </p>
+
+            </div>
 
           </div>
 

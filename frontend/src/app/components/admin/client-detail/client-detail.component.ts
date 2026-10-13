@@ -20,10 +20,14 @@ import { takeUntil } from 'rxjs/operators';
 
 import {
   AdminClientDetail,
+  AdminHolding,
+  AdminOrderLookup,
   AdminService
 } from '../../../services/admin.service';
 
-import { InternalNavComponent } from '../../internal-nav/internal-nav.component';
+import {
+  InternalNavComponent
+} from '../../internal-nav/internal-nav.component';
 
 @Component({
   selector: 'app-client-detail',
@@ -44,8 +48,17 @@ export class ClientDetailComponent
 
   client: AdminClientDetail | null = null;
 
+  holdings: AdminHolding[] = [];
+
+  orders: AdminOrderLookup[] = [];
+
   loading = false;
+  holdingsLoading = false;
+  ordersLoading = false;
+
   errorMessage = '';
+  holdingsErrorMessage = '';
+  ordersErrorMessage = '';
 
   private readonly destroy$ =
     new Subject<void>();
@@ -57,6 +70,7 @@ export class ClientDetailComponent
   ) {}
 
   ngOnInit(): void {
+
     const clientId =
       Number(
         this.route.snapshot.paramMap.get('clientId')
@@ -69,11 +83,22 @@ export class ClientDetailComponent
     }
 
     this.loadClient(clientId);
+    this.loadHoldings(clientId);
+    this.loadOrders(clientId);
   }
 
   goBack(): void {
     this.router.navigate([
       '/admin/clients'
+    ]);
+  }
+
+  openOrder(
+    order: AdminOrderLookup
+  ): void {
+    this.router.navigate([
+      '/admin/orders',
+      order.orderId
     ]);
   }
 
@@ -90,12 +115,14 @@ export class ClientDetailComponent
         takeUntil(this.destroy$)
       )
       .subscribe({
+
         next: client => {
           this.client = client;
           this.loading = false;
         },
 
         error: error => {
+
           console.error(
             'Failed to load client details:',
             error
@@ -113,6 +140,86 @@ export class ClientDetailComponent
           } else {
             this.errorMessage =
               'Unable to load client details.';
+          }
+        }
+      });
+  }
+
+  private loadHoldings(
+    clientId: number
+  ): void {
+
+    this.holdingsLoading = true;
+    this.holdingsErrorMessage = '';
+
+    this.adminService
+      .getClientHoldings(clientId)
+      .pipe(
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+
+        next: holdings => {
+          this.holdings = holdings;
+          this.holdingsLoading = false;
+        },
+
+        error: error => {
+
+          console.error(
+            'Failed to load client holdings:',
+            error
+          );
+
+          this.holdings = [];
+          this.holdingsLoading = false;
+
+          if (error.status === 403) {
+            this.holdingsErrorMessage =
+              'You do not have permission to view these holdings.';
+          } else {
+            this.holdingsErrorMessage =
+              'Unable to load client holdings.';
+          }
+        }
+      });
+  }
+
+  private loadOrders(
+    clientId: number
+  ): void {
+
+    this.ordersLoading = true;
+    this.ordersErrorMessage = '';
+
+    this.adminService
+      .getClientOrders(clientId)
+      .pipe(
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+
+        next: orders => {
+          this.orders = orders;
+          this.ordersLoading = false;
+        },
+
+        error: error => {
+
+          console.error(
+            'Failed to load client orders:',
+            error
+          );
+
+          this.orders = [];
+          this.ordersLoading = false;
+
+          if (error.status === 403) {
+            this.ordersErrorMessage =
+              'You do not have permission to view these orders.';
+          } else {
+            this.ordersErrorMessage =
+              'Unable to load client orders.';
           }
         }
       });
