@@ -37,22 +37,22 @@ public class MarketController {
     private final CurrencyRepository currencyRepository;
     private final MarketHoursService marketHoursService;
     private final PricingService pricingService;
-        private final PreTradeMarketService preTradeMarketService;
+    private final PreTradeMarketService preTradeMarketService;
     private final MarketInsightsService marketInsightsService;
 
     public MarketController(
             MarketRepository marketRepository,
             CurrencyRepository currencyRepository,
             MarketHoursService marketHoursService,
-                        PricingService pricingService,
-                        PreTradeMarketService preTradeMarketService,
+            PricingService pricingService,
+            PreTradeMarketService preTradeMarketService,
             MarketInsightsService marketInsightsService
     ) {
         this.marketRepository = marketRepository;
         this.currencyRepository = currencyRepository;
         this.marketHoursService = marketHoursService;
         this.pricingService = pricingService;
-                this.preTradeMarketService = preTradeMarketService;
+        this.preTradeMarketService = preTradeMarketService;
         this.marketInsightsService = marketInsightsService;
     }
 
