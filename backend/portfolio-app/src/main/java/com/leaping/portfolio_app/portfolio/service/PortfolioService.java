@@ -43,9 +43,14 @@ public class PortfolioService {
         // Enrich each holding with market data
         List<HoldingResponse> holdingResponses = new ArrayList<>();
         for (Holding holding : holdings) {
+            // Skip fully sold positions
+            if (isClosed(holding)) {
+                continue;
+            }
+
             // Get current market price
-            BigDecimal currentPrice = marketPriceService.getCurrentPrice(holding.getInstrument().getSymbol());
-            
+            BigDecimal currentPrice = currentPriceOrCost(holding);
+
             // Calculate values
             BigDecimal costBasis = holding.getQuantity().multiply(holding.getAverageCostUsd());
             BigDecimal currentValue = holding.getQuantity().multiply(currentPrice);
@@ -110,10 +115,15 @@ public class PortfolioService {
         
         // Enrich each holding with market data and P&L calculations
         for (Holding holding : holdings) {
+            // Skip fully sold positions
+            if (isClosed(holding)) {
+                continue;
+            }
+
             String symbol = holding.getInstrument().getSymbol();
-            
+
             // Fetch current market price
-            BigDecimal currentPrice = marketPriceService.getCurrentPrice(symbol);
+            BigDecimal currentPrice = currentPriceOrCost(holding);
             
             // Calculate holding values
             BigDecimal costBasis = holding.getAverageCostUsd().multiply(holding.getQuantity());
@@ -170,6 +180,16 @@ public class PortfolioService {
             totalGainLossPercent,
             enrichedHoldings
         );
+    }
+
+    private boolean isClosed(Holding holding) {
+        return holding.getQuantity() == null || holding.getQuantity().compareTo(BigDecimal.ZERO) <= 0;
+    }
+
+    // Falls back to average cost when no market price is available, so a missing price can't break the portfolio view
+    private BigDecimal currentPriceOrCost(Holding holding) {
+        BigDecimal currentPrice = marketPriceService.getCurrentPrice(holding.getInstrument().getSymbol());
+        return currentPrice != null ? currentPrice : holding.getAverageCostUsd();
     }
 
 }

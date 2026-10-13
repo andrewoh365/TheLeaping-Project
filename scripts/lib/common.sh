@@ -42,7 +42,7 @@ ANALYTICS_IMAGE="leap-analytics"
 # ------------------------------------------------------------
 
 POSTGRES_PORT=5432
-SPRING_PORT=8081
+SPRING_PORT=8080
 ANALYTICS_PORT=8000
 FRONTEND_PORT=4200
 
@@ -291,6 +291,98 @@ show_port_owner() {
     fi
 
     warn "Unable to identify the process using port ${port}."
+}
+
+
+port_listener_pids() {
+    local port="$1"
+
+    if command_exists lsof; then
+        lsof -t -nP -iTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
+        return 0
+    fi
+
+    if command_exists ss; then
+        ss -ltnp 2>/dev/null \
+            | awk -v port="${port}" '
+                {
+                    if ($4 ~ (":" port "$")) {
+                        line = $0
+
+                        while (match(line, /pid=[0-9]+/)) {
+                            pid_field = substr(line, RSTART + 4, RLENGTH - 4)
+                            print pid_field
+                            line = substr(line, RSTART + RLENGTH)
+                        }
+                    }
+                }
+            ' \
+            | sort -u
+        return 0
+    fi
+
+    return 1
+}
+
+
+force_free_port() {
+    local port="$1"
+    local service_name="$2"
+
+    if ! port_is_in_use "${port}"; then
+        return 0
+    fi
+
+    warn "${service_name} requires port ${port}, which is currently in use."
+    show_port_owner "${port}"
+
+    local pids
+    pids="$(port_listener_pids "${port}" | tr '\n' ' ' | xargs echo 2>/dev/null || true)"
+
+    if [[ -z "${pids}" ]]; then
+        error "Could not determine which PID owns port ${port}."
+        return 1
+    fi
+
+    warn "Attempting to stop process(es) on port ${port}: ${pids}"
+
+    local pid
+    for pid in ${pids}; do
+        kill -TERM "${pid}" 2>/dev/null || true
+    done
+
+    local attempts=0
+    local max_attempts=8
+
+    while port_is_in_use "${port}" && (( attempts < max_attempts )); do
+        sleep 1
+        ((attempts += 1))
+    done
+
+    if port_is_in_use "${port}"; then
+        warn "Port ${port} is still in use; forcing process termination."
+
+        for pid in ${pids}; do
+            kill -KILL "${pid}" 2>/dev/null || true
+        done
+
+        attempts=0
+        max_attempts=5
+
+        while port_is_in_use "${port}" && (( attempts < max_attempts )); do
+            sleep 1
+            ((attempts += 1))
+        done
+    fi
+
+    if port_is_in_use "${port}"; then
+        error "Port ${port} is still occupied after attempted cleanup."
+        show_port_owner "${port}"
+        return 1
+    fi
+
+    success "Port ${port} is now free"
+    return 0
 }
 
 

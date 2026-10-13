@@ -37,6 +37,7 @@ import {
     OrderStatus
 } from '../../services/analytics.service';
 
+
 import { InternalNavComponent } from '../internal-nav/internal-nav.component';
 
 Chart.register(...registerables);
@@ -81,11 +82,9 @@ export class AnalyticsDashboardComponent
     loading = false;
     errorMessage = '';
 
-    // Presentation-only role-aware navigation.
-    // ADMIN reuses the shared analytics dashboard but sees
-    // the extra Trading Operations navigation above it.
-    isAdmin = false;
 
+    // ADMIN reuses analytics with additional operations navigation.
+    isAdmin = false;
     dateFrom = '';
     dateTo = '';
 

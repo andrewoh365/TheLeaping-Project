@@ -132,6 +132,8 @@ export class LoginComponent implements OnInit {
           );
 
           /*
+
+          /*
            * Each role gets its own presentation landing page.
            * Admin reuses analytics with extra operations navigation.
            */
@@ -141,6 +143,7 @@ export class LoginComponent implements OnInit {
               : response.role === 'ANALYST'
                 ? '/analytics'
                 : '/dashboard';
+
 
           /*
            * If an AuthGuard originally sent the user

@@ -1,17 +1,13 @@
+
 <div class="analytics-page">
 
+  <!-- Admin-only navigation -->
   <app-internal-nav *ngIf="isAdmin"></app-internal-nav>
 
   <header class="analytics-header">
-
     <div>
-      <h1>
-        Trading Analytics
-      </h1>
-
-      <p>
-        Internal trading activity and client insights
-      </p>
+      <h1>Trading Analytics</h1>
+      <p>Internal trading activity and client insights</p>
     </div>
 
     <button
@@ -20,139 +16,72 @@
       (click)="logout()">
       Logout
     </button>
-
   </header>
-
 
   <!-- FILTERS -->
   <mat-card class="filter-card">
-
     <div class="filter-grid">
-
 
       <!-- FROM DATE -->
       <mat-form-field appearance="outline">
-
-        <mat-label>
-          From
-        </mat-label>
+        <mat-label>From</mat-label>
 
         <input
           matInput
           type="date"
           [(ngModel)]="dateFrom">
-
       </mat-form-field>
-
 
       <!-- TO DATE -->
       <mat-form-field appearance="outline">
-
-        <mat-label>
-          To
-        </mat-label>
+        <mat-label>To</mat-label>
 
         <input
           matInput
           type="date"
           [(ngModel)]="dateTo">
-
       </mat-form-field>
-
 
       <!-- ASSET TYPE -->
       <mat-form-field appearance="outline">
-
-        <mat-label>
-          Asset Type
-        </mat-label>
+        <mat-label>Asset Type</mat-label>
 
         <mat-select [(ngModel)]="assetType">
-
-          <mat-option value="">
-            All
-          </mat-option>
-
-          <mat-option value="STOCK">
-            Stock
-          </mat-option>
-
-          <mat-option value="CRYPTO">
-            Crypto
-          </mat-option>
-
-          <mat-option value="FOREX">
-            Forex
-          </mat-option>
-
+          <mat-option value="">All</mat-option>
+          <mat-option value="STOCK">Stock</mat-option>
+          <mat-option value="CRYPTO">Crypto</mat-option>
+          <mat-option value="FOREX">Forex</mat-option>
         </mat-select>
-
       </mat-form-field>
-
 
       <!-- MARKET -->
       <mat-form-field appearance="outline">
-
-        <mat-label>
-          Market
-        </mat-label>
+        <mat-label>Market</mat-label>
 
         <mat-select [(ngModel)]="market">
-
-          <mat-option value="">
-            All
-          </mat-option>
+          <mat-option value="">All</mat-option>
 
           <mat-option
             *ngFor="let marketOption of markets"
             [value]="marketOption">
-
             {{ marketOption }}
-
           </mat-option>
-
         </mat-select>
-
       </mat-form-field>
-
 
       <!-- ORDER STATUS -->
       <mat-form-field appearance="outline">
-
-        <mat-label>
-          Order Status
-        </mat-label>
+        <mat-label>Order Status</mat-label>
 
         <mat-select [(ngModel)]="orderStatus">
-
-          <mat-option value="">
-            All
-          </mat-option>
-
-          <mat-option value="SUBMITTED">
-            Submitted
-          </mat-option>
-
-          <mat-option value="ACCEPTED">
-            Accepted
-          </mat-option>
-
-          <mat-option value="FILLED">
-            Filled
-          </mat-option>
-
-          <mat-option value="REJECTED">
-            Rejected
-          </mat-option>
-
-          <mat-option value="CANCELLED">
-            Cancelled
-          </mat-option>
-
+          <mat-option value="">All</mat-option>
+          <mat-option value="SUBMITTED">Submitted</mat-option>
+          <mat-option value="ACCEPTED">Accepted</mat-option>
+          <mat-option value="FILLED">Filled</mat-option>
+          <mat-option value="REJECTED">Rejected</mat-option>
+          <mat-option value="CANCELLED">Cancelled</mat-option>
         </mat-select>
-
       </mat-form-field>
-
 
       <!-- FILTER BUTTONS -->
       <div class="filter-actions">
@@ -173,41 +102,30 @@
         </button>
 
       </div>
-
     </div>
-
   </mat-card>
-
 
   <!-- LOADING -->
   <div
     class="loading-container"
     *ngIf="loading">
-
     <mat-spinner diameter="42"></mat-spinner>
-
   </div>
-
 
   <!-- ERROR -->
   <mat-card
     class="error-card"
     *ngIf="errorMessage">
-
     {{ errorMessage }}
-
   </mat-card>
 
-
-  <ng-container
-    *ngIf="dashboard && !loading">
-
+  <!-- DASHBOARD CONTENT -->
+  <ng-container *ngIf="dashboard && !loading">
 
     <!-- SUMMARY CARDS -->
     <section class="summary-grid">
 
       <mat-card class="summary-card">
-
         <span class="summary-label">
           Trading Volume
         </span>
@@ -218,12 +136,9 @@
               | currency:'USD':'symbol':'1.0-2'
           }}
         </strong>
-
       </mat-card>
 
-
       <mat-card class="summary-card">
-
         <span class="summary-label">
           Total Orders
         </span>
@@ -234,12 +149,9 @@
               | number
           }}
         </strong>
-
       </mat-card>
 
-
       <mat-card class="summary-card">
-
         <span class="summary-label">
           Active Clients
         </span>
@@ -250,12 +162,9 @@
               | number
           }}
         </strong>
-
       </mat-card>
 
-
       <mat-card class="summary-card">
-
         <span class="summary-label">
           Filled Orders
         </span>
@@ -266,77 +175,56 @@
               | number:'1.0-2'
           }}%
         </strong>
-
       </mat-card>
 
     </section>
 
-
     <!-- CHARTS -->
     <section class="charts-grid">
 
+      <!-- TRADING VOLUME -->
       <mat-card class="chart-card chart-wide">
-
-        <h2>
-          Trading Volume Over Time
-        </h2>
+        <h2>Trading Volume Over Time</h2>
 
         <div class="chart-container">
           <canvas #volumeChart></canvas>
         </div>
-
       </mat-card>
 
-
+      <!-- ORDER OUTCOMES -->
       <mat-card class="chart-card">
-
-        <h2>
-          Order Outcomes
-        </h2>
+        <h2>Order Outcomes</h2>
 
         <div class="chart-container">
           <canvas #outcomesChart></canvas>
         </div>
-
       </mat-card>
 
-
+      <!-- ACTIVE INSTRUMENTS -->
       <mat-card class="chart-card">
-
-        <h2>
-          Most Active Instruments
-        </h2>
+        <h2>Most Active Instruments</h2>
 
         <div class="chart-container">
           <canvas #instrumentsChart></canvas>
         </div>
-
       </mat-card>
 
-
+      <!-- CLIENT ACTIVITY -->
       <mat-card class="chart-card chart-wide">
-
-        <h2>
-          Client Activity Trend
-        </h2>
+        <h2>Client Activity Trend</h2>
 
         <div class="chart-container">
           <canvas #clientsChart></canvas>
         </div>
-
       </mat-card>
 
-
+      <!-- REJECTION REASONS -->
       <mat-card class="chart-card chart-wide">
-
-        <h2>
-          Top Rejection Reasons
-        </h2>
+        <h2>Top Rejection Reasons</h2>
 
         <div class="chart-container">
           <canvas #rejectionsChart></canvas>
         </div>
-
       </mat-card>
 
     </section>

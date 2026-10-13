@@ -235,17 +235,14 @@ Or reset the LEAP environment later with:
     fi
 
 
+    
     if port_is_in_use "${SPRING_PORT}"; then
-        error "Spring Boot cannot start because port ${SPRING_PORT} is already in use."
+        warn "Port ${SPRING_PORT} is occupied before Spring startup."
+        info "Attempting automatic cleanup to avoid startup failure"
 
-        show_port_owner "${SPRING_PORT}"
-
-        echo
-        echo "A common cause on the EC2 environment is Jenkins."
-        echo
-        echo "The script will NOT stop the process automatically."
-
-        die "Free port ${SPRING_PORT}, then run ./scripts/start.sh again."
+        if ! force_free_port "${SPRING_PORT}" "Spring Boot"; then
+            die "Unable to free port ${SPRING_PORT}. Resolve manually, then rerun ./scripts/start.sh."
+        fi
     fi
 
 

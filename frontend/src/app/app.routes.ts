@@ -1,9 +1,11 @@
+
 import { Routes } from '@angular/router';
 
 import { LoginComponent } from './components/login/login.component';
 import { RegisterComponent } from './components/register/register.component';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { AnalyticsDashboardComponent } from './components/analytics-dashboard/analytics-dashboard.component';
+
 import { ClientsComponent } from './components/admin/clients/clients.component';
 import { ClientDetailComponent } from './components/admin/client-detail/client-detail.component';
 import { TradeLookupComponent } from './components/admin/trade-lookup/trade-lookup.component';
