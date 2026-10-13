@@ -178,36 +178,66 @@
               </div>
             </div>
             <div class="node-169">
-              <input type="text" [(ngModel)]="holdingsFilterQuery" placeholder="Search holdings..." aria-label="Search holdings" />
+              <input type="text" [(ngModel)]="holdingsFilterQuery" (input)="onHoldingsFilterInput()" placeholder="Search holdings..." aria-label="Search holdings" />
+            </div>
+            <div class="holdings-filter-control" role="group" aria-label="Filter holdings by asset class">
+              <div class="holdings-filter-segmented">
+                <button
+                  type="button"
+                  *ngFor="let option of holdingsFilterOptions"
+                  [class.active]="holdingsFilterType === option.value"
+                  [attr.aria-pressed]="holdingsFilterType === option.value"
+                  (click)="setHoldingsFilterType(option.value)">
+                  {{ option.label }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         <div class="holdings-list-171" *ngIf="selectedTab === 'holdings' || selectedTab === 'crypto'">
-          <div class="table-cols-172">
-            <p class="text-173"><span class="text-rgb-189-189-189">ASSET</span></p>
-            <p class="text-174"><span class="text-rgb-189-189-189">SHARES</span></p>
-            <p class="text-175"><span class="text-rgb-189-189-189">AVG COST</span></p>
-            <p class="text-176"><span class="text-rgb-189-189-189">MARKET PRICE</span></p>
-            <p class="text-177"><span class="text-rgb-189-189-189">GAIN / LOSS</span></p>
-            <p class="text-178"><span class="text-rgb-189-189-189">TOTAL VALUE</span></p>
-          </div>
-
-          <div class="holding-row" *ngFor="let holding of filteredHoldings" [class.row-flash]="changedSymbols.has(holding.instrumentSymbol)">
-            <div class="col-asset-180">
-              <p class="text-181"><span class="text-rgb-250-250-250">{{ holding.instrumentSymbol }}</span></p>
-              <p class="text-182"><span class="text-rgb-250-250-250">{{ holding.instrumentName }}</span></p>
+          <div class="holdings-search-skeleton" *ngIf="holdingsSearchLoading" role="status" aria-label="Updating holdings">
+            <div class="holding-skeleton-header" aria-hidden="true">
+              <span *ngFor="let column of [1, 2, 3, 4, 5, 6]"></span>
             </div>
-            <p class="text-183"><span class="text-rgb-250-250-250">{{ holding.quantity | number:'1.2-4' }}</span></p>
-            <p class="text-184"><span class="text-rgb-250-250-250">{{ (holding.averageCostUsd || 0) | currency:'USD':'symbol':'1.2-2' }}</span></p>
-            <p class="text-185"><span class="text-rgb-250-250-250">{{ (holding.currentPriceUsd || holding.averageCostUsd || 0) | currency:'USD':'symbol':'1.2-2' }}</span></p>
-            <p class="text-186" [class.text-rgb-204-31-45]="getTone(holding.todaysChangePercent) === 'negative'" [class.text-rgb-0-171-104]="getTone(holding.todaysChangePercent) !== 'negative'">{{ formatSignedPercent(holding.todaysChangePercent) }}</p>
-            <div class="col-value-187">
-              <p class="text-188"><span class="text-rgb-250-250-250">{{ getHoldingMarketValue(holding) | currency:'USD':'symbol':'1.2-2' }}</span></p>
+            <div class="holding-skeleton-row" *ngFor="let placeholder of [1, 2, 3, 4, 5, 6]" aria-hidden="true">
+              <span class="skeleton-asset"></span>
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
             </div>
           </div>
 
-          <div class="empty-state" *ngIf="filteredHoldings.length === 0">{{ holdingsEmptyMessage }}</div>
+          <ng-container *ngIf="!holdingsSearchLoading">
+            <div class="empty-state" *ngIf="holdingsSearchError" role="alert">{{ holdingsSearchError }}</div>
+
+            <div class="table-cols-172">
+              <p class="text-173"><span class="text-rgb-189-189-189">ASSET</span></p>
+              <p class="text-174"><span class="text-rgb-189-189-189">SHARES</span></p>
+              <p class="text-175"><span class="text-rgb-189-189-189">AVG COST</span></p>
+              <p class="text-176"><span class="text-rgb-189-189-189">MARKET PRICE</span></p>
+              <p class="text-177"><span class="text-rgb-189-189-189">GAIN / LOSS</span></p>
+              <p class="text-178"><span class="text-rgb-189-189-189">TOTAL VALUE</span></p>
+            </div>
+
+            <div class="holding-row" *ngFor="let holding of filteredHoldings" [class.row-flash]="changedSymbols.has(holding.instrumentSymbol)">
+              <div class="col-asset-180">
+                <p class="text-181"><span class="text-rgb-250-250-250">{{ holding.instrumentSymbol }}</span></p>
+                <p class="text-182"><span class="text-rgb-250-250-250">{{ holding.instrumentName }}</span></p>
+              </div>
+              <p class="text-183"><span class="text-rgb-250-250-250">{{ holding.quantity | number:'1.2-4' }}</span></p>
+              <p class="text-184"><span class="text-rgb-250-250-250">{{ (holding.averageCostUsd || 0) | currency:'USD':'symbol':'1.2-2' }}</span></p>
+              <p class="text-185"><span class="text-rgb-250-250-250">{{ (holding.currentPriceUsd || holding.averageCostUsd || 0) | currency:'USD':'symbol':'1.2-2' }}</span></p>
+              <p class="text-186" [class.text-rgb-204-31-45]="getTone(holding.todaysChangePercent) === 'negative'" [class.text-rgb-0-171-104]="getTone(holding.todaysChangePercent) !== 'negative'">{{ formatSignedPercent(holding.todaysChangePercent) }}</p>
+              <div class="col-value-187">
+                <p class="text-188"><span class="text-rgb-250-250-250">{{ getHoldingMarketValue(holding) | currency:'USD':'symbol':'1.2-2' }}</span></p>
+              </div>
+            </div>
+
+            <div class="empty-state" *ngIf="filteredHoldings.length === 0 && !holdingsSearchError">{{ holdingsEmptyMessage }}</div>
+          </ng-container>
         </div>
 
         <div class="activity-list" *ngIf="selectedTab === 'activity'">

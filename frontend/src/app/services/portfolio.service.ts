@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 export interface HoldingResponse {
+  instrumentId: number | null;
   instrumentSymbol: string;
   instrumentName: string;
   quantity: number;
@@ -57,26 +58,46 @@ export interface CashTransferResponse {
 })
 export class PortfolioService {
   private readonly apiUrl = '/api/portfolio';
+  private readonly holdingsApiUrl = '/api/holdings';
 
   constructor(private http: HttpClient) {}
+
+  private mapHolding(holding: ApiHoldingResponse): HoldingResponse {
+    return {
+      instrumentId: holding.instrument_id,
+      instrumentSymbol: holding.symbol,
+      instrumentName: holding.instrument_name,
+      quantity: holding.quantity,
+      averageCostUsd: holding.average_cost_usd,
+      currentPriceUsd: holding.current_price,
+      marketValueUsd: holding.current_value_usd,
+      gainLossUsd: holding.gain_loss_usd,
+      gainLossPercent: holding.gain_loss_percent
+    };
+  }
 
   getMyPortfolio(): Observable<PortfolioResponse> {
     return this.http.get<ApiPortfolioResponse>(this.apiUrl).pipe(
       map((portfolio) => ({
         portfolioId: portfolio.portfolioId,
         cashBalanceUsd: portfolio.cashBalanceUsd,
-        holdings: (portfolio.holdings ?? []).map((holding) => ({
-          instrumentSymbol: holding.symbol,
-          instrumentName: holding.instrument_name,
-          quantity: holding.quantity,
-          averageCostUsd: holding.average_cost_usd,
-          currentPriceUsd: holding.current_price,
-          marketValueUsd: holding.current_value_usd,
-          gainLossUsd: holding.gain_loss_usd,
-          gainLossPercent: holding.gain_loss_percent
-        }))
+        holdings: (portfolio.holdings ?? []).map((holding) => this.mapHolding(holding))
       }))
     );
+  }
+
+  getHoldingsByPortfolio(portfolioId: number): Observable<HoldingResponse[]> {
+    return this.http
+      .get<ApiHoldingResponse[]>(`${this.holdingsApiUrl}/portfolio/${portfolioId}`)
+      .pipe(map((holdings) => (holdings ?? []).map((holding) => this.mapHolding(holding))));
+  }
+
+  searchHoldingsBySymbol(portfolioId: number, symbol: string): Observable<HoldingResponse[]> {
+    return this.http
+      .get<ApiHoldingResponse[]>(`${this.holdingsApiUrl}/portfolio/${portfolioId}/search`, {
+        params: { symbol }
+      })
+      .pipe(map((holdings) => (holdings ?? []).map((holding) => this.mapHolding(holding))));
   }
 
   /** Add to or take from the cash balance. No bank is connected yet, so this adjusts the balance directly. */
