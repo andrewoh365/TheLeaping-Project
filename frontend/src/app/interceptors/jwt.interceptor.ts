@@ -6,13 +6,17 @@ import {
   HttpInterceptor,
   HttpErrorResponse
 } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { Observable, throwError } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { AuthService } from '../services/auth.service';
 
 @Injectable()
 export class JwtInterceptor implements HttpInterceptor {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private router: Router
+  ) {}
 
   intercept(request: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
     // Add token to request headers
@@ -23,13 +27,13 @@ export class JwtInterceptor implements HttpInterceptor {
 
     return next.handle(request).pipe(
       catchError((error: HttpErrorResponse) => {
-        // Handle 401 Unauthorized - try to refresh token
+        // Some backends return 403 for expired/invalid JWTs.
         if (
-          error.status === 401
+          (error.status === 401 || error.status === 403)
           && !this.isRefreshUrl(request.url)
           && !this.isExcludedUrl(request.url)
         ) {
-          return this.handle401Error(request, next);
+          return this.handleAuthError(request, next);
         }
         return throwError(() => error);
       })
@@ -44,21 +48,26 @@ export class JwtInterceptor implements HttpInterceptor {
     });
   }
 
-  private handle401Error(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
+  private handleAuthError(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
     return this.authService.refreshToken().pipe(
       switchMap(() => {
         const token = this.authService.getToken();
         if (token) {
           return next.handle(this.addToken(request, token));
         }
-        this.authService.logout();
+        this.forceReauth();
         return throwError(() => new Error('Token refresh failed'));
       }),
       catchError((err) => {
-        this.authService.logout();
+        this.forceReauth();
         return throwError(() => err);
       })
     );
+  }
+
+  private forceReauth(): void {
+    this.authService.logout();
+    this.router.navigate(['/login']);
   }
 
   private isExcludedUrl(url: string): boolean {
