@@ -1,0 +1,4 @@
+region,asset_class,market_name,symbol,name,instrument_type,price_currency_code,base_price,daily_volatility_bps,is_tradeable,is_active
+UK,EQUITY,LSE,VOD,Vodafone Group,STOCK,GBP,176.9,140,true,true
+India,EQUITY,NSE,RELIANCE,Reliance Industries,STOCK,INR,842.34,148,true,true
+Global,DIGITAL_ASSET,CRYPTO,BTC-USD,Bitcoin,CRYPTO,USD,65822.49,605,true,true
