@@ -197,3 +197,42 @@ body {
 
   }
 }
+/* Profile menu (dashboard). mat-menu panels render in a CDK overlay outside the
+   component, so their styles must be global. */
+.mat-mdc-menu-panel.profile-menu {
+  min-width: 240px;
+  margin-top: 8px;
+  background-color: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+
+  .mat-mdc-menu-content {
+    padding: 4px 0;
+  }
+
+  .mat-divider {
+    border-top-color: #3a3a3a;
+  }
+
+  .mat-mdc-menu-item {
+    min-height: 44px;
+    color: #fafafa;
+
+    .mat-icon {
+      margin-right: 12px;
+      color: #fafafa;
+    }
+
+    &:hover:not([disabled]),
+    &.cdk-program-focused,
+    &.cdk-keyboard-focused {
+      background-color: #333333;
+    }
+  }
+
+  .logout-button .mat-icon,
+  .logout-button .mat-mdc-menu-item-text {
+    color: #ff7882;
+  }
+}

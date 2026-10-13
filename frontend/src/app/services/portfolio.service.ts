@@ -40,11 +40,23 @@ interface ApiPortfolioResponse {
   holdings: ApiHoldingResponse[];
 }
 
+export type CashDirection = 'DEPOSIT' | 'WITHDRAW';
+
+/** A recorded deposit or withdrawal. amountUsd is negative for withdrawals. */
+export interface CashTransferResponse {
+  transactionId: number;
+  transactionType: 'DEPOSIT' | 'WITHDRAWAL';
+  amountUsd: number;
+  balanceBeforeUsd: number;
+  balanceAfterUsd: number;
+  createdAt: string | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class PortfolioService {
-  private readonly apiUrl = 'http://localhost:8080/api/portfolio';
+  private readonly apiUrl = '/api/portfolio';
 
   constructor(private http: HttpClient) {}
 
@@ -65,5 +77,10 @@ export class PortfolioService {
         }))
       }))
     );
+  }
+
+  /** Add to or take from the cash balance. No bank is connected yet, so this adjusts the balance directly. */
+  transferCash(direction: CashDirection, amount: number): Observable<CashTransferResponse> {
+    return this.http.post<CashTransferResponse>(`${this.apiUrl}/cash`, { direction, amount });
   }
 }
