@@ -19,6 +19,16 @@ public class MarketPricingService implements PricingService {
 
     @Override
     public Optional<Price> getLatestPriceBySymbol(String symbol) {
+        // Once the walk has printed, that series is the quote. A later daily
+        // mock bar must not hide it.
+        Optional<Price> live = priceRepository
+                .findFirstByInstrumentSymbolIgnoreCaseAndProviderNameOrderByPriceTimestampDesc(
+                        symbol,
+                        PriceMovementSimulator.PROVIDER
+                );
+        if (live.isPresent()) {
+            return live;
+        }
         return priceRepository.findFirstByInstrumentSymbolIgnoreCaseOrderByPriceTimestampDesc(symbol);
     }
 
