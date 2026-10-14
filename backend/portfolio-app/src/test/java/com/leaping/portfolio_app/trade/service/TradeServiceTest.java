@@ -161,6 +161,35 @@ class TradeServiceTest {
     }
 
     @Test
+    void executeTradeFullSellShouldDeleteHoldingInsteadOfSavingZeroQuantity() {
+        TradeOrder order = marketOrder(14L, OrderAction.SELL, "5");
+
+        Holding existing = new Holding();
+        existing.setPortfolio(portfolio);
+        existing.setInstrument(instrument);
+        existing.setQuantity(new BigDecimal("5"));
+        existing.setAverageCostUsd(new BigDecimal("90.00"));
+
+        when(tradeOrderRepository.findById(14L)).thenReturn(Optional.of(order));
+        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.00"));
+        when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L))
+            .thenReturn(Optional.of(existing));
+        when(executionAttemptRepository.save(any(ExecutionAttempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tradeRepository.save(any(Trade.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(portfolioRepository.save(any(Portfolio.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(cashTransactionRepository.save(any(CashTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TradeConfirmationResponse response = tradeService.executeTrade(14L);
+
+        assertEquals(new BigDecimal("500.00"), response.getTotalUsdValue());
+        assertEquals(new BigDecimal("1500.00"), portfolio.getCashBalanceUsd());
+        assertEquals(OrderStatus.FILLED, order.getOrderStatus());
+        verify(holdingRepository).delete(existing);
+        verify(holdingRepository, never()).save(any(Holding.class));
+    }
+
+    @Test
     void executeTradeShouldRejectOrderWhenPriceUnavailable() {
         TradeOrder order = new TradeOrder();
         order.setOrderId(77L);

@@ -38,7 +38,7 @@ public class HoldingService {
 
     public List<HoldingResponse> searchHoldingsBySymbol(Long portfolioId, String symbol) {
         return holdingRepository
-            .findByPortfolio_PortfolioIdAndInstrument_SymbolContainingIgnoreCase(portfolioId, symbol)
+            .searchByPortfolioAndInstrument(portfolioId, symbol)
             .stream()
             .map(holding -> enrichHoldingWithMarketData(mapper.toDto(holding), holding))
             .toList();
