@@ -2,6 +2,7 @@ package com.leaping.portfolio_app.admin.controller;
 
 import com.leaping.portfolio_app.admin.dto.AdminOrderDetailResponse;
 import com.leaping.portfolio_app.admin.dto.AdminOrderLookupResponse;
+import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
 import com.leaping.portfolio_app.admin.service.AdminTradeLookupService;
 
 import org.springframework.http.ResponseEntity;
@@ -50,6 +51,16 @@ public class AdminTradeLookupController {
         ) {
                 return ResponseEntity.ok(
                                 adminTradeLookupService.getOrder(orderId)
+                );
+        }
+
+        @GetMapping("/{orderId}/audit")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<List<AuditEventResponse>> getOrderAudit(
+                        @PathVariable Long orderId
+        ) {
+                return ResponseEntity.ok(
+                                adminTradeLookupService.getOrderAudit(orderId)
                 );
         }
 }

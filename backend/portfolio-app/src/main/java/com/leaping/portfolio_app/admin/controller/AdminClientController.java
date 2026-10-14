@@ -3,6 +3,7 @@ package com.leaping.portfolio_app.admin.controller;
 import com.leaping.portfolio_app.admin.dto.AdminClientDetailResponse;
 import com.leaping.portfolio_app.admin.dto.AdminOrderLookupResponse;
 import com.leaping.portfolio_app.admin.dto.AdminClientSummaryResponse;
+import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
 import com.leaping.portfolio_app.admin.service.AdminClientService;
 import com.leaping.portfolio_app.admin.service.AdminTradeLookupService;
 import com.leaping.portfolio_app.holdings.HoldingResponse;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
 
 @RestController
 @RequestMapping("/api/admin/clients")
@@ -73,6 +75,18 @@ public class AdminClientController {
 
         return ResponseEntity.ok(response);
     }
+
+        @GetMapping("/{clientId}/activity")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<Page<AuditEventResponse>> getClientActivity(
+                        @PathVariable Long clientId,
+                        @RequestParam(defaultValue = "0") int page,
+                        @RequestParam(defaultValue = "25") int size
+        ) {
+                return ResponseEntity.ok(
+                                adminClientService.getClientActivity(clientId, page, size)
+                );
+        }
 
         @GetMapping("/{clientId}/orders")
         @PreAuthorize("hasRole('ADMIN')")

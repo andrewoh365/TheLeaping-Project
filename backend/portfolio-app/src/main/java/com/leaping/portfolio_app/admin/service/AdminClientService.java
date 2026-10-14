@@ -2,14 +2,19 @@ package com.leaping.portfolio_app.admin.service;
 
 import com.leaping.portfolio_app.admin.dto.AdminClientDetailResponse;
 import com.leaping.portfolio_app.admin.dto.AdminClientSummaryResponse;
+import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
 import com.leaping.portfolio_app.auth.model.Customer;
 import com.leaping.portfolio_app.auth.model.User;
 import com.leaping.portfolio_app.auth.repository.CustomerRepository;
+import com.leaping.portfolio_app.audit.entity.AuditEvent;
+import com.leaping.portfolio_app.audit.repository.AuditEventRepository;
 import com.leaping.portfolio_app.holdings.HoldingResponse;
 import com.leaping.portfolio_app.holdings.HoldingService;
 import com.leaping.portfolio_app.portfolio.entity.Portfolio;
 import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,15 +29,18 @@ public class AdminClientService {
     private final CustomerRepository customerRepository;
     private final PortfolioRepository portfolioRepository;
         private final HoldingService holdingService;
+        private final AuditEventRepository auditEventRepository;
 
     public AdminClientService(
             CustomerRepository customerRepository,
-                        PortfolioRepository portfolioRepository,
-                        HoldingService holdingService
+            PortfolioRepository portfolioRepository,
+            HoldingService holdingService,
+            AuditEventRepository auditEventRepository
     ) {
         this.customerRepository = customerRepository;
         this.portfolioRepository = portfolioRepository;
-                this.holdingService = holdingService;
+        this.holdingService = holdingService;
+        this.auditEventRepository = auditEventRepository;
     }
 
     @Transactional(readOnly = true)
@@ -119,6 +127,32 @@ public class AdminClientService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public Page<AuditEventResponse> getClientActivity(
+            Long clientId,
+            int page,
+            int size
+    ) {
+        customerRepository
+                .findById(clientId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Client not found"
+                ));
+
+        PageRequest pageRequest = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100)
+        );
+
+        return auditEventRepository
+                .findByUser_IdOrderByOccurredAtDescAuditEventIdDesc(
+                        clientId,
+                        pageRequest
+                )
+                .map(this::toAuditEventResponse);
+    }
+
     private boolean matchesSearch(
             Customer customer,
             String search
@@ -181,6 +215,24 @@ public class AdminClientService {
                 user != null ? user.getLastName() : null,
                 user != null ? user.getEmail() : null,
                 user != null ? user.getStatus() : null
+        );
+    }
+
+    private AuditEventResponse toAuditEventResponse(AuditEvent event) {
+        return new AuditEventResponse(
+                event.getAuditEventId(),
+                event.getEventType(),
+                event.getOccurredAt(),
+                event.getUser() != null ? event.getUser().getId() : null,
+                event.getOrder() != null ? event.getOrder().getOrderId() : null,
+                event.getExecutionAttempt() != null
+                        ? event.getExecutionAttempt().getExecutionAttemptId()
+                        : null,
+                event.getTrade() != null ? event.getTrade().getTradeId() : null,
+                event.getCashTransaction() != null
+                        ? event.getCashTransaction().getCashTransactionId()
+                        : null,
+                event.getEventDetails()
         );
     }
 

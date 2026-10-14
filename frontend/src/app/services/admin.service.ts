@@ -117,6 +117,28 @@ export interface AdminOrderFilters {
   status?: string;
 }
 
+export interface AdminAuditEvent {
+  auditEventId: number;
+  eventType: string;
+  occurredAt: string | null;
+  userId: number | null;
+  orderId: number | null;
+  executionAttemptId: number | null;
+  tradeId: number | null;
+  cashTransactionId: number | null;
+  eventDetails: Record<string, unknown>;
+}
+
+export interface AdminPage<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+  first?: boolean;
+  last?: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -214,6 +236,31 @@ export class AdminService {
 
     return this.http.get<AdminOrderDetail>(
       `${this.API_URL}/orders/${orderId}`
+    );
+  }
+
+  getClientActivity(
+    clientId: number,
+    page = 0,
+    size = 10
+  ): Observable<AdminPage<AdminAuditEvent>> {
+
+    const params = new HttpParams()
+      .set('page', page)
+      .set('size', size);
+
+    return this.http.get<AdminPage<AdminAuditEvent>>(
+      `${this.API_URL}/clients/${clientId}/activity`,
+      { params }
+    );
+  }
+
+  getOrderAudit(
+    orderId: number
+  ): Observable<AdminAuditEvent[]> {
+
+    return this.http.get<AdminAuditEvent[]>(
+      `${this.API_URL}/orders/${orderId}/audit`
     );
   }
 }

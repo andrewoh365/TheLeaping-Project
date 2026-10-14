@@ -2,7 +2,10 @@ package com.leaping.portfolio_app.admin.service;
 
 import com.leaping.portfolio_app.admin.dto.AdminOrderDetailResponse;
 import com.leaping.portfolio_app.admin.dto.AdminOrderLookupResponse;
+import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
 import com.leaping.portfolio_app.auth.model.User;
+import com.leaping.portfolio_app.audit.entity.AuditEvent;
+import com.leaping.portfolio_app.audit.repository.AuditEventRepository;
 import com.leaping.portfolio_app.trade.entity.Trade;
 import com.leaping.portfolio_app.trade.entity.TradeOrder;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
@@ -23,13 +26,16 @@ public class AdminTradeLookupService {
 
     private final TradeOrderRepository tradeOrderRepository;
     private final TradeRepository tradeRepository;
+        private final AuditEventRepository auditEventRepository;
 
     public AdminTradeLookupService(
             TradeOrderRepository tradeOrderRepository,
-            TradeRepository tradeRepository
+            TradeRepository tradeRepository,
+            AuditEventRepository auditEventRepository
     ) {
         this.tradeOrderRepository = tradeOrderRepository;
         this.tradeRepository = tradeRepository;
+        this.auditEventRepository = auditEventRepository;
     }
 
     @Transactional(readOnly = true)
@@ -169,6 +175,24 @@ public class AdminTradeLookupService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public List<AuditEventResponse> getOrderAudit(Long orderId) {
+        tradeOrderRepository
+                .findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Order not found"
+                ));
+
+        return auditEventRepository
+                .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
+                        orderId,
+                        Pageable.unpaged()
+                )
+                .map(this::toAuditEventResponse)
+                .getContent();
+    }
+
     private boolean matchesSearch(
             AdminOrderLookupResponse order,
             String search
@@ -301,6 +325,24 @@ public class AdminTradeLookupService {
                 trade != null
                         ? trade.getExecutedAt()
                         : null
+        );
+    }
+
+    private AuditEventResponse toAuditEventResponse(AuditEvent event) {
+        return new AuditEventResponse(
+                event.getAuditEventId(),
+                event.getEventType(),
+                event.getOccurredAt(),
+                event.getUser() != null ? event.getUser().getId() : null,
+                event.getOrder() != null ? event.getOrder().getOrderId() : null,
+                event.getExecutionAttempt() != null
+                        ? event.getExecutionAttempt().getExecutionAttemptId()
+                        : null,
+                event.getTrade() != null ? event.getTrade().getTradeId() : null,
+                event.getCashTransaction() != null
+                        ? event.getCashTransaction().getCashTransactionId()
+                        : null,
+                event.getEventDetails()
         );
     }
 

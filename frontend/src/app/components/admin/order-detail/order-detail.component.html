@@ -395,6 +395,86 @@
 
     </mat-card>
 
+
+    <!-- AUDIT TRAIL -->
+    <mat-card class="detail-card audit-card">
+
+      <div class="section-header">
+        <div>
+          <h2>Audit Trail</h2>
+          <p class="section-subtitle">
+            Recorded events for this order, oldest first.
+          </p>
+        </div>
+      </div>
+
+      <div
+        class="audit-loading"
+        *ngIf="auditLoading">
+        <mat-spinner diameter="34"></mat-spinner>
+      </div>
+
+      <div
+        class="audit-error"
+        *ngIf="!auditLoading && auditErrorMessage">
+        {{ auditErrorMessage }}
+      </div>
+
+      <div
+        class="audit-empty"
+        *ngIf="!auditLoading && !auditErrorMessage && auditEvents.length === 0">
+        No audit events were recorded for this order.
+      </div>
+
+      <div
+        class="audit-list"
+        *ngIf="!auditLoading && !auditErrorMessage && auditEvents.length > 0">
+
+        <article
+          class="audit-event"
+          *ngFor="let event of auditEvents">
+
+          <div class="audit-marker"></div>
+
+          <div class="audit-event-content">
+            <div class="audit-event-heading">
+              <strong>{{ auditLabel(event.eventType) }}</strong>
+              <time [attr.datetime]="event.occurredAt || null">
+                {{
+                  event.occurredAt
+                    ? (event.occurredAt | date:'medium')
+                    : 'Time unavailable'
+                }}
+              </time>
+            </div>
+
+            <div class="audit-event-links">
+              <span *ngIf="event.executionAttemptId !== null">
+                Attempt #{{ event.executionAttemptId }}
+              </span>
+              <span *ngIf="event.tradeId !== null">
+                Trade #{{ event.tradeId }}
+              </span>
+              <span *ngIf="event.cashTransactionId !== null">
+                Cash #{{ event.cashTransactionId }}
+              </span>
+            </div>
+
+            <div
+              class="audit-event-details"
+              *ngIf="auditDetailEntries(event).length > 0">
+              <span
+                class="audit-detail"
+                *ngFor="let detail of auditDetailEntries(event)">
+                <b>{{ detail.label }}</b>
+                {{ detail.value }}
+              </span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </mat-card>
+
   </ng-container>
 
 </div>

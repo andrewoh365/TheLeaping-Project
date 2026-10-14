@@ -2,10 +2,14 @@ package com.leaping.portfolio_app.portfolio.service;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.leaping.portfolio_app.audit.enums.AuditEventType;
+import com.leaping.portfolio_app.audit.service.AuditService;
 import com.leaping.portfolio_app.portfolio.dto.CashTransferRequest;
 import com.leaping.portfolio_app.portfolio.dto.CashTransferResponse;
 import com.leaping.portfolio_app.portfolio.entity.CashTransaction;
@@ -33,15 +37,18 @@ public class CashService {
     private final PortfolioRepository portfolioRepository;
     private final CashTransactionRepository cashTransactionRepository;
     private final EntityManager entityManager;
+    private final AuditService auditService;
 
     public CashService(
             PortfolioRepository portfolioRepository,
             CashTransactionRepository cashTransactionRepository,
-            EntityManager entityManager
+            EntityManager entityManager,
+            AuditService auditService
     ) {
         this.portfolioRepository = portfolioRepository;
         this.cashTransactionRepository = cashTransactionRepository;
         this.entityManager = entityManager;
+        this.auditService = auditService;
     }
 
     /**
@@ -83,6 +90,16 @@ public class CashService {
         transaction.setBalanceAfterUsd(balanceAfter);
         CashTransaction saved = cashTransactionRepository.save(transaction);
 
+        auditService.recordEvent(
+            AuditEventType.CASH_TRANSACTION_RECORDED,
+            portfolio.getCustomer().getUser(),
+            null,
+            null,
+            null,
+            saved,
+            cashTransactionAuditDetails(customerId, saved)
+        );
+
         return new CashTransferResponse(
             saved.getCashTransactionId(),
             type.name(),
@@ -90,6 +107,22 @@ public class CashService {
             balanceBefore,
             balanceAfter,
             saved.getCreatedAt());
+    }
+
+    private Map<String, Object> cashTransactionAuditDetails(
+            Long customerId,
+            CashTransaction transaction
+    ) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("customerId", customerId);
+        details.put("portfolioId", transaction.getPortfolio().getPortfolioId());
+        details.put("cashTransactionId", transaction.getCashTransactionId());
+        details.put("transactionType", transaction.getTransactionType().name());
+        details.put("amountUsd", transaction.getAmountUsd());
+        details.put("balanceBeforeUsd", transaction.getBalanceBeforeUsd());
+        details.put("balanceAfterUsd", transaction.getBalanceAfterUsd());
+        details.put("createdAt", transaction.getCreatedAt());
+        return details;
     }
 
     private CashTransactionType parseDirection(String direction) {

@@ -678,15 +678,119 @@
         <!-- ACTIVITY -->
         <mat-tab label="Activity">
 
-          <div class="placeholder-tab">
+          <div class="tab-content activity-tab">
 
-            <h2>
-              Activity
-            </h2>
+            <div class="activity-header">
+              <div>
+                <h2>Activity</h2>
+                <p>
+                  {{ activityTotalElements }}
+                  {{ activityTotalElements === 1 ? 'record' : 'records' }}
+                  · newest first
+                </p>
+              </div>
+            </div>
 
-            <p>
-              Client trading and audit activity will appear here.
-            </p>
+            <div
+              class="activity-loading"
+              *ngIf="activityLoading && activity.length === 0">
+              <mat-spinner diameter="36"></mat-spinner>
+            </div>
+
+            <div
+              class="activity-error"
+              *ngIf="activityErrorMessage">
+              {{ activityErrorMessage }}
+            </div>
+
+            <div
+              class="activity-empty"
+              *ngIf="
+                !activityLoading &&
+                !activityErrorMessage &&
+                activity.length === 0
+              ">
+              <h3>No activity recorded</h3>
+              <p>There are no audit events available for this client.</p>
+            </div>
+
+            <div
+              class="activity-list"
+              *ngIf="activity.length > 0">
+
+              <article
+                class="activity-event"
+                *ngFor="let event of activity">
+
+                <div class="activity-marker"></div>
+
+                <div class="activity-event-body">
+                  <div class="activity-event-topline">
+                    <div>
+                      <strong>{{ activityLabel(event.eventType) }}</strong>
+                      <span class="activity-instrument">
+                        {{ activityInstrument(event) }}
+                      </span>
+                    </div>
+
+                    <time
+                      [attr.datetime]="event.occurredAt || null">
+                      {{
+                        event.occurredAt
+                          ? (event.occurredAt | date:'medium')
+                          : 'Time unavailable'
+                      }}
+                    </time>
+                  </div>
+
+                  <div class="activity-links">
+                    <button
+                      mat-button
+                      type="button"
+                      *ngIf="event.orderId !== null"
+                      (click)="openActivityOrder(event.orderId)">
+                      View order #{{ event.orderId }}
+                    </button>
+
+                    <span *ngIf="event.executionAttemptId !== null">
+                      Attempt #{{ event.executionAttemptId }}
+                    </span>
+                    <span *ngIf="event.tradeId !== null">
+                      Trade #{{ event.tradeId }}
+                    </span>
+                    <span *ngIf="event.cashTransactionId !== null">
+                      Cash #{{ event.cashTransactionId }}
+                    </span>
+                  </div>
+
+                  <div
+                    class="activity-details"
+                    *ngIf="activityDetailEntries(event).length > 0">
+                    <span
+                      class="activity-detail"
+                      *ngFor="let detail of activityDetailEntries(event)">
+                      <b>{{ detail.label }}</b>
+                      {{ detail.value }}
+                    </span>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <div
+              class="activity-load-more"
+              *ngIf="activityHasMore && !activityErrorMessage">
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="activityLoading"
+                (click)="loadMoreActivity()">
+                <mat-spinner
+                  *ngIf="activityLoading"
+                  diameter="18"></mat-spinner>
+                <span *ngIf="!activityLoading">Load more activity</span>
+              </button>
+            </div>
 
           </div>
 

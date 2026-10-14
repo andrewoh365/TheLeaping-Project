@@ -95,6 +95,12 @@
   }
 }
 
+.section-subtitle {
+  margin: 5px 0 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -202,6 +208,105 @@
   border-radius: 8px;
 }
 
+.audit-loading {
+  display: flex;
+  justify-content: center;
+  padding: 38px 20px;
+}
+
+.audit-error {
+  margin: 16px 20px;
+  padding: 14px;
+  color: #ff8383;
+  background: rgba(255, 131, 131, 0.06);
+  border: 1px solid rgba(255, 131, 131, 0.2);
+  border-radius: 8px;
+}
+
+.audit-empty {
+  padding: 34px 20px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 14px;
+}
+
+.audit-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.audit-event {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 14px;
+  padding: 17px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.audit-marker {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #8fb8ff;
+  box-shadow: 0 0 0 4px rgba(143, 184, 255, 0.1);
+}
+
+.audit-event-content {
+  min-width: 0;
+}
+
+.audit-event-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+
+  strong {
+    color: var(--text-color);
+    font-size: 14px;
+  }
+
+  time {
+    flex: 0 0 auto;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+}
+
+.audit-event-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
+.audit-event-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.audit-detail {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+
+  b {
+    margin-right: 4px;
+    color: rgba(255, 255, 255, 0.48);
+    font-weight: 500;
+  }
+}
+
 @media (max-width: 1000px) {
   .summary-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -231,5 +336,14 @@
 
   .full-width {
     grid-column: auto;
+  }
+
+  .audit-event-heading {
+    flex-direction: column;
+    gap: 6px;
+
+    time {
+      white-space: normal;
+    }
   }
 }
