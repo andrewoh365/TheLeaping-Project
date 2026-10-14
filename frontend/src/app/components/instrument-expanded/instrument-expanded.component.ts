@@ -3,7 +3,7 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatButtonModule } from '@angular/material/button';
 import { CommonModule } from '@angular/common';
 import { Chart, ChartOptions, registerables } from 'chart.js';
-import { InstrumentService, PricePointDto } from '../../services/instrumentService';
+import { InstrumentDetail, InstrumentService, PricePointDto } from '../../services/instrumentService';
 import { ChartConfig } from '../../models/chart.model';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
@@ -17,8 +17,22 @@ export interface InstrumentExpandedData {
   name: string;
   instrumentType: string;
   priceCurrencyCode: string;  
+  price?: number | null;
+  lastUpdated?: string | null;
+  marketName?: string;
+  country?: string;
+  timezone?: string;
+  openTime?: string;
+  closeTime?: string;
   isTradable: boolean;
 }
+
+export interface InstrumentTradeAction {
+  action: 'BUY' | 'SELL';
+  instrument: InstrumentExpandedData;
+}
+
+type ChartRange = '1D' | '1W' | '1M';
 
 @Component({
   selector: 'app-instrument-expanded',
@@ -32,17 +46,25 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
   private static readonly MAX_CHART_POINTS = 240;
   private readonly destroy$ = new Subject<void>();
   private requestVersion = 0;
+  readonly chartRanges: ChartRange[] = ['1D', '1W', '1M'];
+  activeChartRange: ChartRange = '1M';
 
   @ViewChild('priceChart') priceChartRef?: ElementRef;
   chartConfig?: ChartConfig;
+  selectedPrice: number | null = null;
   isLoading = false;
   chart?: Chart;
+  private chartPrices: PricePointDto[] = [];
   
   chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     animation: false,
     normalized: true,
+    interaction: {
+      mode: 'nearest',
+      intersect: false
+    },
     layout: {
       padding: 10
     },
@@ -58,6 +80,17 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
         }
       }
     },
+    onClick: (_event, elements) => {
+      const element = elements[0];
+      if (!element || !this.chartPrices[element.index]) {
+        return;
+      }
+
+      this.ngZone.run(() => {
+        this.selectedPrice = this.chartPrices[element.index].price;
+        this.cdr.markForCheck();
+      });
+    },
     scales: {
       x: {
         grid: {
@@ -65,6 +98,7 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
           color: 'rgba(232, 245, 239, 0.18)'
         },
         ticks: {
+    
           color: '#fafafa',
           maxRotation: 0,
           autoSkip: true,
@@ -75,13 +109,13 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
         beginAtZero: false,
         grid: {
           color: '#2c2c2c'
-      },
-      ticks: {
-        color: '#fafafa'
+        },
+        ticks: {
+          color: '#fafafa'
+        }
       }
     }
-  }
-}
+  };
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: InstrumentExpandedData,
@@ -92,7 +126,32 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.loadInstrumentDetail();
     this.loadPriceHistory();
+  }
+
+  setChartRange(range: ChartRange): void {
+    if (this.activeChartRange === range) {
+      return;
+    }
+
+    this.activeChartRange = range;
+    this.selectedPrice = null;
+    this.loadPriceHistory();
+  }
+
+  private loadInstrumentDetail(): void {
+    this.instrumentService.getInstrumentById(String(this.data.instrumentId))
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (detail: InstrumentDetail) => {
+          Object.assign(this.data, detail);
+          this.cdr.markForCheck();
+        },
+        error: (error) => {
+          console.error('Failed to load instrument detail', error);
+        }
+      });
   }
 
   loadPriceHistory(): void {
@@ -102,7 +161,7 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
 
     const to = new Date();
     const from = new Date();
-    from.setDate(from.getDate() - 30);
+    from.setDate(from.getDate() - this.getRangeDays(this.activeChartRange));
 
     this.instrumentService.getPriceHistory(
       this.data.symbol,
@@ -116,11 +175,17 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
           return;
         }
 
-        const sampledPrices = this.downsamplePrices(prices, InstrumentExpandedComponent.MAX_CHART_POINTS);
+        const dailyPrices = this.keepLatestPricePerDay(prices);
+        const sampledPrices = this.downsamplePrices(dailyPrices, InstrumentExpandedComponent.MAX_CHART_POINTS);
+        this.chartPrices = sampledPrices;
+        const latestPrice = prices[prices.length - 1];
+        if (latestPrice) {
+          this.data.price = latestPrice.price;
+          this.data.lastUpdated = latestPrice.timestamp;
+        }
         this.chartConfig = this.transformToChartData(sampledPrices);
         this.isLoading = false;
         this.cdr.markForCheck();
-        // Render after the template updates and the canvas is present.
         requestAnimationFrame(() => {
           this.ngZone.runOutsideAngular(() => this.renderChart());
         });
@@ -135,6 +200,14 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  private getRangeDays(range: ChartRange): number {
+    switch (range) {
+      case '1D': return 1;
+      case '1W': return 7;
+      case '1M': return 30;
+    }
   }
 
   private renderChart(): void {
@@ -159,6 +232,7 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
           backgroundColor: ds.backgroundColor,
           tension: ds.tension,
           pointRadius: 0,
+          pointHitRadius: 14,
           borderWidth: 2,
           fill: true
         }))
@@ -183,9 +257,25 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
     return sampled;
   }
 
+  private keepLatestPricePerDay(prices: PricePointDto[]): PricePointDto[] {
+    const latestByDay = new Map<string, PricePointDto>();
+
+    for (const price of prices) {
+      const day = new Date(price.timestamp).toISOString().slice(0, 10);
+      latestByDay.set(day, price);
+    }
+
+    return Array.from(latestByDay.values()).sort((left, right) => {
+      return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
+    });
+  }
+
   private transformToChartData(prices: PricePointDto[]): ChartConfig {
     return {
-      labels: prices.map(p => new Date(p.timestamp).toLocaleDateString()),
+      labels: prices.map(p => new Date(p.timestamp).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      })),
       datasets: [{
         label: `${this.data.symbol} Price (${this.data.priceCurrencyCode})`,
         data: prices.map(p => p.price),
@@ -199,6 +289,13 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
 
   onClose(): void {
     this.dialogRef.close();
+  }
+
+  startTrade(action: 'BUY' | 'SELL'): void {
+    this.dialogRef.close({
+      action,
+      instrument: this.data
+    } satisfies InstrumentTradeAction);
   }
 
   ngOnDestroy(): void {

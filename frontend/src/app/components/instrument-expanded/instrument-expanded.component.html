@@ -3,7 +3,20 @@
         <button mat-button mat-dialog-close type="button" (click)="onClose()">X</button>
     </mat-dialog-actions>
    <h2 class="instrument-title">{{ data.name }}</h2>
+       <mat-dialog-actions class="instrument-trade-actions">
+        <button mat-stroked-button color="seller" type="button" (click)="startTrade('SELL')" [disabled]="!data.isTradable">Sell</button>
+        <button mat-flat-button color="buyer" type="button" (click)="startTrade('BUY')" [disabled]="!data.isTradable">Buy</button>
+    </mat-dialog-actions>
     <mat-dialog-content>
+        <div class="chart-range-controls" role="group" aria-label="Chart date range">
+            <button
+                type="button"
+                *ngFor="let range of chartRanges"
+                [class.active]="activeChartRange === range"
+                [attr.aria-pressed]="activeChartRange === range"
+                (click)="setChartRange(range)"
+            >{{ range }}</button>
+        </div>
         <div class="chart-container" *ngIf="!isLoading && chartConfig">
             <canvas #priceChart></canvas>
         </div>
@@ -17,9 +30,32 @@
             <span class="value">{{ data.instrumentType }}</span>
             </div>
             <div class="detail-row">
-            <span class="label">Currency:</span>
-            <span class="value">{{ data.priceCurrencyCode }}</span>
+            <span class="label">Price:</span>
+            <span class="value">
+                {{ data.price !== null ? (data.price | currency:data.priceCurrencyCode) : 'Unavailable' }}
+            </span>
             </div>
+            <div class="detail-row">
+            <span class="label">Market:</span>
+            <span class="value">{{ data.marketName }}</span>
+            </div>
+            <div class="detail-row">
+            <span class="label">Country:</span>
+            <span class="value">{{ data.country }}</span>
+            </div>
+            <div class="detail-row">
+            <span class="label">Last Updated:</span>
+            <span class="value">{{ data.lastUpdated ? (data.lastUpdated | date:'MMM d, y, h:mm a') : 'Unavailable' }}</span>
+            </div>
+            <div class="detail-row">
+            <span class="label">Open Time:</span>
+            <span class="value">{{ data.openTime }}</span>
+            </div>
+            <div class="detail-row">
+            <span class="label">Close Time:</span>
+            <span class="value">{{ data.closeTime }}</span>
+            </div>
+
         </div>
     </mat-dialog-content>
 

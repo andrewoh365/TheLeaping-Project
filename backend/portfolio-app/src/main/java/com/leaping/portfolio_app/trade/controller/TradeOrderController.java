@@ -1,5 +1,9 @@
 package com.leaping.portfolio_app.trade.controller;
 
+import java.math.BigDecimal;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -8,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.leaping.portfolio_app.auth.model.User;
@@ -16,6 +21,7 @@ import com.leaping.portfolio_app.trade.dto.OrderResponse;
 import com.leaping.portfolio_app.trade.dto.PlaceOrderRequest;
 import com.leaping.portfolio_app.trade.dto.TradeConfirmationResponse;
 import com.leaping.portfolio_app.trade.entity.TradeOrder;
+import com.leaping.portfolio_app.trade.exception.TradeRejectedException;
 import com.leaping.portfolio_app.trade.service.TradeOrderService;
 import com.leaping.portfolio_app.trade.service.TradeService;
 
@@ -25,13 +31,17 @@ import com.leaping.portfolio_app.trade.service.TradeService;
  * All endpoints are protected - require valid JWT token.
  * 
  * Endpoints:
+ * - GET /api/trade/preview - Preview an order (price, total, availability)
  * - POST /api/trade/orders - Place new buy/sell order
+ * - GET /api/trade/orders - List the client's orders (newest first, paged)
  * - GET /api/trade/orders/{orderId} - Get order details
  * - POST /api/trade/orders/{orderId}/cancel - Cancel pending order
  */
 @RestController
 @RequestMapping("/api/trade")
 public class TradeOrderController {
+    private static final Logger log = LoggerFactory.getLogger(TradeOrderController.class);
+
     private final TradeOrderService tradeOrderService;
     private final TradeService tradeService;
     private final UserRepository userRepository;
@@ -77,10 +87,19 @@ public class TradeOrderController {
                     return ResponseEntity.status(HttpStatus.CREATED)
                         .body(new OrderExecutedResponse(updatedOrder, tradeConfirmation));
                         
-                } catch (Exception e) {
+                } catch (TradeRejectedException e) {
+                    // Rejection is already recorded on the order; its reason is client-readable
                     OrderResponse updatedOrder = tradeOrderService.getOrder(order.getOrderId(), userId);
                     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(new ErrorResponse("Trade execution failed: " + e.getMessage(), updatedOrder));
+                        .body(new ErrorResponse(e.getMessage(), updatedOrder));
+                } catch (Exception e) {
+                    // Execution rolled back: the order stays SUBMITTED and no cash or holdings moved
+                    log.error("Execution failed for order {}", order.getOrderId(), e);
+                    OrderResponse updatedOrder = tradeOrderService.getOrder(order.getOrderId(), userId);
+                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(new ErrorResponse(
+                            "We received your order but couldn't complete it right now. No money has been taken.",
+                            updatedOrder));
                 }
             }
 
@@ -88,12 +107,58 @@ public class TradeOrderController {
             return ResponseEntity.status(HttpStatus.CREATED).body(mapToOrderResponse(order));
 
         } catch (IllegalArgumentException e) {
+            // Failed the trading rules before being accepted; message is client-readable
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse("Invalid order: " + e.getMessage(), null));
+                .body(new ErrorResponse(e.getMessage(), null));
         } catch (Exception e) {
+            log.error("Failed to place order", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("Failed to place order: " + e.getMessage(), null));
+                .body(new ErrorResponse("Something went wrong placing your order. Please try again.", null));
         }
+    }
+
+    /**
+     * Preview an order before submitting it: indicative price, estimated total,
+     * available cash/holding, and whether the order would be accepted (BR-13).
+     *
+     * @param instrumentId The instrument to trade
+     * @param action "BUY" or "SELL"
+     * @param quantity Optional quantity; omit to just get price and availability
+     * @param authentication Spring Security authentication
+     * @return OrderPreviewResponse
+     */
+    @GetMapping("/preview")
+    public ResponseEntity<?> previewOrder(
+        @RequestParam Long instrumentId,
+        @RequestParam(defaultValue = "BUY") String action,
+        @RequestParam(required = false) BigDecimal quantity,
+        Authentication authentication
+    ) {
+        try {
+            Long userId = resolveCurrentUserId(authentication);
+            return ResponseEntity.ok(tradeOrderService.previewOrder(userId, instrumentId, action, quantity));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(e.getMessage(), null));
+        }
+    }
+
+    /**
+     * List the signed-in client's orders, newest first (BR-11).
+     * 
+     * @param page Zero-based page number (default 0)
+     * @param size Page size (default 20, max 100)
+     * @param authentication Spring Security authentication
+     * @return OrderHistoryResponse with the page of orders and whether more exist
+     */
+    @GetMapping("/orders")
+    public ResponseEntity<?> getOrderHistory(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size,
+        Authentication authentication
+    ) {
+        Long userId = resolveCurrentUserId(authentication);
+        return ResponseEntity.ok(tradeOrderService.getOrderHistory(userId, page, size));
     }
 
     /**

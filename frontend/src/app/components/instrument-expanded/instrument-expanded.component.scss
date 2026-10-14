@@ -24,6 +24,30 @@
     }
   }
 
+  .chart-range-controls {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+
+    button {
+      min-width: 48px;
+      padding: 6px 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted-text-color);
+      cursor: pointer;
+      font-size: 12px;
+
+      &:hover,
+      &.active {
+        border-color: var(--secondary-color);
+        background: rgba(0, 171, 104, 0.16);
+        color: var(--text-color);
+      }
+    }
+  }
+
 
   .instrument-title {
     font-weight: 800;
@@ -42,11 +66,32 @@
     min-width: 300px;
   }
 
+  .selected-price {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0 auto 16px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--secondary-background-color);
+
+    span,
+    small {
+      color: var(--muted-text-color);
+      font-size: 12px;
+    }
+
+    strong {
+      color: var(--primary-accent-color);
+    }
+  }
+
   .detail-row {
     display: flex;
     justify-content: space-between;
     padding: 8px 0;
-    border-bottom: 1px solid var(--primary-color);
+    border-bottom: 1px solid var(--border-color);
 
     .label {
       font-weight: 600;
@@ -59,7 +104,28 @@
   }
 
   mat-dialog-actions {
-    button {
+    &.instrument-trade-actions {
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 12px 0 0;
+
+      button {
+        min-width: 92px;
+        border-radius: 8px;
+      }
+
+      button[color='buyer'] {
+        background-color: var(--primary-accent-color);
+        color: var(--background-color);
+      }
+
+      button[color='seller'] {
+        background-color: var(--danger-color);
+        color: var(--background-color);
+      }
+    }
+
+    &:not(.instrument-trade-actions) button {
       border: none !important;
       background: none !important;
       color: var(--secondary-accent-color);

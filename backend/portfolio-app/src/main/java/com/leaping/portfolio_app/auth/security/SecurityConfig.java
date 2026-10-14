@@ -94,6 +94,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/api/auth/**").permitAll()      // All auth endpoints are public
                         .requestMatchers("/api/public/**").permitAll()    // Public endpoints
+                    .requestMatchers("/api/market/news", "/api/market/movers").permitAll() // Public dashboard insights
                         .requestMatchers("/auth/**").permitAll()          // Auth endpoints without /api prefix
                         .requestMatchers("/api/market/instruments/price/history").permitAll()  // Market price history - public
                         .anyRequest().authenticated()                     // Everything else requires authentication

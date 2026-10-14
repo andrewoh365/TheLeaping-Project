@@ -12,6 +12,27 @@ public interface PriceRepository extends JpaRepository<Price, Long> {
 
     Optional<Price> findFirstByInstrumentSymbolIgnoreCaseOrderByPriceTimestampDesc(String symbol);
 
+    Optional<Price> findFirstByInstrumentSymbolIgnoreCaseAndProviderNameOrderByPriceTimestampDesc(
+            String symbol,
+            String providerName
+    );
+
+    Optional<Price> findFirstByInstrumentAndProviderNameOrderByPriceTimestampAsc(
+            Instrument instrument,
+            String providerName
+    );
+
+    Optional<Price> findFirstByInstrumentAndProviderNameOrderByPriceTimestampDesc(
+            Instrument instrument,
+            String providerName
+    );
+
+    List<Price> findByInstrumentAndProviderNameAndPriceTimestampGreaterThanEqual(
+            Instrument instrument,
+            String providerName,
+            OffsetDateTime priceTimestamp
+    );
+
     List<Price> findByInstrumentSymbolIgnoreCaseAndPriceTimestampBetweenOrderByPriceTimestampAsc(
             String symbol,
             OffsetDateTime from,

@@ -22,6 +22,9 @@ public class InstrumentDetail {
     private String openTime;
     private String closeTime;
 
+    private BigDecimal price;
+    private OffsetDateTime lastUpdated;
+
     public InstrumentDetail() {
     }
 
@@ -44,6 +47,9 @@ public class InstrumentDetail {
         this.timezone = market.getTimezone();
         this.openTime = market.getOpenTime() != null ? market.getOpenTime().toString() : null;
         this.closeTime = market.getCloseTime() != null ? market.getCloseTime().toString() : null;
+
+        this.price = price != null ? price.getPrice() : null;
+        this.lastUpdated = price != null ? price.getPriceTimestamp() : null;
 
     }
 
@@ -85,7 +91,13 @@ public class InstrumentDetail {
     public void setOpenTime(String openTime) { this.openTime = openTime; }
 
     public String getCloseTime() { return closeTime; }
-    public void setCloseTime(String closeTime) { this.closeTime = closeTime; }  
+    public void setCloseTime(String closeTime) { this.closeTime = closeTime; }
+
+    public BigDecimal getPrice() { return price; }
+    public void setPrice(BigDecimal price) { this.price = price; }
+
+    public OffsetDateTime getLastUpdated() { return lastUpdated; }
+    public void setLastUpdated(OffsetDateTime lastUpdated) { this.lastUpdated = lastUpdated; }
 
 
 

@@ -1,7 +1,10 @@
 package com.leaping.portfolio_app.portfolio.controller;
 
 import com.leaping.portfolio_app.auth.service.AuthService;
+import com.leaping.portfolio_app.portfolio.dto.CashTransferRequest;
+import com.leaping.portfolio_app.portfolio.dto.CashTransferResponse;
 import com.leaping.portfolio_app.portfolio.dto.PortfolioResponse;
+import com.leaping.portfolio_app.portfolio.service.CashService;
 import com.leaping.portfolio_app.portfolio.service.PortfolioService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +20,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -41,6 +45,9 @@ class PortfolioControllerTest {
 
     @Mock
     private PortfolioService portfolioService;
+
+    @Mock
+    private CashService cashService;
 
     @InjectMocks
     private PortfolioController portfolioController;
@@ -81,5 +88,34 @@ class PortfolioControllerTest {
         // in the email -> id -> portfolio chain we built this around.
         verify(authService).getUserIdByEmail(TEST_EMAIL);
         verify(portfolioService).getPortfolioForCustomer(customerId);
+    }
+
+    @Test
+    void transferCash_returnsCreatedWithRecordedMovement() {
+        CashTransferRequest request = new CashTransferRequest("DEPOSIT", new BigDecimal("500.00"));
+        CashTransferResponse recorded = new CashTransferResponse(
+                1L, "DEPOSIT", new BigDecimal("500.00"), new BigDecimal("100.00"), new BigDecimal("600.00"), null);
+
+        when(authService.getUserIdByEmail(TEST_EMAIL)).thenReturn(5L);
+        when(cashService.transfer(5L, request)).thenReturn(recorded);
+
+        ResponseEntity<?> result = portfolioController.transferCash(request);
+
+        assertEquals(201, result.getStatusCode().value());
+        assertSame(recorded, result.getBody());
+    }
+
+    @Test
+    void transferCash_returnsBadRequestWithReadableMessage() {
+        CashTransferRequest request = new CashTransferRequest("WITHDRAW", new BigDecimal("999.00"));
+
+        when(authService.getUserIdByEmail(TEST_EMAIL)).thenReturn(5L);
+        when(cashService.transfer(5L, request))
+                .thenThrow(new IllegalArgumentException("You can't withdraw more than your cash balance of $100.00."));
+
+        ResponseEntity<?> result = portfolioController.transferCash(request);
+
+        assertEquals(400, result.getStatusCode().value());
+        assertEquals(Map.of("message", "You can't withdraw more than your cash balance of $100.00."), result.getBody());
     }
 }
