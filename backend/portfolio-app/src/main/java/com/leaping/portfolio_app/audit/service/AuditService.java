@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.temporal.TemporalAccessor;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -80,6 +81,10 @@ public class AuditService {
                 );
             }
         }
+
+        copiedDetails.replaceAll((key, value) ->
+                value instanceof TemporalAccessor ? value.toString() : value
+        );
 
         return copiedDetails;
     }

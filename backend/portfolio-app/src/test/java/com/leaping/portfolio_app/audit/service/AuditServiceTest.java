@@ -15,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.OffsetDateTime;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -75,6 +76,27 @@ class AuditServiceTest {
         assertSame(cashTransaction, captured.getCashTransaction());
         assertEquals(details, captured.getEventDetails());
         assertNotSame(details, captured.getEventDetails());
+    }
+
+    @Test
+    void recordEventConvertsJavaTimeDetailsToJsonSafeStrings() {
+        when(auditEventRepository.save(any(AuditEvent.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuditEvent saved = auditService.recordEvent(
+                AuditEventType.CASH_TRANSACTION_RECORDED,
+                new User(),
+                null,
+                null,
+                null,
+                new CashTransaction(),
+                Map.of("createdAt", OffsetDateTime.parse("2026-10-14T10:15:30Z"))
+        );
+
+        assertEquals(
+                "2026-10-14T10:15:30Z",
+                saved.getEventDetails().get("createdAt")
+        );
     }
 
     @Test
