@@ -4,6 +4,12 @@ pipeline {
     // Run on any available Jenkins machine
     agent any
 
+    environment {
+        // Unique image tag per branch and build, e.g. feature-jenkins-3.
+        // Characters Docker does not allow in a tag (like "/") become "-".
+        IMAGE_TAG = "${env.BRANCH_NAME.replaceAll('[^a-zA-Z0-9_.-]', '-')}-${env.BUILD_NUMBER}"
+    }
+
     stages {
 
         /* Jenkins checks out the branch automatically before the first
@@ -53,17 +59,50 @@ pipeline {
             }
         }
 
+        stage('Build analytics image') {
+            steps {
+                // Builds from backend/analytics-service/Dockerfile.
+                sh 'docker build -t leap-analytics:$IMAGE_TAG backend/analytics-service'
+            }
+        }
+
+        stage('Python tests') {
+            steps {
+                // Runs pytest inside the image just built. The tests are not part
+                // of the image, so they are mounted in read-only from the workspace.
+                sh '''
+                    docker run --rm \
+                        -v "$PWD/backend/analytics-service/tests:/app/tests:ro" \
+                        -v "$PWD/backend/analytics-service/pytest.ini:/app/pytest.ini:ro" \
+                        leap-analytics:$IMAGE_TAG \
+                        pytest -q
+                '''
+            }
+        }
+
         stage('Build Spring Boot image') {
             steps {
                 // Builds from backend/portfolio-app/Dockerfile.
-                // Tagged with the Jenkins build number so each run is identifiable.
-                sh 'docker build -t leap-portfolio-app:${BUILD_NUMBER} backend/portfolio-app'
+                sh 'docker build -t leap-portfolio-app:$IMAGE_TAG backend/portfolio-app'
+            }
+        }
+
+        stage('Build frontend image') {
+            steps {
+                // Builds from frontend/Dockerfile. This runs the Angular production
+                // build, so it also fails if a size budget in angular.json is exceeded.
+                sh 'docker build -t leap-frontend:$IMAGE_TAG frontend'
             }
         }
     }
 
     // Runs after all stages, whatever the result
     post {
+        always {
+            // The images were only built to prove they build. Remove this run's
+            // tags so they do not pile up on the Jenkins machine.
+            sh 'docker rmi leap-analytics:$IMAGE_TAG leap-portfolio-app:$IMAGE_TAG leap-frontend:$IMAGE_TAG || true'
+        }
         success {
             echo "Build ${BUILD_NUMBER} passed."
         }
