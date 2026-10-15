@@ -29,6 +29,9 @@ import {
   PortfolioService
 } from '../../services/portfolio.service';
 import { WatchlistInstrumentResponse, WatchlistResponse, WatchlistService } from '../../services/watchlist.service';
+import { WalkthroughService } from '../../services/walkthrough.service';
+import { WalkthroughComponent } from '../walkthrough/walkthrough.component';
+import { TourEvent, WALKTHROUGH_STEPS, WalkthroughStep } from '../walkthrough/walkthrough-steps';
 import {
   OrderAction,
   OrderHistoryPage,
@@ -96,7 +99,8 @@ const MAX_CASH_TRANSFER_USD = 1_000_000;
     MatButtonModule,
     MatIconModule,
     MatMenuModule,
-    MatDividerModule
+    MatDividerModule,
+    WalkthroughComponent
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss']
@@ -185,6 +189,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   cashResult: OrderResult | null = null;
   readonly quickDepositAmounts = [100, 1000, 10000];
 
+  // First-time walkthrough. null when it isn't showing; 0 is the welcome popup.
+  readonly tourSteps = WALKTHROUGH_STEPS;
+  tourStepIndex: number | null = null;
+
   readonly rangeOptions: RangeKey[] = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
   private destroy$ = new Subject<void>();
   private searchSubject$ = new Subject<string>();
@@ -203,7 +211,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private portfolioService: PortfolioService,
     private marketService: MarketService,
     private watchlistService: WatchlistService,
-    private tradeService: TradeService
+    private tradeService: TradeService,
+    private walkthroughService: WalkthroughService
   ) {}
 
   get displayName(): string {
@@ -559,6 +568,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.loadDashboard();
     this.startLiveUpdates();
     this.startMarketContextUpdates();
+
+    if (this.walkthroughService.isPending()) {
+      this.startTour();
+    }
   }
 
   ngOnDestroy(): void {
@@ -653,15 +666,64 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.orderSubmitMessage = '';
     this.cashPanelOpen = false;
     this.tradePanelOpen = true;
+    this.onTourEvent('tradePanelOpened');
   }
 
   openCashPanel(): void {
     this.tradePanelOpen = false;
     this.cashPanelOpen = true;
+    this.onTourEvent('cashPanelOpened');
   }
 
   closeCashPanel(): void {
     this.cashPanelOpen = false;
+    this.onTourEvent('cashPanelClosed');
+  }
+
+  get tourStep(): WalkthroughStep | null {
+    return this.tourStepIndex === null ? null : this.tourSteps[this.tourStepIndex];
+  }
+
+  startTour(): void {
+    this.tradePanelOpen = false;
+    this.cashPanelOpen = false;
+    this.tourStepIndex = 0;
+  }
+
+  advanceTour(): void {
+    if (this.tourStepIndex === null) {
+      return;
+    }
+    if (this.tourStepIndex >= this.tourSteps.length - 1) {
+      this.endTour();
+      return;
+    }
+    this.goToTourStep(this.tourStepIndex + 1);
+  }
+
+  endTour(): void {
+    this.tourStepIndex = null;
+    this.walkthroughService.clearPending();
+  }
+
+  // Called wherever the user does something a tour step may be waiting for.
+  onTourEvent(event: TourEvent): void {
+    const step = this.tourStep;
+    if (!step || this.tourStepIndex === null) {
+      return;
+    }
+    if (step.advanceOn === event) {
+      this.advanceTour();
+    } else if (step.backOn === event) {
+      this.goToTourStep(this.tourStepIndex - 1);
+    }
+  }
+
+  private goToTourStep(index: number): void {
+    this.tourStepIndex = index;
+    if (this.tourSteps[index].id === 'holdings') {
+      this.setSelectedTab('holdings');
+    }
   }
 
   setCashDirection(direction: CashDirection): void {
@@ -710,6 +772,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
           if (this.ticketInstrument) {
             this.requestPreview();
           }
+          if (deposited) {
+            this.onTourEvent('depositCompleted');
+          }
         },
         error: (error: HttpErrorResponse) => {
           this.cashResult = error.status === 0
@@ -747,6 +812,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.tradePanelOpen) {
       this.cashPanelOpen = false;
     }
+    this.onTourEvent(this.tradePanelOpen ? 'tradePanelOpened' : 'tradePanelClosed');
   }
 
   onTicketSearchInput(): void {
@@ -810,6 +876,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
           this.refreshPortfolioSlice();
           this.refreshActivityIfLoaded();
           this.requestPreview();
+          this.onTourEvent('orderPlaced');
         },
         error: (error: HttpErrorResponse) => {
           this.orderResult = this.describeFailedOrder(error);

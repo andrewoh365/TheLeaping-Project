@@ -1,0 +1,27 @@
+<div class="tour-shade" #shadeTop></div>
+<div class="tour-shade" #shadeBottom></div>
+<div class="tour-shade" #shadeLeft></div>
+<div class="tour-shade" #shadeRight></div>
+<div class="tour-hole-blocker" #holeBlocker></div>
+<div class="tour-ring" #ring aria-hidden="true"></div>
+
+<div class="tour-popover" #popover role="dialog" aria-labelledby="tour-title" aria-describedby="tour-body">
+  <p class="tour-progress" *ngIf="!isWelcome">Step {{ stepIndex }} of {{ totalSteps - 1 }}</p>
+  <h2 id="tour-title">{{ step.title }}</h2>
+  <p id="tour-body" class="tour-body">{{ body }}</p>
+
+  <div class="tour-actions" *ngIf="isWelcome; else stepActions">
+    <button type="button" class="tour-button tour-button--secondary" (click)="skip.emit()">Skip for now</button>
+    <button type="button" class="tour-button tour-button--primary" (click)="start.emit()">Start the tour</button>
+  </div>
+
+  <ng-template #stepActions>
+    <div class="tour-actions">
+      <button type="button" class="tour-link" (click)="skip.emit()" *ngIf="!isLastStep">Skip tour</button>
+      <span class="tour-hint" *ngIf="step.advanceOn">Use the highlighted area to continue</span>
+      <button type="button" class="tour-button tour-button--primary" *ngIf="!step.advanceOn" (click)="next.emit()">
+        {{ isLastStep ? 'Finish' : 'Next' }}
+      </button>
+    </div>
+  </ng-template>
+</div>
