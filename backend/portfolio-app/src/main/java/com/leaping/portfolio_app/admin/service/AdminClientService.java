@@ -1,6 +1,8 @@
 package com.leaping.portfolio_app.admin.service;
 
 import com.leaping.portfolio_app.admin.dto.AdminClientDetailResponse;
+import com.leaping.portfolio_app.admin.dto.AdminHoldingPageResponse;
+import com.leaping.portfolio_app.admin.dto.AdminClientPageResponse;
 import com.leaping.portfolio_app.admin.dto.AdminClientSummaryResponse;
 import com.leaping.portfolio_app.auth.model.Customer;
 import com.leaping.portfolio_app.auth.model.User;
@@ -10,16 +12,19 @@ import com.leaping.portfolio_app.holdings.HoldingService;
 import com.leaping.portfolio_app.portfolio.entity.Portfolio;
 import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
 @Service
 public class AdminClientService {
+
+        private static final int MAX_PAGE_SIZE = 100;
 
     private final CustomerRepository customerRepository;
     private final PortfolioRepository portfolioRepository;
@@ -31,31 +36,44 @@ public class AdminClientService {
                         HoldingService holdingService
     ) {
         this.customerRepository = customerRepository;
-        this.portfolioRepository = portfolioRepository;
+                this.portfolioRepository = portfolioRepository;
                 this.holdingService = holdingService;
     }
 
     @Transactional(readOnly = true)
-    public List<AdminClientSummaryResponse> getClients(
+    public AdminClientPageResponse getClients(
             String search,
-            String status
+            String status,
+            int page,
+            int size
     ) {
         String normalizedSearch = normalize(search);
         String normalizedStatus = normalize(status);
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(
+                Math.max(size, 1),
+                MAX_PAGE_SIZE
+        );
 
-        return customerRepository.findAll()
-                .stream()
-                .filter(customer ->
-                        matchesSearch(customer, normalizedSearch))
-                .filter(customer ->
-                        matchesStatus(customer, normalizedStatus))
+        Page<Customer> clientPage = customerRepository.findPage(
+                normalizedSearch,
+                normalizedStatus,
+                PageRequest.of(safePage, safeSize)
+        );
+
+        List<AdminClientSummaryResponse> clients = clientPage
                 .map(this::toSummaryResponse)
-                .sorted(
-                        Comparator.comparing(
-                                AdminClientSummaryResponse::getClientId
-                        )
-                )
-                .toList();
+                .getContent();
+
+        return new AdminClientPageResponse(
+                clients,
+                clientPage.getNumber(),
+                clientPage.getSize(),
+                clientPage.getTotalElements(),
+                clientPage.getTotalPages(),
+                clientPage.isFirst(),
+                clientPage.isLast()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -98,8 +116,11 @@ public class AdminClientService {
     }
 
     @Transactional(readOnly = true)
-    public List<HoldingResponse> getClientHoldings(Long clientId) {
-
+    public AdminHoldingPageResponse getClientHoldings(
+            Long clientId,
+            int page,
+            int size
+    ) {
         customerRepository
                 .findById(clientId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -114,60 +135,27 @@ public class AdminClientService {
                         "Portfolio not found for client"
                 ));
 
-        return holdingService.getHoldingsByPortfolio(
-                portfolio.getPortfolioId()
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(
+                Math.max(size, 1),
+                MAX_PAGE_SIZE
         );
-    }
 
-    private boolean matchesSearch(
-            Customer customer,
-            String search
-    ) {
-        if (search.isEmpty()) {
-            return true;
-        }
+        Page<HoldingResponse> holdingPage = holdingService
+                .getHoldingsByPortfolio(
+                        portfolio.getPortfolioId(),
+                        PageRequest.of(safePage, safeSize)
+                );
 
-        User user = customer.getUser();
-
-        if (user == null) {
-            return false;
-        }
-
-        String clientId =
-                customer.getUserId() == null
-                        ? ""
-                        : customer.getUserId().toString();
-
-        String firstName = safeLower(user.getFirstName());
-        String lastName = safeLower(user.getLastName());
-        String email = safeLower(user.getEmail());
-
-        String fullName =
-                (firstName + " " + lastName).trim();
-
-        return clientId.contains(search)
-                || firstName.contains(search)
-                || lastName.contains(search)
-                || fullName.contains(search)
-                || email.contains(search);
-    }
-
-    private boolean matchesStatus(
-            Customer customer,
-            String status
-    ) {
-        if (status.isEmpty()) {
-            return true;
-        }
-
-        User user = customer.getUser();
-
-        if (user == null || user.getStatus() == null) {
-            return false;
-        }
-
-        return user.getStatus()
-                .equalsIgnoreCase(status);
+        return new AdminHoldingPageResponse(
+                holdingPage.getContent(),
+                holdingPage.getNumber(),
+                holdingPage.getSize(),
+                holdingPage.getTotalElements(),
+                holdingPage.getTotalPages(),
+                holdingPage.isFirst(),
+                holdingPage.isLast()
+        );
     }
 
     private AdminClientSummaryResponse toSummaryResponse(
@@ -190,9 +178,4 @@ public class AdminClientService {
                 : value.trim().toLowerCase(Locale.ROOT);
     }
 
-    private String safeLower(String value) {
-        return value == null
-                ? ""
-                : value.toLowerCase(Locale.ROOT);
-    }
 }

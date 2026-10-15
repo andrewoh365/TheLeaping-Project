@@ -15,12 +15,17 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
+import {
+  MatPaginatorModule,
+  PageEvent
+} from '@angular/material/paginator';
 
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 
 import {
   AdminClientSummary,
+  AdminClientPage,
   AdminService,
   ClientStatus
 } from '../../../services/admin.service';
@@ -37,6 +42,7 @@ import { InternalNavComponent } from '../../internal-nav/internal-nav.component'
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
+    MatPaginatorModule,
     MatProgressSpinnerModule,
     MatSelectModule,
     MatTableModule,
@@ -63,6 +69,10 @@ export class ClientsComponent
   loading = false;
   errorMessage = '';
 
+  pageIndex = 0;
+  pageSize = 100;
+  totalClients = 0;
+
   private readonly destroy$ =
     new Subject<void>();
 
@@ -76,13 +86,25 @@ export class ClientsComponent
   }
 
   applyFilters(): void {
+    this.pageIndex = 0;
     this.loadClients();
   }
 
   resetFilters(): void {
     this.search = '';
     this.status = '';
+    this.pageIndex = 0;
 
+    this.loadClients();
+  }
+
+  changePage(event: PageEvent): void {
+    this.pageIndex = event.pageIndex;
+    this.pageSize = event.pageSize;
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
     this.loadClients();
   }
 
@@ -104,13 +126,19 @@ export class ClientsComponent
       .getClients({
         search: this.search,
         status: this.status
-      })
+      },
+      this.pageIndex,
+      this.pageSize
+      )
       .pipe(
         takeUntil(this.destroy$)
       )
       .subscribe({
-        next: clients => {
-          this.clients = clients;
+        next: (response: AdminClientPage) => {
+          this.clients = response.clients;
+          this.pageIndex = response.page;
+          this.pageSize = response.size;
+          this.totalClients = response.totalElements;
           this.loading = false;
         },
 
@@ -121,6 +149,7 @@ export class ClientsComponent
           );
 
           this.clients = [];
+          this.totalClients = 0;
           this.loading = false;
 
           if (error.status === 403) {

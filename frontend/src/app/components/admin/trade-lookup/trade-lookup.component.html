@@ -123,10 +123,22 @@
         </h2>
 
         <p>
-          {{ orders.length }}
-          {{ orders.length === 1 ? 'result' : 'results' }}
+          {{ totalOrders | number }}
+          {{ totalOrders === 1 ? 'result' : 'results' }}
         </p>
       </div>
+
+      <mat-paginator
+        *ngIf="totalOrders > 0"
+        class="table-paginator table-paginator-top"
+        aria-label="Trade lookup pagination"
+        [length]="totalOrders"
+        [pageIndex]="pageIndex"
+        [pageSize]="pageSize"
+        [pageSizeOptions]="[25, 50, 100]"
+        [showFirstLastButtons]="true"
+        (page)="changePage($event)">
+      </mat-paginator>
 
     </div>
 
@@ -361,6 +373,18 @@
       </table>
 
     </div>
+
+    <mat-paginator
+      *ngIf="totalOrders > 0"
+      class="table-paginator table-paginator-bottom"
+      aria-label="Trade lookup pagination"
+      [length]="totalOrders"
+      [pageIndex]="pageIndex"
+      [pageSize]="pageSize"
+      [pageSizeOptions]="[25, 50, 100]"
+      [showFirstLastButtons]="true"
+      (page)="changePage($event)">
+    </mat-paginator>
 
 
     <!-- EMPTY STATE -->

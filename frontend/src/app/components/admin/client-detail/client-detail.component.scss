@@ -221,6 +221,32 @@
   }
 }
 
+.detail-table-paginator {
+  width: 100%;
+  background: transparent;
+  color: var(--text-color);
+}
+
+:host ::ng-deep .detail-table-paginator {
+  .mat-mdc-paginator-container {
+    min-height: 56px;
+    padding: 0;
+  }
+
+  .mat-mdc-paginator-page-size-label,
+  .mat-mdc-paginator-range-label {
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  .mat-mdc-icon-button {
+    color: var(--text-color);
+  }
+}
+
+.detail-table-paginator-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .holdings-loading {
   display: flex;
   justify-content: center;

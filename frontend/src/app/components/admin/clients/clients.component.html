@@ -111,10 +111,22 @@
         </h2>
 
         <p>
-          {{ clients.length }}
-          {{ clients.length === 1 ? 'client' : 'clients' }}
+          {{ totalClients | number }}
+          {{ totalClients === 1 ? 'client' : 'clients' }}
         </p>
       </div>
+
+      <mat-paginator
+        *ngIf="totalClients > 0"
+        class="table-paginator table-paginator-top"
+        aria-label="Client table pagination"
+        [length]="totalClients"
+        [pageIndex]="pageIndex"
+        [pageSize]="pageSize"
+        [pageSizeOptions]="[25, 50, 100]"
+        [showFirstLastButtons]="true"
+        (page)="changePage($event)">
+      </mat-paginator>
 
     </div>
 
@@ -237,6 +249,18 @@
       </table>
 
     </div>
+
+    <mat-paginator
+      *ngIf="totalClients > 0"
+      class="table-paginator table-paginator-bottom"
+      aria-label="Client table pagination"
+      [length]="totalClients"
+      [pageIndex]="pageIndex"
+      [pageSize]="pageSize"
+      [pageSizeOptions]="[25, 50, 100]"
+      [showFirstLastButtons]="true"
+      (page)="changePage($event)">
+    </mat-paginator>
 
 
     <!-- EMPTY STATE -->

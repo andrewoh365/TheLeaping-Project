@@ -278,6 +278,18 @@
 
             </div>
 
+            <mat-paginator
+              *ngIf="!holdingsLoading && totalHoldings > 0"
+              class="detail-table-paginator detail-table-paginator-top"
+              aria-label="Client holdings pagination"
+              [length]="totalHoldings"
+              [pageIndex]="holdingsPageIndex"
+              [pageSize]="holdingsPageSize"
+              [pageSizeOptions]="[25, 50, 100]"
+              [showFirstLastButtons]="true"
+              (page)="changeHoldingsPage($event)">
+            </mat-paginator>
+
             <!-- HOLDINGS LOADING -->
             <div
               class="holdings-loading"
@@ -437,6 +449,18 @@
 
             </div>
 
+            <mat-paginator
+              *ngIf="!holdingsLoading && totalHoldings > 0"
+              class="detail-table-paginator detail-table-paginator-bottom"
+              aria-label="Client holdings pagination"
+              [length]="totalHoldings"
+              [pageIndex]="holdingsPageIndex"
+              [pageSize]="holdingsPageSize"
+              [pageSizeOptions]="[25, 50, 100]"
+              [showFirstLastButtons]="true"
+              (page)="changeHoldingsPage($event)">
+            </mat-paginator>
+
             <!-- EMPTY STATE -->
             <div
               class="holdings-empty"
@@ -479,11 +503,23 @@
               </div>
 
               <span class="orders-count">
-                {{ orders.length }}
-                {{ orders.length === 1 ? 'order' : 'orders' }}
+                {{ totalOrders | number }}
+                {{ totalOrders === 1 ? 'order' : 'orders' }}
               </span>
 
             </div>
+
+            <mat-paginator
+              *ngIf="!ordersLoading && totalOrders > 0"
+              class="detail-table-paginator detail-table-paginator-top"
+              aria-label="Client orders pagination"
+              [length]="totalOrders"
+              [pageIndex]="ordersPageIndex"
+              [pageSize]="ordersPageSize"
+              [pageSizeOptions]="[25, 50, 100]"
+              [showFirstLastButtons]="true"
+              (page)="changeOrdersPage($event)">
+            </mat-paginator>
 
             <!-- LOADING -->
             <div
@@ -650,6 +686,18 @@
               </table>
 
             </div>
+
+            <mat-paginator
+              *ngIf="!ordersLoading && totalOrders > 0"
+              class="detail-table-paginator detail-table-paginator-bottom"
+              aria-label="Client orders pagination"
+              [length]="totalOrders"
+              [pageIndex]="ordersPageIndex"
+              [pageSize]="ordersPageSize"
+              [pageSizeOptions]="[25, 50, 100]"
+              [showFirstLastButtons]="true"
+              (page)="changeOrdersPage($event)">
+            </mat-paginator>
 
             <!-- EMPTY STATE -->
             <div

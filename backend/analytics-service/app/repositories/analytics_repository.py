@@ -4,7 +4,25 @@ from typing import Dict, List, Tuple
 from sqlalchemy import text
 
 from app.database.connection import engine
+from app.schemas.dashboard import TimeGrouping
 from app.schemas.filters import DashboardFilters
+
+
+def _period_expression(
+    timestamp_column: str,
+    grouping: TimeGrouping,
+) -> str:
+    truncation = {
+        TimeGrouping.DAILY: "day",
+        TimeGrouping.WEEKLY: "week",
+        TimeGrouping.MONTHLY: "month",
+    }[grouping]
+
+    return (
+        "TO_CHAR("
+        f"DATE_TRUNC('{truncation}', {timestamp_column}), "
+        "'YYYY-MM-DD')"
+    )
 
 
 def _build_filters(
@@ -155,6 +173,7 @@ def get_fill_rate_counts(
 
 def get_trading_volume_rows(
     filters: DashboardFilters,
+    grouping: TimeGrouping,
 ) -> List[Dict[str, object]]:
     where_clause, params = _build_filters(
         filters,
@@ -162,10 +181,15 @@ def get_trading_volume_rows(
         include_order_status=False,
     )
 
+    period_expression = _period_expression(
+        "t.executed_at",
+        grouping,
+    )
+
     query = f"""
         SELECT
-            t.executed_at,
-            t.total_usd_value
+            {period_expression} AS period,
+            COALESCE(SUM(t.total_usd_value), 0) AS total_usd_value
         FROM trades t
         JOIN trade_orders o
             ON o.order_id = t.order_id
@@ -174,7 +198,8 @@ def get_trading_volume_rows(
         JOIN markets m
             ON m.market_id = i.market_id
         WHERE {where_clause}
-        ORDER BY t.executed_at ASC
+        GROUP BY 1
+        ORDER BY 1 ASC
     """
 
     with engine.connect() as connection:
@@ -220,6 +245,7 @@ def get_order_outcomes(
 
 def get_most_active_instruments(
     filters: DashboardFilters,
+    limit: int,
 ) -> List[Dict[str, object]]:
     where_clause, params = _build_filters(
         filters,
@@ -239,7 +265,10 @@ def get_most_active_instruments(
         WHERE {where_clause}
         GROUP BY i.instrument_id, i.symbol
         ORDER BY order_count DESC, i.symbol ASC
+        LIMIT :result_limit
     """
+
+    params["result_limit"] = limit
 
     with engine.connect() as connection:
         rows = connection.execute(
@@ -252,6 +281,7 @@ def get_most_active_instruments(
 
 def get_client_activity_rows(
     filters: DashboardFilters,
+    grouping: TimeGrouping,
 ) -> List[Dict[str, object]]:
     where_clause, params = _build_filters(
         filters,
@@ -259,10 +289,15 @@ def get_client_activity_rows(
         include_order_status=True,
     )
 
+    period_expression = _period_expression(
+        "o.submitted_at",
+        grouping,
+    )
+
     query = f"""
         SELECT
-            o.submitted_at,
-            p.customer_id
+            {period_expression} AS period,
+            COUNT(DISTINCT p.customer_id) AS active_clients
         FROM trade_orders o
         JOIN portfolios p
             ON p.portfolio_id = o.portfolio_id
@@ -271,7 +306,8 @@ def get_client_activity_rows(
         JOIN markets m
             ON m.market_id = i.market_id
         WHERE {where_clause}
-        ORDER BY o.submitted_at ASC
+        GROUP BY 1
+        ORDER BY 1 ASC
     """
 
     with engine.connect() as connection:
@@ -285,6 +321,7 @@ def get_client_activity_rows(
 
 def get_rejection_reasons(
     filters: DashboardFilters,
+    limit: int,
 ) -> List[Dict[str, object]]:
     where_clause, params = _build_filters(
         filters,
@@ -307,7 +344,10 @@ def get_rejection_reasons(
           AND BTRIM(o.rejection_reason) <> ''
         GROUP BY o.rejection_reason
         ORDER BY rejection_count DESC, o.rejection_reason ASC
+        LIMIT :result_limit
     """
+
+    params["result_limit"] = limit
 
     with engine.connect() as connection:
         rows = connection.execute(

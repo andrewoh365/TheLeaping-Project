@@ -5,6 +5,8 @@ import com.leaping.portfolio_app.holdings.HoldingMapper;
 import com.leaping.portfolio_app.holdings.HoldingResponse;
 import com.leaping.portfolio_app.market.service.MarketPriceService;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.math.BigDecimal;
 
@@ -27,6 +29,21 @@ public class HoldingService {
             .stream()
             .map(holding -> enrichHoldingWithMarketData(mapper.toDto(holding), holding))
             .toList();
+    }
+
+    public Page<HoldingResponse> getHoldingsByPortfolio(
+            Long portfolioId,
+            Pageable pageable
+    ) {
+        return holdingRepository
+            .findAllByPortfolio_PortfolioIdOrderByUpdatedAtDesc(
+                portfolioId,
+                pageable
+            )
+            .map(holding -> enrichHoldingWithMarketData(
+                mapper.toDto(holding),
+                holding
+            ));
     }
 
     public HoldingResponse getHolding(Long portfolioId, Long instrumentId) {

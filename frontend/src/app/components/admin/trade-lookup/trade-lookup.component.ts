@@ -12,6 +12,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import {
+  MatPaginatorModule,
+  PageEvent
+} from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
@@ -21,6 +25,7 @@ import { takeUntil } from 'rxjs/operators';
 
 import {
   AdminOrderLookup,
+  AdminOrderPage,
   AdminService
 } from '../../../services/admin.service';
 
@@ -36,6 +41,7 @@ import { InternalNavComponent } from '../../internal-nav/internal-nav.component'
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
+    MatPaginatorModule,
     MatProgressSpinnerModule,
     MatSelectModule,
     MatTableModule,
@@ -66,6 +72,10 @@ export class TradeLookupComponent
   loading = false;
   errorMessage = '';
 
+  pageIndex = 0;
+  pageSize = 100;
+  totalOrders = 0;
+
   private readonly destroy$ =
     new Subject<void>();
 
@@ -79,13 +89,25 @@ export class TradeLookupComponent
   }
 
   applyFilters(): void {
+    this.pageIndex = 0;
     this.loadOrders();
   }
 
   resetFilters(): void {
     this.search = '';
     this.status = '';
+    this.pageIndex = 0;
 
+    this.loadOrders();
+  }
+
+  changePage(event: PageEvent): void {
+    this.pageIndex = event.pageIndex;
+    this.pageSize = event.pageSize;
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
     this.loadOrders();
   }
 
@@ -107,13 +129,19 @@ export class TradeLookupComponent
       .getOrders({
         search: this.search,
         status: this.status
-      })
+      },
+      this.pageIndex,
+      this.pageSize
+      )
       .pipe(
         takeUntil(this.destroy$)
       )
       .subscribe({
-        next: orders => {
-          this.orders = orders;
+        next: (response: AdminOrderPage) => {
+          this.orders = response.orders;
+          this.pageIndex = response.page;
+          this.pageSize = response.size;
+          this.totalOrders = response.totalElements;
           this.loading = false;
         },
 
@@ -124,6 +152,7 @@ export class TradeLookupComponent
           );
 
           this.orders = [];
+          this.totalOrders = 0;
           this.loading = false;
 
           if (error.status === 403) {

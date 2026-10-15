@@ -18,6 +18,26 @@ export interface AdminClientSummary {
   status: string | null;
 }
 
+export interface AdminClientPage {
+  clients: AdminClientSummary[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface AdminOrderPage {
+  orders: AdminOrderLookup[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
 export interface AdminClientDetail {
   clientId: number;
   firstName: string | null;
@@ -47,6 +67,16 @@ export interface AdminHolding {
 
   gain_loss_usd: number;
   gain_loss_percent: number;
+}
+
+export interface AdminHoldingPage {
+  holdings: AdminHolding[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
 }
 
 export interface AdminClientFilters {
@@ -130,8 +160,10 @@ export class AdminService {
   ) {}
 
   getClients(
-    filters: AdminClientFilters = {}
-  ): Observable<AdminClientSummary[]> {
+    filters: AdminClientFilters = {},
+    page = 0,
+    size = 100
+  ): Observable<AdminClientPage> {
 
     let params = new HttpParams();
 
@@ -149,7 +181,10 @@ export class AdminService {
       );
     }
 
-    return this.http.get<AdminClientSummary[]>(
+    params = params.set('page', page);
+    params = params.set('size', size);
+
+    return this.http.get<AdminClientPage>(
       `${this.API_URL}/clients`,
       { params }
     );
@@ -165,17 +200,26 @@ export class AdminService {
   }
 
   getClientHoldings(
-    clientId: number
-  ): Observable<AdminHolding[]> {
+    clientId: number,
+    page = 0,
+    size = 100
+  ): Observable<AdminHoldingPage> {
 
-    return this.http.get<AdminHolding[]>(
-      `${this.API_URL}/clients/${clientId}/holdings`
+    let params = new HttpParams()
+      .set('page', page)
+      .set('size', size);
+
+    return this.http.get<AdminHoldingPage>(
+      `${this.API_URL}/clients/${clientId}/holdings`,
+      { params }
     );
   }
 
   getOrders(
-    filters: AdminOrderFilters = {}
-  ): Observable<AdminOrderLookup[]> {
+    filters: AdminOrderFilters = {},
+    page = 0,
+    size = 100
+  ): Observable<AdminOrderPage> {
 
     let params = new HttpParams();
 
@@ -193,18 +237,28 @@ export class AdminService {
       );
     }
 
-    return this.http.get<AdminOrderLookup[]>(
+    params = params.set('page', page);
+    params = params.set('size', size);
+
+    return this.http.get<AdminOrderPage>(
       `${this.API_URL}/orders`,
       { params }
     );
   }
 
   getClientOrders(
-    clientId: number
-  ): Observable<AdminOrderLookup[]> {
+    clientId: number,
+    page = 0,
+    size = 100
+  ): Observable<AdminOrderPage> {
 
-    return this.http.get<AdminOrderLookup[]>(
-      `${this.API_URL}/clients/${clientId}/orders`
+    const params = new HttpParams()
+      .set('page', page)
+      .set('size', size);
+
+    return this.http.get<AdminOrderPage>(
+      `${this.API_URL}/clients/${clientId}/orders`,
+      { params }
     );
   }
 

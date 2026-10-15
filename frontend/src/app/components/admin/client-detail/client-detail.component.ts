@@ -13,6 +13,10 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import {
+  MatPaginatorModule,
+  PageEvent
+} from '@angular/material/paginator';
 import { MatTabsModule } from '@angular/material/tabs';
 
 import { Subject } from 'rxjs';
@@ -21,7 +25,9 @@ import { takeUntil } from 'rxjs/operators';
 import {
   AdminClientDetail,
   AdminHolding,
+  AdminHoldingPage,
   AdminOrderLookup,
+  AdminOrderPage,
   AdminService
 } from '../../../services/admin.service';
 
@@ -36,6 +42,7 @@ import {
     CommonModule,
     MatButtonModule,
     MatCardModule,
+    MatPaginatorModule,
     MatProgressSpinnerModule,
     MatTabsModule,
     InternalNavComponent
@@ -55,6 +62,16 @@ export class ClientDetailComponent
   loading = false;
   holdingsLoading = false;
   ordersLoading = false;
+
+  holdingsPageIndex = 0;
+  holdingsPageSize = 100;
+  totalHoldings = 0;
+
+  ordersPageIndex = 0;
+  ordersPageSize = 100;
+  totalOrders = 0;
+
+  private clientId = 0;
 
   errorMessage = '';
   holdingsErrorMessage = '';
@@ -82,9 +99,25 @@ export class ClientDetailComponent
       return;
     }
 
+    this.clientId = clientId;
+
     this.loadClient(clientId);
     this.loadHoldings(clientId);
     this.loadOrders(clientId);
+  }
+
+  changeHoldingsPage(event: PageEvent): void {
+    this.holdingsPageIndex = event.pageIndex;
+    this.holdingsPageSize = event.pageSize;
+    this.scrollToTop();
+    this.loadHoldings(this.clientId);
+  }
+
+  changeOrdersPage(event: PageEvent): void {
+    this.ordersPageIndex = event.pageIndex;
+    this.ordersPageSize = event.pageSize;
+    this.scrollToTop();
+    this.loadOrders(this.clientId);
   }
 
   goBack(): void {
@@ -153,14 +186,21 @@ export class ClientDetailComponent
     this.holdingsErrorMessage = '';
 
     this.adminService
-      .getClientHoldings(clientId)
+      .getClientHoldings(
+        clientId,
+        this.holdingsPageIndex,
+        this.holdingsPageSize
+      )
       .pipe(
         takeUntil(this.destroy$)
       )
       .subscribe({
 
-        next: holdings => {
-          this.holdings = holdings;
+        next: (response: AdminHoldingPage) => {
+          this.holdings = response.holdings;
+          this.holdingsPageIndex = response.page;
+          this.holdingsPageSize = response.size;
+          this.totalHoldings = response.totalElements;
           this.holdingsLoading = false;
         },
 
@@ -172,6 +212,7 @@ export class ClientDetailComponent
           );
 
           this.holdings = [];
+          this.totalHoldings = 0;
           this.holdingsLoading = false;
 
           if (error.status === 403) {
@@ -193,14 +234,21 @@ export class ClientDetailComponent
     this.ordersErrorMessage = '';
 
     this.adminService
-      .getClientOrders(clientId)
+      .getClientOrders(
+        clientId,
+        this.ordersPageIndex,
+        this.ordersPageSize
+      )
       .pipe(
         takeUntil(this.destroy$)
       )
       .subscribe({
 
-        next: orders => {
-          this.orders = orders;
+        next: (response: AdminOrderPage) => {
+          this.orders = response.orders;
+          this.ordersPageIndex = response.page;
+          this.ordersPageSize = response.size;
+          this.totalOrders = response.totalElements;
           this.ordersLoading = false;
         },
 
@@ -212,6 +260,7 @@ export class ClientDetailComponent
           );
 
           this.orders = [];
+          this.totalOrders = 0;
           this.ordersLoading = false;
 
           if (error.status === 403) {
@@ -223,6 +272,13 @@ export class ClientDetailComponent
           }
         }
       });
+  }
+
+  private scrollToTop(): void {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
   }
 
   ngOnDestroy(): void {
