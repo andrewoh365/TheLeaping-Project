@@ -1,0 +1,7 @@
+target
+.git
+.env
+src/main/resources/application-local.yaml
+*.log
+test_output.txt
+watchlist_test.txt
