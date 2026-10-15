@@ -94,6 +94,9 @@ public class MarketDataIngestionService {
             return;
         }
 
+        // Daily history is written for every universe row, including an equity
+        // whose exchange is closed on this first start. Live ticks stay inside
+        // market hours, so that opening price does not move until the session opens.
         backfillHistoricalPrices(universe);
         appendLiveTicks(universe);
     }
@@ -206,7 +209,11 @@ public class MarketDataIngestionService {
 
         for (UniverseRow row : universe) {
             Instrument instrument = upsertInstrument(row);
-            if (instrument == null || !marketAcceptsTick(instrument)) {
+            if (instrument == null) {
+                continue;
+            }
+            if (!marketAcceptsTick(instrument)) {
+                seedOpeningPriceWhenClosed(instrument, row, timestamp);
                 continue;
             }
 
@@ -246,6 +253,37 @@ public class MarketDataIngestionService {
         if (inserted > 0) {
             log.debug("Appended {} simulated prices at {}", inserted, timestamp);
         }
+    }
+
+    /**
+     * A closed market still needs a quote the first time it is seen.
+     * Later passes leave that print unchanged until the exchange is open.
+     */
+    private void seedOpeningPriceWhenClosed(Instrument instrument, UniverseRow row, OffsetDateTime timestamp) {
+        if (priceRepository.findFirstByInstrumentSymbolIgnoreCaseOrderByPriceTimestampDesc(instrument.getSymbol()).isPresent()) {
+            return;
+        }
+        if (priceRepository.existsByInstrumentAndPriceTimestampAndProviderName(
+                instrument,
+                timestamp,
+                PriceMovementSimulator.PROVIDER
+        )) {
+            return;
+        }
+
+        BigDecimal opening = row.basePrice();
+        if (opening == null || opening.signum() <= 0) {
+            opening = new BigDecimal("0.0001");
+        }
+        opening = opening.setScale(8, RoundingMode.HALF_UP);
+        priceRepository.save(new Price(
+                instrument,
+                opening,
+                instrument.getPriceCurrency(),
+                timestamp,
+                PriceSourceType.MOCK,
+                PriceMovementSimulator.PROVIDER
+        ));
     }
 
     private BigDecimal latestWalkPrice(Instrument instrument) {

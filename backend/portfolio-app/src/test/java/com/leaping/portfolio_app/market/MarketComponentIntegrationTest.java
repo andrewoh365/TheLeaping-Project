@@ -85,7 +85,7 @@ class MarketComponentIntegrationTest {
         long instrumentCount = instrumentRepository.count();
         long priceCount = priceRepository.count();
 
-        assertTrue(instrumentCount >= 100, "Expected at least 100 ingested instruments");
+        assertTrue(instrumentCount >= 300, "Expected the expanded CSV universe");
         assertTrue(priceCount > 0, "Expected generated price history rows");
 
         assertTrue(instrumentRepository.findBySymbolIgnoreCase("AAPL").isPresent());
@@ -215,7 +215,10 @@ class MarketComponentIntegrationTest {
 
                 assertTrue(firstCount > 0, "Expected initial price rows");
                 assertTrue(secondCount >= firstCount, "Price count should not decrease");
-                assertTrue(secondCount - firstCount < 100, "Repeated ingestion should not bulk-duplicate same-day rows");
+                assertTrue(
+                        secondCount - firstCount <= instrumentRepository.count(),
+                        "Repeated ingestion should not bulk-duplicate same-day rows"
+                );
         }
 
     private void seedCurrencies() {

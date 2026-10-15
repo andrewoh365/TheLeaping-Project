@@ -1,10 +1,22 @@
+# Python caches and virtual environments
 .venv
+venv
 __pycache__
 .pytest_cache
 *.pyc
 *.pyo
 *.pyd
-.env
+
+# Tests are run in CI, not shipped in the image
+tests
+pytest.ini
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+
+# Git, logs and secrets
 .git
 .gitignore
-tests
+*.log
+.env
