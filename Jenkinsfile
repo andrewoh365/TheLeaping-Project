@@ -1,61 +1,113 @@
-// Lab 08 — CI Pipeline Jenkinsfile
-// Deliverable written as required by the lab task sheet.
-// STATUS: BLOCKED — a running Jenkins instance with a Multibranch Pipeline job and
-// a GitHub webhook is required to execute and demonstrate automatic triggering.
-// The Jenkinsfile is syntactically complete and follows the lab spec.
+
 
 pipeline {
+    // Run on any available Jenkins machine
     agent any
 
     environment {
-        IMAGE_NAME = "team-skeleton"
+        // Unique image tag per branch and build, e.g. feature-jenkins-3.
+        // Characters Docker does not allow in a tag (like "/") become "-".
+        IMAGE_TAG = "${env.BRANCH_NAME.replaceAll('[^a-zA-Z0-9_.-]', '-')}-${env.BUILD_NUMBER}"
     }
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                // Checks out the branch that triggered this build.
-                // In a Multibranch Pipeline this covers main, feature branches,
-                // and PRs automatically — no per-branch configuration needed.
-                checkout scm
-            }
-        }
+        /* Jenkins checks out the branch automatically before the first
+         stage, so no explicit checkout stage is needed. */
 
-        stage('Build Image') {
-            steps {
-                // Builds the Docker image using the multi-stage Dockerfile from Lab 06.
-                // Tags with the Jenkins build number so every build produces a uniquely
-                // tagged image — avoids overwriting previous builds' artefacts.
-                sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ."
+        stage('Spring Boot tests') {
+            environment {
+                //  the same test foind in scripts/test.sh uses. Not a real secret.
+                JWT_SECRET = 'LEAP_TEST_ONLY_JWT_SECRET_2026_DO_NOT_USE_OUTSIDE_AUTOMATED_TESTS_12345678901234567890'
             }
-        }
-
-        stage('Test') {
             steps {
-                // Runs the Maven test suite inside the build environment.
-                // -B (batch mode) suppresses interactive prompts so output is clean in logs.
-                sh "mvn -B test -f backend/portfolio-app/pom.xml"
+                sh '''
+                    # Throwaway PostgreSQL just for this run, on a random free host port
+                    docker run -d --rm \
+                        -e POSTGRES_DB=leaping_test_db \
+                        -e POSTGRES_USER=leap_test \
+                        -e POSTGRES_PASSWORD=leap_test_password \
+                        -P postgres:16 > .ci-db-id
+                    DB=$(cat .ci-db-id)
+
+                    # Wait up to 30 seconds for the database to accept connections
+                    for i in $(seq 1 30); do
+                        docker exec "$DB" pg_isready -U leap_test -d leaping_test_db && break
+                        sleep 1
+                    done
+                    PORT=$(docker port "$DB" 5432/tcp | head -n 1 | sed 's/.*://')
+
+                    # Point the tests at the throwaway database
+                    export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:${PORT}/leaping_test_db"
+                    export SPRING_DATASOURCE_USERNAME=leap_test
+                    export SPRING_DATASOURCE_PASSWORD=leap_test_password
+                    export SPRING_FLYWAY_URL="$SPRING_DATASOURCE_URL"
+                    export SPRING_FLYWAY_USER=leap_test
+                    export SPRING_FLYWAY_PASSWORD=leap_test_password
+
+                    cd backend/portfolio-app
+                    bash ./mvnw -B clean test
+                '''
             }
             post {
                 always {
-                    // Publishes JUnit XML results to Jenkins regardless of pass/fail.
-                    // This gives a test-trend chart in the Jenkins UI and lets branch
-                    // protection rules check the test result as a status check.
+                    // Remove the throwaway database and publish the test report,
+                    // whether the tests passed or failed
+                    sh 'docker rm -f "$(cat .ci-db-id)" || true'
                     junit 'backend/portfolio-app/target/surefire-reports/*.xml'
                 }
             }
         }
+
+        stage('Build analytics image') {
+            steps {
+                // Builds from backend/analytics-service/Dockerfile.
+                sh 'docker build -t leap-analytics:$IMAGE_TAG backend/analytics-service'
+            }
+        }
+
+        stage('Python tests') {
+            steps {
+                // Runs pytest inside the image just built. The tests are not part
+                // of the image, so they are mounted in read-only from the workspace.
+                sh '''
+                    docker run --rm \
+                        -v "$PWD/backend/analytics-service/tests:/app/tests:ro" \
+                        -v "$PWD/backend/analytics-service/pytest.ini:/app/pytest.ini:ro" \
+                        leap-analytics:$IMAGE_TAG \
+                        pytest -q
+                '''
+            }
+        }
+
+        stage('Build Spring Boot image') {
+            steps {
+                // Builds from backend/portfolio-app/Dockerfile.
+                sh 'docker build -t leap-portfolio-app:$IMAGE_TAG backend/portfolio-app'
+            }
+        }
+
+        stage('Build frontend image') {
+            steps {
+                // Builds from frontend/Dockerfile. This runs the Angular production
+                // build, so it also fails if a size budget in angular.json is exceeded.
+                sh 'docker build -t leap-frontend:$IMAGE_TAG frontend'
+            }
+        }
     }
 
+    // Runs after all stages, whatever the result
     post {
-        failure {
-            // Notifies the team on build failure. Replace with your notification
-            // mechanism (Slack, email, Teams) once Jenkins is configured.
-            echo "Build ${BUILD_NUMBER} failed — check console output."
+        always {
+            // The images were only built to prove they build. Remove this run's
+            // tags so they do not pile up on the Jenkins machine.
+            sh 'docker rmi leap-analytics:$IMAGE_TAG leap-portfolio-app:$IMAGE_TAG leap-frontend:$IMAGE_TAG || true'
         }
         success {
             echo "Build ${BUILD_NUMBER} passed."
+        }
+        failure {
+            echo "Build ${BUILD_NUMBER} failed - check the console output."
         }
     }
 }

@@ -1,0 +1,70 @@
+# ============================================================
+# LEAP - runs the whole application in containers
+#
+#   docker-compose up -d --build    build the images and start everything
+#   docker-compose ps               show what is running
+#   docker-compose logs -f          follow the logs
+#   docker-compose down             stop and remove the containers (database is kept)
+#
+# Secrets (DB_USERNAME, DB_PASSWORD, JWT_SECRET) are read from the
+# gitignored .env file next to this file and injected into the containers.
+# ============================================================
+
+name: leap
+
+services:
+
+  # Official image, no Dockerfile needed.
+  # Not published to the host: only the other containers can reach it.
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: leaping_db
+      POSTGRES_USER: ${DB_USERNAME:?DB_USERNAME is not set in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is not set in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d leaping_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Spring Boot API. Listens on 8080 inside the Docker network only.
+  portfolio-app:
+    build: ./backend/portfolio-app
+    environment:
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is not set in .env}
+      # Override the localhost defaults in application.yaml with service names
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/leaping_db
+      ANALYTICS_SERVICE_BASE_URL: http://analytics-service:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Python analytics service. Listens on 8000 inside the Docker network only.
+  analytics-service:
+    build: ./backend/analytics-service
+    environment:
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: leaping_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # nginx serving the Angular app and forwarding /api to portfolio-app.
+  # The only service published to the host (host port : container port).
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-4200}:80"
+    depends_on:
+      - portfolio-app
+
+volumes:
+  postgres-data:
