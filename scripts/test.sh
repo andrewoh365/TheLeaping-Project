@@ -281,6 +281,8 @@ run_spring_tests() {
         export SPRING_FLYWAY_USER="${TEST_DB_USERNAME}"
         export SPRING_FLYWAY_PASSWORD="${TEST_DB_PASSWORD}"
 
+        export LEAP_SCHEDULING_ENABLED=false
+
         # Fixed test-only JWT secret.
         # This is intentionally NOT the developer's real local secret.
         export JWT_SECRET="LEAP_TEST_ONLY_JWT_SECRET_2026_DO_NOT_USE_OUTSIDE_AUTOMATED_TESTS_12345678901234567890"

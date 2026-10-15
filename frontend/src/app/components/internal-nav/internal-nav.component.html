@@ -1,0 +1,47 @@
+<nav class="internal-nav" aria-label="Trading Operations navigation">
+
+  <div class="internal-nav-brand">
+    <span class="internal-nav-product">
+      LEAP
+    </span>
+
+    <span class="internal-role-badge">
+      Trading Operations
+    </span>
+  </div>
+
+
+  <div class="internal-nav-links">
+
+    <a
+      class="internal-nav-link"
+      routerLink="/admin"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }">
+      Dashboard
+    </a>
+
+    <a
+      class="internal-nav-link"
+      routerLink="/admin/clients"
+      routerLinkActive="active">
+      Clients
+    </a>
+
+    <a
+      class="internal-nav-link"
+      routerLink="/admin/trade-lookup"
+      routerLinkActive="active">
+      Trade Lookup
+    </a>
+
+    <button
+      type="button"
+      class="logout-link"
+      (click)="logout()">
+      Logout
+    </button>
+
+  </div>
+
+</nav>

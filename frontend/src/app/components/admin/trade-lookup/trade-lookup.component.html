@@ -1,0 +1,383 @@
+<app-internal-nav></app-internal-nav>
+
+<div class="trade-lookup-page">
+
+  <header class="trade-lookup-header">
+    <div>
+      <h1>Trade Lookup</h1>
+      <p>
+        Search orders and trades across client accounts.
+      </p>
+    </div>
+  </header>
+
+
+  <!-- SEARCH / FILTERS -->
+  <mat-card class="filter-card">
+
+    <div class="filter-grid">
+
+      <mat-form-field appearance="outline">
+        <mat-label>
+          Search orders
+        </mat-label>
+
+        <input
+          matInput
+          type="text"
+          placeholder="Order ID, trade ID, client, or symbol"
+          [(ngModel)]="search"
+          (keyup.enter)="applyFilters()">
+      </mat-form-field>
+
+
+      <mat-form-field appearance="outline">
+        <mat-label>
+          Status
+        </mat-label>
+
+        <mat-select [(ngModel)]="status">
+
+          <mat-option value="">
+            All
+          </mat-option>
+
+          <mat-option value="SUBMITTED">
+            Submitted
+          </mat-option>
+
+          <mat-option value="ACCEPTED">
+            Accepted
+          </mat-option>
+
+          <mat-option value="FILLED">
+            Filled
+          </mat-option>
+
+          <mat-option value="REJECTED">
+            Rejected
+          </mat-option>
+
+          <mat-option value="CANCELLED">
+            Cancelled
+          </mat-option>
+
+        </mat-select>
+      </mat-form-field>
+
+
+      <div class="filter-actions">
+
+        <button
+          mat-flat-button
+          color="primary"
+          type="button"
+          (click)="applyFilters()">
+          Search
+        </button>
+
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="resetFilters()">
+          Reset
+        </button>
+
+      </div>
+
+    </div>
+
+  </mat-card>
+
+
+  <!-- LOADING -->
+  <div
+    class="loading-container"
+    *ngIf="loading">
+
+    <mat-spinner diameter="42"></mat-spinner>
+
+  </div>
+
+
+  <!-- ERROR -->
+  <mat-card
+    class="error-card"
+    *ngIf="errorMessage">
+
+    {{ errorMessage }}
+
+  </mat-card>
+
+
+  <!-- RESULTS TABLE -->
+  <mat-card
+    class="table-card"
+    *ngIf="!loading && !errorMessage">
+
+    <div class="table-header">
+
+      <div>
+        <h2>
+          Orders & Trades
+        </h2>
+
+        <p>
+          {{ orders.length }}
+          {{ orders.length === 1 ? 'result' : 'results' }}
+        </p>
+      </div>
+
+    </div>
+
+
+    <div
+      class="table-wrapper"
+      *ngIf="orders.length > 0">
+
+      <table
+        mat-table
+        [dataSource]="orders"
+        class="orders-table">
+
+
+        <!-- ORDER ID -->
+        <ng-container matColumnDef="orderId">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Order ID
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let order">
+
+            {{ order.orderId }}
+
+          </td>
+
+        </ng-container>
+
+
+        <!-- TRADE ID -->
+        <ng-container matColumnDef="tradeId">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Trade ID
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let order">
+
+            {{ order.tradeId ?? '—' }}
+
+          </td>
+
+        </ng-container>
+
+
+        <!-- CLIENT -->
+        <ng-container matColumnDef="client">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Client
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let order">
+
+            <div class="client-cell">
+
+              <span class="client-name">
+                {{ order.firstName || '' }}
+                {{ order.lastName || '' }}
+              </span>
+
+              <span class="client-id">
+                ID {{ order.clientId ?? '—' }}
+              </span>
+
+            </div>
+
+          </td>
+
+        </ng-container>
+
+
+        <!-- INSTRUMENT -->
+        <ng-container matColumnDef="instrument">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Instrument
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let order">
+
+            <div class="instrument-cell">
+
+              <span class="instrument-symbol">
+                {{ order.symbol || '—' }}
+              </span>
+
+              <span class="instrument-name">
+                {{ order.instrumentName || '—' }}
+              </span>
+
+            </div>
+
+          </td>
+
+        </ng-container>
+
+
+        <!-- SIDE -->
+        <ng-container matColumnDef="side">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Side
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let order">
+
+            <span
+              class="side-badge"
+              [class.side-buy]="order.side === 'BUY'"
+              [class.side-sell]="order.side === 'SELL'">
+
+              {{ order.side || '—' }}
+
+            </span>
+
+          </td>
+
+        </ng-container>
+
+
+        <!-- QUANTITY -->
+        <ng-container matColumnDef="quantity">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Quantity
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let order">
+
+            {{ order.quantity ?? '—' }}
+
+          </td>
+
+        </ng-container>
+
+
+        <!-- STATUS -->
+        <ng-container matColumnDef="status">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Status
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let order">
+
+            <span
+              class="status-badge"
+              [class.status-filled]="order.status === 'FILLED'"
+              [class.status-rejected]="order.status === 'REJECTED'"
+              [class.status-cancelled]="order.status === 'CANCELLED'"
+              [class.status-accepted]="order.status === 'ACCEPTED'"
+              [class.status-submitted]="order.status === 'SUBMITTED'">
+
+              {{ order.status || 'UNKNOWN' }}
+
+            </span>
+
+          </td>
+
+        </ng-container>
+
+
+        <!-- SUBMITTED -->
+        <ng-container matColumnDef="submittedAt">
+
+          <th
+            mat-header-cell
+            *matHeaderCellDef>
+            Submitted
+          </th>
+
+          <td
+            mat-cell
+            *matCellDef="let order">
+
+            {{
+              order.submittedAt
+                ? (order.submittedAt | date:'medium')
+                : '—'
+            }}
+
+          </td>
+
+        </ng-container>
+
+
+        <tr
+          mat-header-row
+          *matHeaderRowDef="displayedColumns">
+        </tr>
+
+        <tr
+          mat-row
+          *matRowDef="
+            let row;
+            columns: displayedColumns
+          "
+          class="order-row"
+          (click)="openOrder(row)">
+        </tr>
+
+      </table>
+
+    </div>
+
+
+    <!-- EMPTY STATE -->
+    <div
+      class="empty-state"
+      *ngIf="orders.length === 0">
+
+      <h3>
+        No orders found
+      </h3>
+
+      <p>
+        Try changing your search or status filter.
+      </p>
+
+    </div>
+
+  </mat-card>
+
+</div>

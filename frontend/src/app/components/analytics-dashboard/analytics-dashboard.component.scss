@@ -286,37 +286,3 @@
     margin: 0 16px 24px 16px;
   }
 }
-
-@media (max-width: 1200px) {
-  .filter-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .summary-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 700px) {
-  .analytics-page {
-    padding: 16px;
-  }
-
-  .analytics-header {
-    align-items: flex-start;
-  }
-
-  .filter-grid,
-  .summary-grid,
-  .charts-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .chart-wide {
-    grid-column: span 1;
-  }
-
-  .filter-actions {
-    flex-wrap: wrap;
-  }
-}

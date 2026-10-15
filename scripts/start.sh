@@ -235,6 +235,7 @@ Or reset the LEAP environment later with:
     fi
 
 
+    
     if port_is_in_use "${SPRING_PORT}"; then
         warn "Port ${SPRING_PORT} is occupied before Spring startup."
         info "Attempting automatic cleanup to avoid startup failure"

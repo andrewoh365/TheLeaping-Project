@@ -111,6 +111,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     'ALL': { days: 730, points: 14 }
   };
 
+
   currentUser: User | null = null;
   searchQuery = '';
   searchResults: Instrument[] = [];

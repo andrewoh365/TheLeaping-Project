@@ -1,9 +1,5 @@
-import { Routes } from '@angular/router';
 
-import { LoginComponent } from './components/login/login.component';
-import { RegisterComponent } from './components/register/register.component';
-import { DashboardComponent } from './components/dashboard/dashboard.component';
-import { AnalyticsDashboardComponent } from './components/analytics-dashboard/analytics-dashboard.component';
+import { Routes } from '@angular/router';
 
 import { AuthGuard } from './guards/auth.guard';
 import { NoAuthGuard } from './guards/no-auth.guard';
@@ -15,34 +11,75 @@ export const routes: Routes = [
     redirectTo: '/login',
     pathMatch: 'full'
   },
-
   {
     path: 'login',
-    component: LoginComponent,
+    loadComponent: () =>
+      import('./components/login/login.component')
+        .then(m => m.LoginComponent),
     canActivate: [NoAuthGuard]
   },
-
   {
     path: 'register',
-    component: RegisterComponent,
+    loadComponent: () =>
+      import('./components/register/register.component')
+        .then(m => m.RegisterComponent),
     canActivate: [NoAuthGuard]
   },
-
   {
     path: 'dashboard',
-    component: DashboardComponent,
+    loadComponent: () =>
+      import('./components/dashboard/dashboard.component')
+        .then(m => m.DashboardComponent),
     canActivate: [AuthGuard]
   },
-
   {
     path: 'analytics',
-    component: AnalyticsDashboardComponent,
+    loadComponent: () =>
+      import('./components/analytics-dashboard/analytics-dashboard.component')
+        .then(m => m.AnalyticsDashboardComponent),
     canActivate: [RoleGuard],
-    data: {
-      roles: ['ADMIN', 'ANALYST']
-    }
+    data: { roles: ['ADMIN', 'ANALYST'] }
   },
-
+  {
+    path: 'admin',
+    loadComponent: () =>
+      import('./components/analytics-dashboard/analytics-dashboard.component')
+        .then(m => m.AnalyticsDashboardComponent),
+    canActivate: [RoleGuard],
+    data: { roles: ['ADMIN'] }
+  },
+  {
+    path: 'admin/clients',
+    loadComponent: () =>
+      import('./components/admin/clients/clients.component')
+        .then(m => m.ClientsComponent),
+    canActivate: [RoleGuard],
+    data: { roles: ['ADMIN'] }
+  },
+  {
+    path: 'admin/clients/:clientId',
+    loadComponent: () =>
+      import('./components/admin/client-detail/client-detail.component')
+        .then(m => m.ClientDetailComponent),
+    canActivate: [RoleGuard],
+    data: { roles: ['ADMIN'] }
+  },
+  {
+    path: 'admin/orders/:orderId',
+    loadComponent: () =>
+      import('./components/admin/order-detail/order-detail.component')
+        .then(m => m.OrderDetailComponent),
+    canActivate: [RoleGuard],
+    data: { roles: ['ADMIN'] }
+  },
+  {
+    path: 'admin/trade-lookup',
+    loadComponent: () =>
+      import('./components/admin/trade-lookup/trade-lookup.component')
+        .then(m => m.TradeLookupComponent),
+    canActivate: [RoleGuard],
+    data: { roles: ['ADMIN'] }
+  },
   {
     path: '**',
     redirectTo: '/dashboard'

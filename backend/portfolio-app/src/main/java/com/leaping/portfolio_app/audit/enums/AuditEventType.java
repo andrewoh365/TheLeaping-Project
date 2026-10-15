@@ -1,0 +1,14 @@
+package com.leaping.portfolio_app.audit.enums;
+
+public enum AuditEventType {
+    ORDER_SUBMITTED,
+    ORDER_ACCEPTED,
+    ORDER_REJECTED,
+    ORDER_CANCELLED,
+    PRICE_CAPTURED,
+    PRICE_CAPTURE_FAILED,
+    TRADE_FILLED,
+    CASH_TRANSACTION_RECORDED,
+    CASH_BALANCE_CHANGED,
+    HOLDING_CHANGED
+}

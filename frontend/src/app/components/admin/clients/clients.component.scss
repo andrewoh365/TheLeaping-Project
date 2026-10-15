@@ -1,0 +1,266 @@
+.clients-page {
+  min-height: 100vh;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  padding: 24px 20px;
+}
+
+.clients-header {
+  margin-bottom: 24px;
+
+  h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-color);
+  }
+
+  p {
+    margin: 6px 0 0;
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 14px;
+  }
+}
+
+.filter-card {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: var(--secondary-background-color);
+  color: var(--text-color);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(260px, 2fr)
+    minmax(160px, 1fr)
+    auto;
+  gap: 14px;
+  align-items: center;
+
+  mat-form-field {
+    width: 100%;
+  }
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+
+  button {
+    height: 48px;
+    min-width: 82px;
+  }
+}
+
+.table-card {
+  padding: 0;
+  overflow: hidden;
+  background: var(--secondary-background-color);
+  color: var(--text-color);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+  h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-color);
+  }
+
+  p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+  }
+}
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.clients-table {
+  width: 100%;
+  background: transparent;
+}
+
+:host ::ng-deep .clients-table {
+  .mat-mdc-header-row {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .mat-mdc-header-cell {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .mat-mdc-cell {
+    color: var(--text-color);
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .mat-mdc-row {
+    transition: background-color 0.15s ease;
+  }
+
+  .mat-mdc-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+}
+
+.client-name {
+  font-weight: 500;
+}
+
+.client-row {
+  cursor: pointer;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.status-active {
+  color: var(--primary-accent-color);
+  background: rgba(38, 208, 124, 0.1);
+  border: 1px solid rgba(38, 208, 124, 0.3);
+}
+
+.status-inactive {
+  color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  padding: 48px 20px;
+}
+
+.error-card {
+  padding: 16px;
+  margin-bottom: 24px;
+  background: var(--secondary-background-color);
+  color: #ff8383;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 131, 131, 0.2);
+}
+
+.empty-state {
+  padding: 48px 20px;
+  text-align: center;
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    color: var(--text-color);
+  }
+
+  p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
+  }
+}
+
+/* Match the existing dark internal dashboard form styling */
+:host ::ng-deep .clients-page {
+  .mat-mdc-form-field {
+    .mdc-text-field {
+      background-color: #3a3a3a;
+      border-radius: 4px;
+    }
+
+    .mdc-text-field--filled:not(.mdc-text-field--disabled) {
+      background-color: #3a3a3a !important;
+
+      &:hover {
+        background-color: #3a3a3a !important;
+      }
+
+      .mdc-text-field__input {
+        background-color: #3a3a3a !important;
+      }
+    }
+
+    .mat-mdc-form-field-focus-overlay {
+      background-color: transparent;
+    }
+
+    .mdc-floating-label {
+      color: #c0c9d8 !important;
+    }
+
+    &.mat-focused .mdc-floating-label {
+      color: var(--primary-accent-color) !important;
+    }
+  }
+
+  .mat-mdc-input-element,
+  .mat-mdc-select-value {
+    color: #fafafa !important;
+  }
+
+  .mat-mdc-form-field-ripple {
+    background-color: var(--primary-accent-color);
+  }
+}
+
+@media (max-width: 900px) {
+  .filter-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .filter-actions {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 650px) {
+  .clients-page {
+    padding: 16px;
+  }
+
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-actions {
+    grid-column: span 1;
+    flex-wrap: wrap;
+  }
+
+  .table-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .clients-table {
+    min-width: 720px;
+  }
+}
