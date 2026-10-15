@@ -37,6 +37,9 @@ import {
     OrderStatus
 } from '../../services/analytics.service';
 
+
+import { InternalNavComponent } from '../internal-nav/internal-nav.component';
+
 Chart.register(...registerables);
 
 @Component({
@@ -50,7 +53,8 @@ Chart.register(...registerables);
         MatFormFieldModule,
         MatInputModule,
         MatProgressSpinnerModule,
-        MatSelectModule
+        MatSelectModule,
+        InternalNavComponent
     ],
     templateUrl: './analytics-dashboard.component.html',
     styleUrls: ['./analytics-dashboard.component.scss']
@@ -78,6 +82,9 @@ export class AnalyticsDashboardComponent
     loading = false;
     errorMessage = '';
 
+
+    // ADMIN reuses analytics with additional operations navigation.
+    isAdmin = false;
     dateFrom = '';
     dateTo = '';
 
@@ -110,6 +117,7 @@ export class AnalyticsDashboardComponent
     ) { }
 
     ngOnInit(): void {
+        this.isAdmin = this.authService.hasRole('ADMIN');
         this.loadDashboard();
     }
 

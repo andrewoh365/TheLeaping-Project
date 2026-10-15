@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -81,23 +81,13 @@ def test_build_dashboard(monkeypatch):
     monkeypatch.setattr(
         service,
         "get_trading_volume_rows",
-        lambda filters: [
+        lambda filters, grouping: [
             {
-                "executed_at": datetime(
-                    2026,
-                    9,
-                    1,
-                    tzinfo=timezone.utc,
-                ),
+                "period": "2026-09-01",
                 "total_usd_value": Decimal("1000.00"),
             },
             {
-                "executed_at": datetime(
-                    2026,
-                    9,
-                    2,
-                    tzinfo=timezone.utc,
-                ),
+                "period": "2026-09-02",
                 "total_usd_value": Decimal("1500.00"),
             },
         ],
@@ -133,7 +123,7 @@ def test_build_dashboard(monkeypatch):
     monkeypatch.setattr(
         service,
         "get_most_active_instruments",
-        lambda filters: [
+        lambda filters, limit: [
             {"symbol": "AAPL", "order_count": 30},
             {"symbol": "MSFT", "order_count": 25},
             {"symbol": "BTC-USD", "order_count": 20},
@@ -146,33 +136,14 @@ def test_build_dashboard(monkeypatch):
     monkeypatch.setattr(
         service,
         "get_client_activity_rows",
-        lambda filters: [
+        lambda filters, grouping: [
             {
-                "submitted_at": datetime(
-                    2026,
-                    9,
-                    1,
-                    tzinfo=timezone.utc,
-                ),
-                "customer_id": 1,
+                "period": "2026-09-01",
+                "active_clients": 2,
             },
             {
-                "submitted_at": datetime(
-                    2026,
-                    9,
-                    1,
-                    tzinfo=timezone.utc,
-                ),
-                "customer_id": 2,
-            },
-            {
-                "submitted_at": datetime(
-                    2026,
-                    9,
-                    2,
-                    tzinfo=timezone.utc,
-                ),
-                "customer_id": 1,
+                "period": "2026-09-02",
+                "active_clients": 1,
             },
         ],
     )
@@ -180,7 +151,7 @@ def test_build_dashboard(monkeypatch):
     monkeypatch.setattr(
         service,
         "get_rejection_reasons",
-        lambda filters: [
+        lambda filters, limit: [
             {
                 "rejection_reason": "INSUFFICIENT_CASH",
                 "rejection_count": 10,
