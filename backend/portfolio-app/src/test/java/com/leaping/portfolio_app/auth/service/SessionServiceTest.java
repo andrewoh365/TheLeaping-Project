@@ -60,6 +60,9 @@ class SessionServiceTest {
         lenient().when(userSessionRepository.findById(any(UUID.class))).thenAnswer(invocation ->
                 Optional.ofNullable(sessions.get(invocation.getArgument(0)))
         );
+        lenient().when(userSessionRepository.lockById(any(UUID.class))).thenAnswer(invocation ->
+                Optional.ofNullable(sessions.get(invocation.getArgument(0)))
+        );
         lenient().when(userSessionRepository.findByUser_IdAndRevokedAtIsNull(any(Long.class))).thenAnswer(invocation -> {
             Long userId = invocation.getArgument(0);
             List<UserSession> open = new ArrayList<>();

@@ -34,6 +34,10 @@ public class SessionService {
     private final UserSessionRepository userSessionRepository;
     private final JwtTokenProvider jwtTokenProvider;
 
+    // The concurrency test holds the locked refresh transaction open here.
+    volatile Runnable beforeRefreshLock = () -> { };
+    volatile Runnable beforeRefreshRotation = () -> { };
+
     public SessionService(UserSessionRepository userSessionRepository, JwtTokenProvider jwtTokenProvider) {
         this.userSessionRepository = userSessionRepository;
         this.jwtTokenProvider = jwtTokenProvider;
@@ -64,10 +68,11 @@ public class SessionService {
             return failure("Invalid or expired refresh token");
         }
 
+        beforeRefreshLock.run();
         UUID sessionId = jwtTokenProvider.getSessionId(refreshToken);
         UserSession session = sessionId == null
                 ? null
-                : userSessionRepository.findById(sessionId).orElse(null);
+                : userSessionRepository.lockById(sessionId).orElse(null);
         if (session == null || !isOpen(session)) {
             return failure("Invalid or expired refresh token");
         }
@@ -84,6 +89,7 @@ public class SessionService {
             return failure("Invalid or expired refresh token");
         }
 
+        beforeRefreshRotation.run();
         IssuedTokens tokens = issueTokens(session);
         session.setRefreshTokenHash(hashToken(tokens.refreshToken()));
         session.setLastUsedAt(now());
