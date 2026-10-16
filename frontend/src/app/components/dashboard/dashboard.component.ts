@@ -1227,8 +1227,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
           return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
         });
         const currentPriceUsd = this.toNumber(holding.currentPriceUsd || holding.averageCostUsd);
-        const usdRate = this.historyToUsdRate(history, currentPriceUsd);
-        const price = this.findHistoricalPrice(history, targetTime, currentPriceUsd / usdRate) * usdRate;
+        const price = this.findHistoricalPrice(history, targetTime, currentPriceUsd);
         return sum + this.toNumber(holding.quantity) * price;
       }, 0);
 
@@ -1237,18 +1236,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
         value: this.cashBalance + holdingsValue
       };
     });
-  }
-
-  /**
-   * History prices come in the instrument's own currency (GBP, INR, ...) but holdings are valued in USD.
-   * Derive the conversion from the latest history price vs. the current USD price.
-   */
-  private historyToUsdRate(history: PricePointResponse[], currentPriceUsd: number): number {
-    const latest = history[history.length - 1];
-    if (!latest || latest.currencyCode === 'USD' || !currentPriceUsd || !this.toNumber(latest.price)) {
-      return 1;
-    }
-    return currentPriceUsd / this.toNumber(latest.price);
   }
 
   private findHistoricalPrice(history: PricePointResponse[], targetTime: number, fallback: number): number {
