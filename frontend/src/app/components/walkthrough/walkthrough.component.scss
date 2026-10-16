@@ -2,12 +2,25 @@
 $tour-z-index: 2000;
 $highlight-color: #facc15;
 
+// Fading out is quick and has no delays. FADE_OUT_MS in the component must match.
+$fade-out: 400ms ease-in;
+// Fading in is layered: the dimming first, then the ring, then the popup.
+$fade-in-shade: 600ms ease-out;
+$fade-in-ring: 500ms ease-out 250ms;
+$fade-in-popover: 500ms ease-out 350ms;
+
 .tour-shade,
 .tour-hole-blocker,
 .tour-ring {
   position: fixed;
   display: none;
   z-index: $tour-z-index;
+}
+
+.tour-shade,
+.tour-ring {
+  opacity: 0;
+  transition: opacity $fade-out;
 }
 
 .tour-shade {
@@ -20,22 +33,42 @@ $highlight-color: #facc15;
 }
 
 .tour-ring {
-  border: 3px solid $highlight-color;
-  border-radius: 12px;
-  box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.25), 0 0 24px rgba(250, 204, 21, 0.45);
+  overflow: visible;
   pointer-events: none;
-  animation: tour-pulse 1.8s ease-in-out infinite;
-}
 
-@keyframes tour-pulse {
-  0%, 100% { box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.25), 0 0 24px rgba(250, 204, 21, 0.45); }
-  50% { box-shadow: 0 0 0 8px rgba(250, 204, 21, 0.12), 0 0 32px rgba(250, 204, 21, 0.6); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tour-ring {
-    animation: none;
+  rect {
+    fill: none;
   }
+}
+
+// The solid outline that stays put.
+.tour-ring-base {
+  stroke: $highlight-color;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.45));
+}
+
+// The pulse that travels around the outline (positioned by the component).
+.tour-comet {
+  stroke-linecap: butt;
+}
+
+.tour-comet--tail {
+  stroke: rgba(250, 204, 21, 0.3);
+  stroke-width: 9;
+  filter: blur(3px);
+}
+
+.tour-comet--body {
+  stroke: rgba(253, 224, 71, 0.75);
+  stroke-width: 5;
+  filter: blur(1px);
+}
+
+.tour-comet--head {
+  stroke: #fffbeb;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 6px #fde047) drop-shadow(0 0 12px rgba(250, 204, 21, 0.8));
 }
 
 .tour-popover {
@@ -52,11 +85,52 @@ $highlight-color: #facc15;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
   color: #fafafa;
   font-family: 'Geist', 'Segoe UI', sans-serif;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity $fade-out, transform $fade-out;
 
   h2 {
     margin: 0 0 8px;
     font-size: 18px;
     font-weight: 600;
+  }
+}
+
+.tour-click-shield {
+  position: fixed;
+  inset: 0;
+  z-index: $tour-z-index + 2;
+}
+
+:host(.tour-visible) {
+  .tour-shade {
+    opacity: 1;
+    transition: opacity $fade-in-shade;
+  }
+
+  .tour-ring {
+    opacity: 1;
+    transition: opacity $fade-in-ring;
+  }
+
+  .tour-popover {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity $fade-in-popover, transform $fade-in-popover;
+  }
+
+  .tour-click-shield {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-comet {
+    display: none;
+  }
+
+  .tour-popover {
+    transform: none;
   }
 }
 
@@ -114,6 +188,7 @@ $highlight-color: #facc15;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 150ms ease;
 }
 
 .tour-button--primary {
