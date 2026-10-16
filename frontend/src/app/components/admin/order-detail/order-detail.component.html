@@ -322,25 +322,6 @@
           <span>Execution Price</span>
 
           <strong>
-            {{ order.executionPrice ?? '—' }}
-            {{ order.executionPriceCurrencyCode || '' }}
-          </strong>
-        </div>
-
-
-        <div class="detail-item">
-          <span>Exchange Rate to USD</span>
-
-          <strong>
-            {{ order.exchangeRateToUsdAtExecution ?? '—' }}
-          </strong>
-        </div>
-
-
-        <div class="detail-item">
-          <span>Execution Price (USD)</span>
-
-          <strong>
             {{
               order.executionPriceUsd !== null
                 ? (order.executionPriceUsd | currency:'USD')
