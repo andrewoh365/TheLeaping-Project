@@ -8,12 +8,10 @@
   --background-color: #1a1a1a;
   --secondary-background-color: #2a2a2a;
   --surface-color: #242d2a;
-  --surface-hover-color: #303936;
   --border-color: #3a4541;
   --muted-text-color: #b7c5bf;
   --text-color: #fafafa;
   --danger-color: #ff7882;
-  --focus-ring-color: rgba(38, 208, 124, 0.28);
   font-family: 'Inter', sans-serif;
 }
 
@@ -45,9 +43,8 @@ body {
   .mdc-text-field--filled:not(.mdc-text-field--disabled) {
     background-color: var(--secondary-background-color) !important;
 
-    &:hover {
-      background-color: var(--surface-hover-color) !important;
-    }
+
+
 
     .mdc-text-field__input {
       background-color: var(--secondary-background-color) !important;
@@ -57,11 +54,7 @@ body {
   .mdc-text-field {
     background-color: var(--secondary-background-color);
     border-radius: 4px;
-    transition: all 0.2s ease;
-
-    &:hover {
-      background-color: var(--surface-hover-color);
-    }
+    transition: all 0.2s ease
   }
 
   .mat-mdc-form-field-focus-overlay {
@@ -116,10 +109,6 @@ body {
 
   /* Enhanced focus state */
   &.mat-focused {
-    .mdc-text-field {
-      background-color: var(--surface-hover-color);
-    }
-
     input {
       color: var(--text-color) !important;
       font-weight: 600;
@@ -154,16 +143,6 @@ body {
       background-color: transparent !important;
       border-bottom-color: transparent !important;
       transform: none !important;
-    }
-
-    .mat-mdc-form-field .mat-mdc-text-field-wrapper,
-    .mat-mdc-form-field.mat-focused .mat-mdc-text-field-wrapper,
-    .mat-mdc-form-field:hover .mat-mdc-text-field-wrapper,
-    .mat-mdc-form-field .mdc-text-field,
-    .mat-mdc-form-field.mat-focused .mdc-text-field,
-    .mat-mdc-form-field:hover .mdc-text-field {
-      background-color: transparent !important;
-      background: transparent !important;
     }
 
     .mat-mdc-form-field-focus-overlay,
@@ -355,11 +334,6 @@ body {
       color: var(--text-color);
     }
 
-    &:hover:not([disabled]),
-    &.cdk-program-focused,
-    &.cdk-keyboard-focused {
-      background-color: var(--surface-hover-color);
-    }
   }
 
   .logout-button .mat-icon,

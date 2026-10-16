@@ -6,16 +6,10 @@
  
 
   .chart-container {
-    display: flex;
-    justify-content: center;
-    padding-top: 10px;
-    align-items: center;
     width: min(100%, 760px);
-    height: clamp(240px, 42vh, 420px);
-    max-width: 45vw;
-    max-height: 45vh;
+    height: 260px;
     position: relative;
-    margin-bottom: 20px;
+    margin: 0 auto 20px;
 
     canvas {
       display: block;
@@ -26,24 +20,33 @@
 
   .chart-range-controls {
     display: flex;
-    gap: 6px;
-    margin-bottom: 10px;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 38px;
+    width: fit-content;
+    margin: 0 auto 16px;
+    padding: 3px;
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--secondary-background-color);
+    border-radius: 8px;
 
     button {
-      min-width: 48px;
-      padding: 6px 10px;
-      border: 1px solid var(--border-color);
+      min-width: 42px;
+      height: 30px;
+      padding: 0 10px;
+      border: 0;
       border-radius: 6px;
       background: transparent;
-      color: var(--muted-text-color);
+      color: #fafafa;
       cursor: pointer;
       font-size: 12px;
+      font-weight: 600;
 
       &:hover,
       &.active {
-        border-color: var(--secondary-color);
-        background: rgba(0, 171, 104, 0.16);
-        color: var(--text-color);
+        background: var(--secondary-color);
+        color: #fafafa;
       }
     }
   }

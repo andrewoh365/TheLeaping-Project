@@ -70,14 +70,7 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
     },
     plugins: {
       legend: {
-        display: true,
-        position: 'top' as const,
-        labels: {
-          color: '#fafafa',
-          usePointStyle: true,
-          boxWidth: 8,
-          boxHeight: 8
-        }
+        display: false
       }
     },
     onClick: (_event, elements) => {
@@ -94,11 +87,9 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
     scales: {
       x: {
         grid: {
-          display: true,
-          color: 'rgba(232, 245, 239, 0.18)'
+          display: false
         },
         ticks: {
-    
           color: '#fafafa',
           maxRotation: 0,
           autoSkip: true,
@@ -175,8 +166,10 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
           return;
         }
 
-        const dailyPrices = this.keepLatestPricePerDay(prices);
-        const sampledPrices = this.downsamplePrices(dailyPrices, InstrumentExpandedComponent.MAX_CHART_POINTS);
+        const rangePrices = this.activeChartRange === '1D'
+          ? prices
+          : this.keepLatestPricePerDay(prices);
+        const sampledPrices = this.downsamplePrices(rangePrices, InstrumentExpandedComponent.MAX_CHART_POINTS);
         this.chartPrices = sampledPrices;
         const latestPrice = prices[prices.length - 1];
         if (latestPrice) {
@@ -233,7 +226,7 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
           tension: ds.tension,
           pointRadius: 0,
           pointHitRadius: 14,
-          borderWidth: 2,
+          borderWidth: 2.5,
           fill: true
         }))
       },
@@ -272,19 +265,32 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
 
   private transformToChartData(prices: PricePointDto[]): ChartConfig {
     return {
-      labels: prices.map(p => new Date(p.timestamp).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      })),
+      labels: prices.map(p => this.formatChartLabel(p.timestamp)),
       datasets: [{
         label: `${this.data.symbol} Price (${this.data.priceCurrencyCode})`,
         data: prices.map(p => p.price),
-        borderColor: '#1a1a1a',
-        backgroundColor: '#26d07c',
+        borderColor: '#26d07c',
+        backgroundColor: 'rgba(0, 171, 104, 0.05)',
         tension: 0.3,
         fill: true
       }]
     };
+  }
+
+  private formatChartLabel(timestamp: string): string {
+    const date = new Date(timestamp);
+
+    if (this.activeChartRange === '1D') {
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+    }
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
   }
 
   onClose(): void {
