@@ -35,7 +35,9 @@ public class InstrumentController {
      */
     @GetMapping
     public ResponseEntity<List<InstrumentDTO>> getAllInstruments() {
-        return ResponseEntity.ok(toDtos(instrumentService.getAllInstruments()));
+        return ResponseEntity.ok(
+            toDtos(instrumentService.getAllInstruments())
+        );
     }
 
     /**
@@ -64,10 +66,14 @@ public class InstrumentController {
     public ResponseEntity<List<InstrumentDTO>> searchInstruments(
         @RequestParam String query
     ) {
-        return ResponseEntity.ok(toDtos(instrumentService.searchInstruments(query)));
+        return ResponseEntity.ok(
+            toDtos(instrumentService.searchInstruments(query))
+        );
     }
 
     private List<InstrumentDTO> toDtos(List<Instrument> instruments) {
-        return instruments.stream().map(InstrumentDTO::new).toList();
+        return instruments.stream()
+            .map(InstrumentDTO::new)
+            .toList();
     }
 }

@@ -3,6 +3,8 @@ package com.leaping.portfolio_app.holdings;
 import com.leaping.portfolio_app.holdings.Holding;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
@@ -13,6 +15,11 @@ public interface HoldingRepository extends JpaRepository<Holding, Long> {
     
     // Get all holdings for a portfolio, newest first
     List<Holding> findAllByPortfolio_PortfolioIdOrderByUpdatedAtDesc(Long portfolioId);
+
+        Page<Holding> findAllByPortfolio_PortfolioIdOrderByUpdatedAtDesc(
+            Long portfolioId,
+            Pageable pageable
+        );
 
     // Get specific holding by portfolio and instrument IDs
     Optional<Holding> findByPortfolio_PortfolioIdAndInstrument_InstrumentId(Long portfolioId, Long instrumentId);
