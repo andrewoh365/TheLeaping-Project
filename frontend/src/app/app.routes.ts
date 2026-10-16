@@ -1,9 +1,15 @@
+
 import { Routes } from '@angular/router';
 
 import { LoginComponent } from './components/login/login.component';
 import { RegisterComponent } from './components/register/register.component';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { AnalyticsDashboardComponent } from './components/analytics-dashboard/analytics-dashboard.component';
+
+import { ClientsComponent } from './components/admin/clients/clients.component';
+import { ClientDetailComponent } from './components/admin/client-detail/client-detail.component';
+import { OrderDetailComponent } from './components/admin/order-detail/order-detail.component';
+import { TradeLookupComponent } from './components/admin/trade-lookup/trade-lookup.component';
 
 import { AuthGuard } from './guards/auth.guard';
 import { NoAuthGuard } from './guards/no-auth.guard';
@@ -40,6 +46,51 @@ export const routes: Routes = [
     canActivate: [RoleGuard],
     data: {
       roles: ['ADMIN', 'ANALYST']
+    }
+  },
+
+  {
+    path: 'admin',
+    component: AnalyticsDashboardComponent,
+    canActivate: [RoleGuard],
+    data: {
+      roles: ['ADMIN']
+    }
+  },
+
+  {
+    path: 'admin/clients',
+    component: ClientsComponent,
+    canActivate: [RoleGuard],
+    data: {
+      roles: ['ADMIN']
+    }
+  },
+
+  {
+    path: 'admin/clients/:clientId',
+    component: ClientDetailComponent,
+    canActivate: [RoleGuard],
+    data: {
+      roles: ['ADMIN']
+    }
+  },
+
+  {
+    path: 'admin/orders/:orderId',
+    component: OrderDetailComponent,
+    canActivate: [RoleGuard],
+    data: {
+      roles: ['ADMIN']
+    }
+  },
+
+  {
+    path: 'admin/trade-lookup',
+    component: TradeLookupComponent,
+    canActivate: [RoleGuard],
+    data: {
+      roles: ['ADMIN']
     }
   },
 
