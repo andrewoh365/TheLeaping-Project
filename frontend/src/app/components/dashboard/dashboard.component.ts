@@ -7,7 +7,10 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatCardModule } from '@angular/material/card';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatListModule } from '@angular/material/list';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { Subject, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
@@ -85,6 +88,7 @@ const MARKET_CONTEXT_MS = 5 * 60 * 1000;
 const NEWS_COLLAPSED_COUNT = 5;
 /** Matches the backend's per-transaction cap. */
 const MAX_CASH_TRANSFER_USD = 1_000_000;
+import { InstrumentExpandedComponent, InstrumentTradeAction } from '../instrument-expanded/instrument-expanded.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -96,7 +100,10 @@ const MAX_CASH_TRANSFER_USD = 1_000_000;
     MatButtonModule,
     MatIconModule,
     MatMenuModule,
-    MatDividerModule
+    MatCardModule,
+    MatDividerModule,
+    MatListModule,
+    MatDialogModule,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss']
@@ -200,6 +207,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private router: Router,
     private instrumentService: InstrumentService,
+    private dialog: MatDialog,
     private portfolioService: PortfolioService,
     private marketService: MarketService,
     private watchlistService: WatchlistService,
@@ -207,7 +215,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ) {}
 
   get displayName(): string {
-    const preferredName = this.currentUser?.username?.trim();
+    const preferredName = this.currentUser?.firstName?.trim();
+    const lastName = this.currentUser?.lastName?.trim();
+    if (preferredName && lastName) {
+      return `${preferredName} ${lastName}`;
+    }
     if (preferredName) {
       return preferredName;
     }
@@ -464,14 +476,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.ticketSearch$
       .pipe(
-        debounceTime(250),
+        debounceTime(300),
         distinctUntilChanged(),
         switchMap((query) => {
-          if (!query.trim()) {
+          const normalizedQuery = query.trim();
+          if (!normalizedQuery) {
+            this.ticketSearchLoading = false;
             return of<Instrument[]>([]);
           }
+
           this.ticketSearchLoading = true;
-          return this.instrumentService.searchInstruments(query).pipe(
+          return this.instrumentService.searchInstruments(normalizedQuery).pipe(
             catchError(() => of<Instrument[]>([])),
             finalize(() => {
               this.ticketSearchLoading = false;
@@ -481,7 +496,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         takeUntil(this.destroy$)
       )
       .subscribe((results) => {
-        this.ticketSearchResults = results.filter((instrument) => instrument.isActive).slice(0, 8);
+        this.ticketSearchResults = results;
       });
 
     this.holdingsSearch$
@@ -525,24 +540,24 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // switchMap drops out-of-date previews if the client keeps typing
     this.previewRequest$
       .pipe(
-        debounceTime(250),
+        debounceTime(100),
         switchMap(() => {
           if (!this.ticketInstrument) {
+            this.preview = null;
+            this.previewLoading = false;
             return of<OrderPreview | null>(null);
           }
+
           this.previewLoading = true;
           this.previewError = '';
+
           return this.tradeService.previewOrder(
             this.ticketInstrument.instrumentId,
             this.orderForm.order_action,
             this.orderForm.quantity
           ).pipe(
             catchError((error: HttpErrorResponse) => {
-              if (error.status === 401 || error.status === 403) {
-                this.previewError = 'Your session expired. Please log in again to place trades.';
-              } else {
-                this.previewError = (error?.error as TradeApiError)?.message || 'Could not get a price right now.';
-              }
+              this.previewError = error.error?.message || 'Unable to load the latest trade preview.';
               return of<OrderPreview | null>(null);
             }),
             finalize(() => {
@@ -557,8 +572,48 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
 
     this.loadDashboard();
-    this.startLiveUpdates();
     this.startMarketContextUpdates();
+    this.startLiveUpdates();
+  }
+
+  openInstrumentDialog(instrument: Instrument): void {
+    this.searchResults = [];
+
+    const activeDialog = this.dialog.getDialogById('instrument-expanded-dialog');
+    if (activeDialog) {
+      activeDialog.close();
+    }
+
+    this.dialog.open(InstrumentExpandedComponent, {
+      id: 'instrument-expanded-dialog',
+      data: {
+        instrumentId: Number(instrument.instrumentId),
+        symbol: instrument.symbol,
+        isActive: instrument.isActive,
+        name: instrument.name,
+        instrumentType: instrument.instrumentType,
+        priceCurrencyCode: instrument.priceCurrencyCode,
+        isTradable: instrument.isTradeable
+      },
+      width: '80vw',
+      height: '80vh',
+      maxWidth: '95vw',
+      autoFocus: false,
+      restoreFocus: true
+    }).afterClosed()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((result: InstrumentTradeAction | undefined) => {
+        if (!result) {
+          return;
+        }
+
+        this.orderForm.order_action = result.action;
+        this.setTicketInstrument({
+          instrumentId: Number(result.instrument.instrumentId),
+          symbol: result.instrument.symbol,
+          name: result.instrument.name
+        });
+      });
   }
 
   ngOnDestroy(): void {

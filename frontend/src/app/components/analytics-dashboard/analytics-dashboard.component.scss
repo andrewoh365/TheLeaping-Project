@@ -110,7 +110,7 @@
     }
 
     &.mat-focused .mdc-floating-label {
-      color: #1a4d3a !important;
+      color: var(--primary-accent-color) !important;
     }
   }
 
@@ -284,5 +284,98 @@
 
   .error-card {
     margin: 0 16px 24px 16px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .filter-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .analytics-page {
+    padding: 16px;
+  }
+
+  .analytics-header {
+    align-items: flex-start;
+  }
+
+  .filter-grid,
+  .summary-grid,
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-wide {
+    grid-column: span 1;
+  }
+
+  .filter-actions {
+    flex-wrap: wrap;
+  }
+}
+
+/* Keep analytics controls aligned with the shared application theme. */
+.analytics-page {
+  .analytics-header {
+    background-color: var(--primary-color);
+
+    p {
+      color: var(--muted-text-color);
+    }
+
+    button {
+      border-color: var(--border-color);
+
+      &:hover {
+        background-color: var(--surface-hover-color);
+        border-color: var(--primary-accent-color);
+      }
+    }
+  }
+
+  .filter-card,
+  .summary-card,
+  .chart-card,
+  .error-card {
+    border-color: var(--border-color);
+  }
+
+  .summary-label {
+    color: var(--muted-text-color);
+  }
+
+  .error-card {
+    color: var(--danger-color);
+    border-color: rgba(255, 120, 130, 0.28);
+  }
+
+  ::ng-deep {
+    .mat-mdc-form-field .mdc-text-field,
+    .mat-mdc-form-field .mdc-text-field--filled:not(.mat-mdc-text-field-disabled),
+    input[type='date'] {
+      background-color: var(--secondary-background-color) !important;
+    }
+
+    .mdc-floating-label,
+    .mat-mdc-input-element,
+    .mat-mdc-select-value,
+    input[type='date'] {
+      color: var(--text-color) !important;
+    }
+
+    .mdc-floating-label {
+      color: var(--muted-text-color) !important;
+    }
+
+    .mat-focused .mdc-floating-label {
+      color: var(--primary-accent-color) !important;
+    }
   }
 }

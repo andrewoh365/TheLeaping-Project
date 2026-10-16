@@ -7,12 +7,14 @@ import {
   HttpErrorResponse
 } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, throwError } from 'rxjs';
-import { catchError, switchMap } from 'rxjs/operators';
+import { Observable, of, throwError } from 'rxjs';
+import { catchError, finalize, map, shareReplay, switchMap } from 'rxjs/operators';
 import { AuthService } from '../services/auth.service';
 
 @Injectable()
 export class JwtInterceptor implements HttpInterceptor {
+  private refreshRequest$: Observable<string> | null = null;
+
   constructor(
     private authService: AuthService,
     private router: Router
@@ -27,9 +29,10 @@ export class JwtInterceptor implements HttpInterceptor {
 
     return next.handle(request).pipe(
       catchError((error: HttpErrorResponse) => {
-        // Some backends return 403 for expired/invalid JWTs.
+        // Refresh only for an unauthenticated request. A 403 means the
+        // session is known but the user is not permitted to access a route.
         if (
-          (error.status === 401 || error.status === 403)
+          error.status === 401
           && !this.isRefreshUrl(request.url)
           && !this.isExcludedUrl(request.url)
         ) {
@@ -49,19 +52,26 @@ export class JwtInterceptor implements HttpInterceptor {
   }
 
   private handleAuthError(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    return this.authService.refreshToken().pipe(
-      switchMap(() => {
-        const token = this.authService.getToken();
-        if (token) {
-          return next.handle(this.addToken(request, token));
-        }
-        this.forceReauth();
-        return throwError(() => new Error('Token refresh failed'));
-      }),
-      catchError((err) => {
-        this.forceReauth();
-        return throwError(() => err);
-      })
+    if (!this.refreshRequest$) {
+      this.refreshRequest$ = this.authService.refreshToken().pipe(
+        map(() => this.authService.getToken()),
+        switchMap(token => token
+          ? of(token)
+          : throwError(() => new Error('Token refresh failed'))
+        ),
+        catchError((err) => {
+          this.forceReauth();
+          return throwError(() => err);
+        }),
+        finalize(() => {
+          this.refreshRequest$ = null;
+        }),
+        shareReplay({ bufferSize: 1, refCount: false })
+      );
+    }
+
+    return this.refreshRequest$.pipe(
+      switchMap(token => next.handle(this.addToken(request, token)))
     );
   }
 
@@ -78,4 +88,5 @@ export class JwtInterceptor implements HttpInterceptor {
   private isRefreshUrl(url: string): boolean {
     return url.includes('/auth/refresh');
   }
+
 }

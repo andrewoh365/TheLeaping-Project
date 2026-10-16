@@ -6,7 +6,7 @@
 }
 
 body {
-  color: #fff;
+  color: var(--text-color);
 }
 
 html, body {
@@ -16,7 +16,7 @@ html, body {
 /* Material Overrides */
 ::ng-deep {
   .mat-mdc-card {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18) !important;
   }
 
   .mat-mdc-form-field {

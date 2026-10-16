@@ -2,6 +2,7 @@
 package com.leaping.portfolio_app.instrument.controller;
 
 import com.leaping.portfolio_app.instrument.dto.InstrumentDTO;
+import com.leaping.portfolio_app.instrument.dto.InstrumentDetail;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.service.InstrumentService;
 
@@ -46,12 +47,11 @@ public class InstrumentController {
      * GET /api/auth/instrument/{id}
      */
     @GetMapping("/{id}")
-    public ResponseEntity<InstrumentDTO> getInstrumentById(
+    public ResponseEntity<InstrumentDetail> getInstrumentById(
         @PathVariable Long id
     ) {
         return instrumentService
-            .getInstrumentById(id)
-            .map(InstrumentDTO::new)
+            .getInstrumentDetailById(id)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
     }
