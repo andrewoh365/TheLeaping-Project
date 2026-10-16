@@ -1,0 +1,38 @@
+<div class="tour-shade" #shadeTop></div>
+<div class="tour-shade" #shadeBottom></div>
+<div class="tour-shade" #shadeLeft></div>
+<div class="tour-shade" #shadeRight></div>
+<div class="tour-hole-blocker" #holeBlocker></div>
+
+<svg class="tour-ring" #ring aria-hidden="true">
+  <rect class="tour-ring-base" #ringBase></rect>
+  <rect class="tour-comet tour-comet--tail" #cometTail></rect>
+  <rect class="tour-comet tour-comet--body" #cometBody></rect>
+  <rect class="tour-comet tour-comet--head" #cometHead></rect>
+</svg>
+
+<div class="tour-popover" #popover role="dialog" aria-labelledby="tour-title" aria-describedby="tour-body">
+  <ng-container *ngIf="displayedStep as shown">
+    <p class="tour-progress" *ngIf="!isWelcome">Step {{ displayedIndex }} of {{ totalSteps - 1 }}</p>
+    <h2 id="tour-title">{{ shown.title }}</h2>
+    <p id="tour-body" class="tour-body">{{ body }}</p>
+
+    <div class="tour-actions" *ngIf="isWelcome; else stepActions">
+      <button type="button" class="tour-button tour-button--secondary" (click)="onSkip()">Skip for now</button>
+      <button type="button" class="tour-button tour-button--primary" (click)="onStart()">Start the tour</button>
+    </div>
+
+    <ng-template #stepActions>
+      <div class="tour-actions">
+        <button type="button" class="tour-link" (click)="onSkip()" *ngIf="!isLastStep">Skip tour</button>
+        <span class="tour-hint" *ngIf="shown.advanceOn">Use the highlighted area to continue</span>
+        <button type="button" class="tour-button tour-button--primary" *ngIf="!shown.advanceOn" (click)="onNext()">
+          {{ isLastStep ? 'Finish' : 'Next' }}
+        </button>
+      </div>
+    </ng-template>
+  </ng-container>
+</div>
+
+<!-- Blocks clicks on the page while the overlay is faded out between steps. -->
+<div class="tour-click-shield"></div>

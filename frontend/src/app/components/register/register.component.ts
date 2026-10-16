@@ -17,6 +17,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { AuthService } from '../../services/auth.service';
+import { WalkthroughService } from '../../services/walkthrough.service';
 
 @Component({
   selector: 'app-register',
@@ -48,7 +49,8 @@ export class RegisterComponent implements OnInit {
     private formBuilder: FormBuilder,
     private router: Router,
     private authService: AuthService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private walkthroughService: WalkthroughService
   ) {}
 
   ngOnInit(): void {
@@ -98,6 +100,7 @@ export class RegisterComponent implements OnInit {
 
     this.authService.register(firstName, lastName, email, password, confirmPassword, dateOfBirth, taxId).subscribe({
       next: () => {
+        this.walkthroughService.markPending();
         this.snackBar.open('Registration successful! Redirecting to dashboard...', 'Close', { duration: 3000 });
         setTimeout(() => {
           this.router.navigate(['/dashboard']);
