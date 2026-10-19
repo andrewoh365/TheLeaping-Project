@@ -199,6 +199,28 @@ class TradeOrderServiceTest {
     }
 
     @Test
+    void placeOrderBuyShouldUseRoundedSettlementForCashCheck() {
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setInstrumentId(100L);
+        request.setOrderAction("BUY");
+        request.setOrderType("MARKET");
+        request.setQuantity(new BigDecimal("1"));
+
+        portfolio.setCashBalanceUsd(new BigDecimal("100.00"));
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
+        when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
+        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.004"));
+        when(preTradeMarketService.getTradability("AAPL")).thenReturn(tradable());
+        when(tradeOrderRepository.save(any(TradeOrder.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        TradeOrder saved = tradeOrderService.placeOrder(1L, request);
+
+        assertEquals(OrderStatus.SUBMITTED, saved.getOrderStatus());
+        verify(tradeOrderRepository).save(saved);
+    }
+
+    @Test
     void placeOrderBuyShouldFailWhenCashIsInsufficient() {
         PlaceOrderRequest request = new PlaceOrderRequest();
         request.setInstrumentId(100L);

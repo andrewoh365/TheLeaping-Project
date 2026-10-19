@@ -221,7 +221,7 @@ class TradeServiceTest {
         Trade savedTrade = tradeCaptor.getValue();
         assertEquals(new BigDecimal("80.00"), savedTrade.getExecutionPrice());
         assertEquals(new BigDecimal("100.00000000"), savedTrade.getExecutionPriceUsd());
-        assertEquals(new BigDecimal("200.00000000"), savedTrade.getTotalUsdValue());
+        assertEquals(new BigDecimal("200.00"), savedTrade.getTotalUsdValue());
         assertEquals(new BigDecimal("1.25"), savedTrade.getExchangeRateToUsdAtExecution());
 
         ArgumentCaptor<Map<String, Object>> priceDetails =
@@ -352,6 +352,112 @@ class TradeServiceTest {
         assertEquals(new BigDecimal("0"), detailsCaptor.getValue().get("quantityBefore"));
         assertEquals(new BigDecimal("3"), detailsCaptor.getValue().get("quantityAfter"));
         assertEquals(new BigDecimal("11.00000000"), detailsCaptor.getValue().get("averageCostUsdAfter"));
+    }
+
+    @Test
+    void executeTradeBuyShouldRoundSettlementDownAndDebitRoundedCash() {
+        assertRoundedBuySettlement("100.004", "100.00", "-100.00");
+    }
+
+    @Test
+    void executeTradeBuyShouldRoundSettlementUpAndDebitRoundedCash() {
+        assertRoundedBuySettlement("100.005", "100.01", "-100.01");
+    }
+
+    @Test
+    void executeTradeSellShouldCreditRoundedSettlement() {
+        TradeOrder order = marketOrder(17L, OrderAction.SELL, "1");
+        Holding existing = new Holding();
+        existing.setHoldingId(517L);
+        existing.setPortfolio(portfolio);
+        existing.setInstrument(instrument);
+        existing.setQuantity(new BigDecimal("1"));
+        existing.setAverageCostUsd(new BigDecimal("90.00"));
+
+        when(pricingService.getLatestPriceBySymbol("AAPL"))
+            .thenReturn(Optional.of(price(new BigDecimal("100.005"), instrument.getPriceCurrency())));
+        when(tradeOrderRepository.findById(17L)).thenReturn(Optional.of(order));
+        when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L))
+            .thenReturn(Optional.of(existing));
+        stubTradeCashAndOrderPersistence();
+
+        tradeService.executeTrade(17L);
+
+        ArgumentCaptor<Trade> tradeCaptor = ArgumentCaptor.forClass(Trade.class);
+        verify(tradeRepository).save(tradeCaptor.capture());
+        assertEquals(new BigDecimal("100.01"), tradeCaptor.getValue().getTotalUsdValue());
+        assertEquals(new BigDecimal("1100.01"), portfolio.getCashBalanceUsd());
+
+        ArgumentCaptor<CashTransaction> cashCaptor = ArgumentCaptor.forClass(CashTransaction.class);
+        verify(cashTransactionRepository).save(cashCaptor.capture());
+        assertEquals(CashTransactionType.TRADE_SELL, cashCaptor.getValue().getTransactionType());
+        assertEquals(new BigDecimal("100.01"), cashCaptor.getValue().getAmountUsd());
+    }
+
+    @Test
+    void executeTradeShouldRejectWhenRoundedSettlementExceedsCash() {
+        portfolio.setCashBalanceUsd(new BigDecimal("100.00"));
+        TradeOrder order = marketOrder(18L, OrderAction.BUY, "1");
+
+        when(pricingService.getLatestPriceBySymbol("AAPL"))
+            .thenReturn(Optional.of(price(new BigDecimal("100.005"), instrument.getPriceCurrency())));
+        when(tradeOrderRepository.findById(18L)).thenReturn(Optional.of(order));
+        when(tradeOrderRepository.save(any(TradeOrder.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        TradeRejectedException ex = assertThrows(
+            TradeRejectedException.class,
+            () -> tradeService.executeTrade(18L)
+        );
+
+        assertEquals("Not enough cash. This order costs $100.01 and you have $100.00 available.", ex.getMessage());
+        verifyNoInteractions(tradeRepository, cashTransactionRepository);
+    }
+
+    @Test
+    void executeTradeShouldRejectSettlementThatRoundsToZero() {
+        TradeOrder order = marketOrder(19L, OrderAction.BUY, "1");
+        String expectedReason = "This order's settlement value rounds to $0.00, so it couldn't be filled.";
+
+        when(pricingService.getLatestPriceBySymbol("AAPL"))
+            .thenReturn(Optional.of(price(new BigDecimal("0.001"), instrument.getPriceCurrency())));
+        when(tradeOrderRepository.findById(19L)).thenReturn(Optional.of(order));
+        when(tradeOrderRepository.save(any(TradeOrder.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        TradeRejectedException ex = assertThrows(
+            TradeRejectedException.class,
+            () -> tradeService.executeTrade(19L)
+        );
+
+        assertEquals(expectedReason, ex.getMessage());
+        assertEquals(OrderStatus.REJECTED, order.getOrderStatus());
+        assertEquals(expectedReason, order.getRejectionReason());
+        verifyNoInteractions(tradeRepository, cashTransactionRepository, holdingRepository);
+
+        ArgumentCaptor<ExecutionAttempt> attemptCaptor =
+            ArgumentCaptor.forClass(ExecutionAttempt.class);
+        verify(executionAttemptRepository).save(attemptCaptor.capture());
+        assertEquals(ExecutionAttemptStatus.FAILED, attemptCaptor.getValue().getAttemptStatus());
+        assertEquals(expectedReason, attemptCaptor.getValue().getReason());
+        verify(auditService).recordEvent(
+            eq(AuditEventType.PRICE_CAPTURED),
+            eq(portfolio.getCustomer().getUser()),
+            eq(order),
+            eq(attemptCaptor.getValue()),
+            isNull(),
+            isNull(),
+            any(Map.class)
+        );
+        verify(auditService).recordEvent(
+            eq(AuditEventType.ORDER_REJECTED),
+            eq(portfolio.getCustomer().getUser()),
+            eq(order),
+            eq(attemptCaptor.getValue()),
+            isNull(),
+            isNull(),
+            any(Map.class)
+        );
     }
 
     @Test
@@ -612,6 +718,46 @@ class TradeServiceTest {
             PriceSourceType.API,
             "test-provider"
         );
+    }
+
+    private void assertRoundedBuySettlement(
+            String rawPrice,
+            String expectedTotal,
+            String expectedCashDebit
+    ) {
+        TradeOrder order = marketOrder(20L, OrderAction.BUY, "1");
+        when(pricingService.getLatestPriceBySymbol("AAPL"))
+            .thenReturn(Optional.of(price(new BigDecimal(rawPrice), instrument.getPriceCurrency())));
+        when(tradeOrderRepository.findById(20L)).thenReturn(Optional.of(order));
+        when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L))
+            .thenReturn(Optional.empty());
+        stubSuccessfulBuyPersistence();
+
+        tradeService.executeTrade(20L);
+
+        ArgumentCaptor<Trade> tradeCaptor = ArgumentCaptor.forClass(Trade.class);
+        verify(tradeRepository).save(tradeCaptor.capture());
+        assertEquals(new BigDecimal(expectedTotal), tradeCaptor.getValue().getTotalUsdValue());
+
+        ArgumentCaptor<CashTransaction> cashCaptor = ArgumentCaptor.forClass(CashTransaction.class);
+        verify(cashTransactionRepository).save(cashCaptor.capture());
+        assertEquals(new BigDecimal(expectedCashDebit), cashCaptor.getValue().getAmountUsd());
+    }
+
+    private void stubTradeCashAndOrderPersistence() {
+        when(tradeRepository.save(any(Trade.class))).thenAnswer(invocation -> {
+            Trade trade = invocation.getArgument(0);
+            trade.setTradeId(300L);
+            return trade;
+        });
+        when(portfolioRepository.save(any(Portfolio.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(cashTransactionRepository.save(any(CashTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private void stubSuccessfulBuyPersistence() {
+        stubTradeCashAndOrderPersistence();
+        when(holdingRepository.save(any(Holding.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     private TradeOrder marketOrder(Long orderId, OrderAction action, String quantity) {

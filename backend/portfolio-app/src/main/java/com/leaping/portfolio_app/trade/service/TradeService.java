@@ -157,7 +157,24 @@ public class TradeService {
         // 4. Re-check funds under the lock, at the actual execution price
         BigDecimal totalUsdValue = quote.usdPrice()
             .multiply(order.getQuantity())
-            .setScale(8, RoundingMode.HALF_UP);
+            .setScale(2, RoundingMode.HALF_UP);
+        if (totalUsdValue.compareTo(BigDecimal.ZERO) == 0) {
+            String reason = "This order's settlement value rounds to $0.00, so it couldn't be filled.";
+            ExecutionAttempt failedAttempt = createExecutionAttempt(
+                order,
+                quote,
+                ExecutionAttemptStatus.FAILED,
+                reason
+            );
+            recordPriceAudit(
+                AuditEventType.PRICE_CAPTURED,
+                order,
+                failedAttempt,
+                quote,
+                reason
+            );
+            throw reject(order, reason, failedAttempt);
+        }
         if (OrderAction.BUY.equals(order.getOrderAction())) {
             if (portfolio.getCashBalanceUsd().compareTo(totalUsdValue) < 0) {
                 String reason = String.format(
@@ -222,7 +239,7 @@ public class TradeService {
             quote,
             null
         );
-        Trade trade = createTrade(order, attempt, quote);
+        Trade trade = createTrade(order, attempt, quote, totalUsdValue);
 
         // 6. Update holdings and cash
         updateHoldings(order, trade);
@@ -295,7 +312,8 @@ public class TradeService {
     private Trade createTrade(
             TradeOrder order,
             ExecutionAttempt attempt,
-            QuoteSnapshot quote
+            QuoteSnapshot quote,
+            BigDecimal totalUsdValue
     ) {
         Trade trade = new Trade();
         trade.setOrder(order);
@@ -305,10 +323,6 @@ public class TradeService {
         trade.setExecutionPriceCurrency(quote.currency());
         trade.setExchangeRateToUsdAtExecution(quote.exchangeRateToUsd());
         
-        // Calculate total USD value
-        BigDecimal totalUsdValue = quote.usdPrice()
-            .multiply(order.getQuantity())
-            .setScale(8, RoundingMode.HALF_UP);
         trade.setExecutionPriceUsd(quote.usdPrice());
         trade.setTotalUsdValue(totalUsdValue);
         trade.setExecutedAt(OffsetDateTime.now());
@@ -407,7 +421,12 @@ public class TradeService {
             newHolding.setPortfolio(portfolio);
             newHolding.setInstrument(instrument);
             newHolding.setQuantity(trade.getQuantity());
-            newHolding.setAverageCostUsd(trade.getExecutionPriceUsd());
+            // The eight-decimal stored cost can differ from the settlement total by a tiny
+            // amount when it is multiplied by a fractional quantity.
+            newHolding.setAverageCostUsd(
+                trade.getTotalUsdValue()
+                    .divide(trade.getQuantity(), 8, RoundingMode.HALF_UP)
+            );
             newHolding.setUpdatedAt(OffsetDateTime.now());
 
             Holding savedHolding = holdingRepository.save(newHolding);
@@ -441,7 +460,7 @@ public class TradeService {
         BigDecimal transactionAmount;
         BigDecimal balanceAfter;
         BigDecimal cashValue = trade.getTotalUsdValue()
-            .setScale(2, RoundingMode.HALF_UP);
+            .setScale(2, RoundingMode.UNNECESSARY);
 
         if (OrderAction.BUY.equals(order.getOrderAction())) {
             // BUY: Negative impact on cash (spending money)

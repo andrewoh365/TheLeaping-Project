@@ -288,7 +288,8 @@ public class TradeOrderService {
             if (price == null || price.compareTo(BigDecimal.ZERO) <= 0) {
                 return String.format("We don't have a current price for %s, so it can't be traded right now.", symbol);
             }
-            BigDecimal required = price.multiply(quantity);
+            BigDecimal required = price.multiply(quantity)
+                .setScale(2, RoundingMode.HALF_UP);
             if (cash.compareTo(required) < 0) {
                 return String.format(
                     "Not enough cash. This order costs about %s and you have %s available.",
