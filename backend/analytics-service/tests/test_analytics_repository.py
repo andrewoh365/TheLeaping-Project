@@ -2,7 +2,7 @@ from datetime import date
 
 import app.repositories.analytics_repository as repository
 from app.schemas.dashboard import TimeGrouping
-from app.schemas.filters import DashboardFilters
+from app.schemas.filters import ClientSegment, DashboardFilters
 
 
 class _Result:
@@ -90,3 +90,96 @@ def test_ranked_analytics_lists_are_limited_in_database(monkeypatch):
 
     assert "LIMIT :result_limit" in engine.connection.query
     assert engine.connection.params["result_limit"] == 5
+
+
+def test_client_segment_breakdown_uses_unfiltered_segments_and_report_filters(
+    monkeypatch,
+):
+    engine = _Engine([])
+    monkeypatch.setattr(repository, "engine", engine)
+
+    filters = DashboardFilters(
+        date_from=date(2026, 9, 1),
+        date_to=date(2026, 9, 30),
+        client_segment=ClientSegment.REGULAR,
+    )
+
+    repository.get_client_segment_breakdown(filters)
+
+    query = engine.connection.query
+    params = engine.connection.params
+
+    assert "LEFT JOIN trade_orders segment_orders" in query
+    assert "COUNT(DISTINCT p.customer_id) AS active_clients" in query
+    assert "COUNT(o.order_id) AS order_count" in query
+    assert "SUM(t.total_usd_value)" in query
+    assert "o.submitted_at >= :date_from" in query
+    assert "o.submitted_at < (:date_to + INTERVAL '1 day')" in query
+    assert "t.executed_at >= :date_from" in query
+    assert "t.executed_at < (:date_to + INTERVAL '1 day')" in query
+    assert "('INACTIVE')" in query
+    assert "('FREQUENT')" in query
+    assert "COALESCE(segment_populations.total_clients, 0)" in query
+    assert "COALESCE(order_metrics.order_count, 0)" in query
+    assert "COALESCE(volume_metrics.trading_volume_usd, 0)" in query
+    assert "client_segments.client_segment = :client_segment" not in query
+    assert "segment_values.segment = :client_segment" in query
+
+    assert params["segment_start"] == date(2026, 7, 3)
+    assert params["segment_end"] == date(2026, 9, 30)
+    assert params["client_segment"] == "REGULAR"
+
+
+def test_client_segment_breakdown_returns_all_segments_without_selection(
+    monkeypatch,
+):
+    engine = _Engine(
+        [
+            {
+                "segment": "INACTIVE",
+                "total_clients": 2,
+                "active_clients": 0,
+                "order_count": 0,
+                "trading_volume_usd": 0,
+            },
+            {
+                "segment": "OCCASIONAL",
+                "total_clients": 0,
+                "active_clients": 0,
+                "order_count": 0,
+                "trading_volume_usd": 0,
+            },
+            {
+                "segment": "REGULAR",
+                "total_clients": 0,
+                "active_clients": 0,
+                "order_count": 0,
+                "trading_volume_usd": 0,
+            },
+            {
+                "segment": "FREQUENT",
+                "total_clients": 1,
+                "active_clients": 1,
+                "order_count": 22,
+                "trading_volume_usd": 2000,
+            },
+        ]
+    )
+    monkeypatch.setattr(repository, "engine", engine)
+
+    rows = repository.get_client_segment_breakdown(_filters())
+
+    assert [row["segment"] for row in rows] == [
+        "INACTIVE",
+        "OCCASIONAL",
+        "REGULAR",
+        "FREQUENT",
+    ]
+    assert rows[1]["total_clients"] == 0
+    assert rows[1]["active_clients"] == 0
+    assert rows[1]["order_count"] == 0
+    assert rows[1]["trading_volume_usd"] == 0
+    assert "segment_values.segment = :client_segment" not in (
+        engine.connection.query
+    )
+    assert "client_segment" not in engine.connection.params

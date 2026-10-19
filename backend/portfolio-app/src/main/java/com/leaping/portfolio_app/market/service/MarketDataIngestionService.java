@@ -56,6 +56,9 @@ public class MarketDataIngestionService {
     @Value("${market.pricing.history-days:30}")
     private int historyDays;
 
+    @Value("${market.pricing.startup-backfill-enabled:true}")
+    private boolean startupBackfillEnabled = true;
+
     @Value("${market.universe.csv-path:classpath:data/mock_instrument_universe.csv}")
     private String universeCsvPath;
 
@@ -87,6 +90,15 @@ public class MarketDataIngestionService {
     }
 
     @EventListener(ApplicationReadyEvent.class)
+    @Transactional
+    public void initialBackfillOnStartup() {
+        if (!startupBackfillEnabled) {
+            return;
+        }
+
+        initialBackfill();
+    }
+
     @Transactional
     public void initialBackfill() {
         List<UniverseRow> universe = loadUniverseRows();

@@ -5,7 +5,7 @@ import pytest
 
 import app.services.dashboard_service as service
 from app.schemas.dashboard import TimeGrouping
-from app.schemas.filters import DashboardFilters
+from app.schemas.filters import ClientSegment, DashboardFilters
 
 
 def test_default_date_range_is_90_days():
@@ -179,6 +179,41 @@ def test_build_dashboard(monkeypatch):
         ],
     )
 
+    monkeypatch.setattr(
+        service,
+        "get_client_segment_breakdown",
+        lambda filters: [
+            {
+                "segment": "INACTIVE",
+                "total_clients": 4,
+                "active_clients": 0,
+                "order_count": 0,
+                "trading_volume_usd": Decimal("0"),
+            },
+            {
+                "segment": "OCCASIONAL",
+                "total_clients": 3,
+                "active_clients": 2,
+                "order_count": 5,
+                "trading_volume_usd": Decimal("100.256"),
+            },
+            {
+                "segment": "REGULAR",
+                "total_clients": 2,
+                "active_clients": 1,
+                "order_count": 12,
+                "trading_volume_usd": Decimal("500.50"),
+            },
+            {
+                "segment": "FREQUENT",
+                "total_clients": 1,
+                "active_clients": 1,
+                "order_count": 25,
+                "trading_volume_usd": Decimal("1000.75"),
+            },
+        ],
+    )
+
     filters = DashboardFilters(
         date_from=date(2026, 9, 1),
         date_to=date(2026, 9, 30),
@@ -238,3 +273,11 @@ def test_build_dashboard(monkeypatch):
     assert len(
         dashboard.top_rejection_reasons
     ) == 5
+
+    assert len(dashboard.client_segment_breakdown) == 4
+    occasional = dashboard.client_segment_breakdown[1]
+    assert occasional.segment == ClientSegment.OCCASIONAL
+    assert occasional.total_clients == 3
+    assert occasional.active_clients == 2
+    assert occasional.order_count == 5
+    assert occasional.trading_volume_usd == 100.26
