@@ -3,7 +3,7 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatButtonModule } from '@angular/material/button';
 import { CommonModule } from '@angular/common';
 import { Chart, ChartOptions, registerables } from 'chart.js';
-import { InstrumentDetail, InstrumentService, PricePointDto } from '../../services/instrumentService';
+import { InstrumentDetail, InstrumentService, PricePointDto } from '../../services/instrument.service';
 import { ChartConfig } from '../../models/chart.model';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';

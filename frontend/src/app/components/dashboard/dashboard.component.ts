@@ -14,7 +14,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { Subject, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
-import { InstrumentService, Instrument } from '../../services/instrumentService';
+import { InstrumentService, Instrument } from '../../services/instrument.service';
 import {
   MarketMover,
   MarketMovers,

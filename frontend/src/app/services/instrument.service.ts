@@ -68,7 +68,7 @@ export class InstrumentService {
 
   getPriceHistory(symbol: string, from: string, to: string): Observable<PricePointDto[]> {
     return this.http.get<PricePointDto[]>(
-      'http://localhost:8080/api/market/instruments/price/history',
+      '/api/market/instruments/price/history',
       {
         params: { symbol, from, to }
       }
