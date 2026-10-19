@@ -24,6 +24,13 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
+/**
+ * A client's order and the firm's permanent record of it (BR-14).
+ *
+ * The order terms (who, what, side, type, quantity, price, when submitted) are written
+ * once and never updated. Only the lifecycle fields change, and only through the
+ * transitions OrderStatus allows; see accept/fill/reject/cancel.
+ */
 @Entity
 @Table(name = "trade_orders")
 public class TradeOrder {
@@ -34,19 +41,19 @@ public class TradeOrder {
     private Long orderId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "portfolio_id", nullable = false)
+    @JoinColumn(name = "portfolio_id", nullable = false, updatable = false)
     private Portfolio portfolio;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "instrument_id", nullable = false)
+    @JoinColumn(name = "instrument_id", nullable = false, updatable = false)
     private Instrument instrument;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "order_action", nullable = false, length = 10)
+    @Column(name = "order_action", nullable = false, updatable = false, length = 10)
     private OrderAction orderAction;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "order_type", nullable = false, length = 10)
+    @Column(name = "order_type", nullable = false, updatable = false, length = 10)
     private OrderType orderType;
 
     @Enumerated(EnumType.STRING)
@@ -54,12 +61,13 @@ public class TradeOrder {
     private OrderStatus orderStatus;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "time_in_force", nullable = false, length = 10)
+    @Column(name = "time_in_force", nullable = false, updatable = false, length = 10)
     private TimeInForce timeInForce;
 
     @Column(
         name = "quantity",
         nullable = false,
+        updatable = false,
         precision = 30,
         scale = 10
     )
@@ -67,12 +75,22 @@ public class TradeOrder {
 
     @Column(
         name = "limit_price",
+        updatable = false,
         precision = 20,
         scale = 8
     )
     private BigDecimal limitPriceUsd;
 
-    @Column(name = "submitted_at", nullable = false)
+    /** Price quoted when the order was submitted (ask for BUY, bid for SELL): what the pre-trade checks used. */
+    @Column(
+        name = "reference_price_usd",
+        updatable = false,
+        precision = 20,
+        scale = 8
+    )
+    private BigDecimal referencePriceUsd;
+
+    @Column(name = "submitted_at", nullable = false, updatable = false)
     private OffsetDateTime submittedAt;
 
     @Column(name = "accepted_at")
@@ -137,6 +155,36 @@ public class TradeOrder {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = OffsetDateTime.now();
+    }
+
+    /** Passed pre-trade checks: record the firm commitment to execute. */
+    public void accept() {
+        transitionTo(OrderStatus.ACCEPTED);
+        acceptedAt = OffsetDateTime.now();
+    }
+
+    public void fill() {
+        transitionTo(OrderStatus.FILLED);
+        filledAt = OffsetDateTime.now();
+    }
+
+    public void reject(String reason) {
+        transitionTo(OrderStatus.REJECTED);
+        rejectedAt = OffsetDateTime.now();
+        rejectionReason = reason;
+    }
+
+    public void cancel() {
+        transitionTo(OrderStatus.CANCELLED);
+        cancelledAt = OffsetDateTime.now();
+    }
+
+    private void transitionTo(OrderStatus next) {
+        if (!orderStatus.canTransitionTo(next)) {
+            throw new IllegalStateException(
+                String.format("Order %s cannot move from %s to %s", orderId, orderStatus, next));
+        }
+        orderStatus = next;
     }
 
     public Long getOrderId() {
@@ -209,6 +257,14 @@ public class TradeOrder {
 
     public void setLimitPriceUsd(BigDecimal limitPriceUsd) {
         this.limitPriceUsd = limitPriceUsd;
+    }
+
+    public BigDecimal getReferencePriceUsd() {
+        return referencePriceUsd;
+    }
+
+    public void setReferencePriceUsd(BigDecimal referencePriceUsd) {
+        this.referencePriceUsd = referencePriceUsd;
     }
 
     public OffsetDateTime getSubmittedAt() {

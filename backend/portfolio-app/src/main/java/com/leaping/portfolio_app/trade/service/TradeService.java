@@ -8,12 +8,19 @@ import java.util.Optional;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.leaping.portfolio_app.instrument.entity.Instrument;
+import com.leaping.portfolio_app.market.dto.TradabilityDto;
 import com.leaping.portfolio_app.market.enums.PriceSourceType;
+import com.leaping.portfolio_app.market.enums.TradabilityReason;
+import com.leaping.portfolio_app.market.service.BidAskQuote;
 import com.leaping.portfolio_app.market.service.MarketPriceService;
+import com.leaping.portfolio_app.market.service.PreTradeMarketService;
 import com.leaping.portfolio_app.holdings.Holding;
 import com.leaping.portfolio_app.holdings.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.entity.CashTransaction;
@@ -28,16 +35,19 @@ import com.leaping.portfolio_app.trade.entity.TradeOrder;
 import com.leaping.portfolio_app.trade.enums.ExecutionAttemptStatus;
 import com.leaping.portfolio_app.trade.enums.OrderAction;
 import com.leaping.portfolio_app.trade.enums.OrderStatus;
+import com.leaping.portfolio_app.trade.enums.OrderType;
+import com.leaping.portfolio_app.trade.exception.OrderNotExecutableException;
 import com.leaping.portfolio_app.trade.exception.TradeRejectedException;
 import com.leaping.portfolio_app.trade.repository.ExecutionAttemptRepository;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
 import com.leaping.portfolio_app.trade.repository.TradeRepository;
 
 /**
- * TradeService handles trade execution and settlement.
+ * TradeService handles trade execution and settlement of accepted orders.
+ * It is called by OrderExecutionWorker after the acceptance has committed.
  * 
  * Responsibilities:
- * - Execute orders with current market prices
+ * - Execute accepted orders with current market prices
  * - Create Trade and ExecutionAttempt records
  * - Update customer holdings
  * - Update cash balance
@@ -47,6 +57,8 @@ import com.leaping.portfolio_app.trade.repository.TradeRepository;
 @Service
 @Transactional
 public class TradeService {
+    private static final Logger log = LoggerFactory.getLogger(TradeService.class);
+
     private final TradeRepository tradeRepository;
     private final TradeOrderRepository tradeOrderRepository;
     private final ExecutionAttemptRepository executionAttemptRepository;
@@ -54,7 +66,12 @@ public class TradeService {
     private final HoldingRepository holdingRepository;
     private final CashTransactionRepository cashTransactionRepository;
     private final MarketPriceService priceService;
+    private final PreTradeMarketService preTradeMarketService;
     private final EntityManager entityManager;
+
+    /** Same switch as TradeOrderService: re-check market hours and price freshness at fill time. */
+    @Value("${trading.enforce-tradability:true}")
+    private boolean enforceTradability = true;
 
     public TradeService(
             TradeRepository tradeRepository,
@@ -64,6 +81,7 @@ public class TradeService {
             HoldingRepository holdingRepository,
             CashTransactionRepository cashTransactionRepository,
             MarketPriceService priceService,
+            PreTradeMarketService preTradeMarketService,
             EntityManager entityManager
     ) {
         this.tradeRepository = tradeRepository;
@@ -73,16 +91,17 @@ public class TradeService {
         this.holdingRepository = holdingRepository;
         this.cashTransactionRepository = cashTransactionRepository;
         this.priceService = priceService;
+        this.preTradeMarketService = preTradeMarketService;
         this.entityManager = entityManager;
     }
 
     /**
-     * Execute a submitted order.
+     * Execute an accepted order.
      *
      * Workflow:
-     * 1. Lock the order and validate it is in SUBMITTED status
+     * 1. Lock the order and check it is ACCEPTED (still awaiting execution)
      * 2. Lock the portfolio so concurrent orders on it are serialised
-     * 3. Get current market price
+     * 3. Check the market is still open, then price the fill at the ask (BUY) or bid (SELL)
      * 4. Re-check cash (BUY) or holding (SELL) against the execution price
      * 5. Create ExecutionAttempt and Trade records
      * 6. Update holdings and cash balance
@@ -91,12 +110,13 @@ public class TradeService {
      * All rejection checks run before anything is written, so a rejection never
      * leaves a partial fill behind. Rejections throw TradeRejectedException, which
      * does not roll back, so the REJECTED status and reason are persisted.
-     * Any other failure rolls back entirely and leaves the order SUBMITTED.
+     * Any other failure rolls back entirely and leaves the order ACCEPTED, so it can be retried;
+     * the caller records the failed attempt with recordFailedAttempt.
      *
      * @param orderId The order to execute
      * @return Trade confirmation details
      * @throws TradeRejectedException if the order was rejected (and recorded as such)
-     * @throws IllegalArgumentException if the order cannot be executed
+     * @throws OrderNotExecutableException if the order is no longer awaiting execution
      */
     @Transactional(noRollbackFor = TradeRejectedException.class)
     public TradeConfirmationResponse executeTrade(Long orderId) {
@@ -108,9 +128,15 @@ public class TradeService {
             .orElseThrow(() -> new IllegalArgumentException("Order not found"));
         entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
 
-        if (!OrderStatus.SUBMITTED.equals(order.getOrderStatus())) {
-            throw new IllegalArgumentException(
+        if (!OrderStatus.ACCEPTED.equals(order.getOrderStatus())) {
+            throw new OrderNotExecutableException(
                 String.format("Order cannot be executed in %s status", order.getOrderStatus())
+            );
+        }
+        // Filling a limit order at market would ignore the client's price (limit execution is future work)
+        if (!OrderType.MARKET.equals(order.getOrderType())) {
+            throw new OrderNotExecutableException(
+                String.format("%s orders are not executed at market", order.getOrderType())
             );
         }
 
@@ -121,15 +147,28 @@ public class TradeService {
 
         Instrument instrument = order.getInstrument();
 
-        // 3. Get current price
-        BigDecimal currentPrice = priceService.getCurrentPrice(instrument.getSymbol());
-        if (currentPrice == null || currentPrice.compareTo(BigDecimal.ZERO) <= 0) {
+        // 3. The market may have closed, or the price gone stale, since the order was accepted
+        if (enforceTradability) {
+            TradabilityDto tradability = preTradeMarketService.getTradability(instrument.getSymbol());
+            if (!tradability.isTradable()) {
+                throw reject(order, tradability.getReason() == TradabilityReason.MARKET_CLOSED
+                    ? "The market closed before your order could be filled."
+                    : String.format("We don't have an up-to-date price for %s, so the order couldn't be filled.",
+                        instrument.getSymbol()));
+            }
+        }
+
+        // Price the fill: buys pay the ask, sells receive the bid
+        BidAskQuote quote = BidAskQuote.fromMid(
+            priceService.getCurrentPrice(instrument.getSymbol()), instrument.getInstrumentType());
+        if (quote == null) {
             throw reject(order, String.format(
                 "We don't have a current price for %s, so the order couldn't be filled.", instrument.getSymbol()));
         }
+        BigDecimal executionPrice = quote.priceFor(OrderAction.BUY.equals(order.getOrderAction()));
 
         // 4. Re-check funds under the lock, at the actual execution price
-        BigDecimal totalUsdValue = currentPrice.multiply(order.getQuantity());
+        BigDecimal totalUsdValue = executionPrice.multiply(order.getQuantity());
         if (OrderAction.BUY.equals(order.getOrderAction())) {
             if (portfolio.getCashBalanceUsd().compareTo(totalUsdValue) < 0) {
                 throw reject(order, String.format(
@@ -152,19 +191,47 @@ public class TradeService {
         }
 
         // 5. Create ExecutionAttempt and Trade records
-        ExecutionAttempt attempt = createExecutionAttempt(order, currentPrice);
-        Trade trade = createTrade(order, attempt, currentPrice);
+        ExecutionAttempt attempt = createExecutionAttempt(order, executionPrice);
+        Trade trade = createTrade(order, attempt, executionPrice);
 
         // 6. Update holdings and cash
         updateHoldings(order, trade);
         updateCashBalance(portfolio, order, trade);
 
         // 7. Update order status to FILLED
-        order.setOrderStatus(OrderStatus.FILLED);
-        order.setFilledAt(OffsetDateTime.now());
+        order.fill();
         tradeOrderRepository.save(order);
 
         return mapToTradeConfirmation(trade, order);
+    }
+
+    /**
+     * Record an execution attempt that failed for a technical reason (executeTrade rolled back).
+     * The order stays ACCEPTED so it can be retried; once maxAttempts have failed it is
+     * rejected, so a client is never left with an order that silently never executes.
+     *
+     * @return true if the order was rejected because it ran out of attempts
+     */
+    public boolean recordFailedAttempt(Long orderId, String reason, int maxAttempts) {
+        TradeOrder order = tradeOrderRepository.findById(orderId)
+            .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+        entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
+        if (!OrderStatus.ACCEPTED.equals(order.getOrderStatus())) {
+            return false;
+        }
+
+        int attemptNumber = (int) executionAttemptRepository.countByOrderOrderId(orderId) + 1;
+        ExecutionAttempt attempt = new ExecutionAttempt(order, attemptNumber, ExecutionAttemptStatus.FAILED);
+        attempt.setReason(reason);
+        executionAttemptRepository.save(attempt);
+
+        if (attemptNumber < maxAttempts) {
+            return false;
+        }
+        log.warn("Order {} rejected after {} failed execution attempts", orderId, attemptNumber);
+        order.reject("We couldn't complete your order. No money has been taken and your holdings are unchanged.");
+        tradeOrderRepository.save(order);
+        return true;
     }
 
     /**
@@ -173,7 +240,7 @@ public class TradeService {
     private ExecutionAttempt createExecutionAttempt(TradeOrder order, BigDecimal currentPrice) {
         ExecutionAttempt attempt = new ExecutionAttempt();
         attempt.setOrder(order);
-        attempt.setAttemptNumber(1);
+        attempt.setAttemptNumber((int) executionAttemptRepository.countByOrderOrderId(order.getOrderId()) + 1);
         attempt.setQuotedPrice(currentPrice);
         attempt.setPriceCurrency(order.getInstrument().getPriceCurrency());
         attempt.setExchangeRateToUsd(BigDecimal.ONE);  // Assuming prices are in USD
@@ -336,9 +403,7 @@ public class TradeService {
      * The caller must throw it so the transaction commits the rejection.
      */
     private TradeRejectedException reject(TradeOrder order, String reason) {
-        order.setOrderStatus(OrderStatus.REJECTED);
-        order.setRejectedAt(OffsetDateTime.now());
-        order.setRejectionReason(reason);
+        order.reject(reason);
         tradeOrderRepository.save(order);
         return new TradeRejectedException(reason);
     }

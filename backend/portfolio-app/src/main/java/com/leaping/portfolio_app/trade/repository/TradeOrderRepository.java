@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,6 +24,24 @@ public interface TradeOrderRepository extends JpaRepository<TradeOrder, Long> {
     Page<TradeOrder> findByPortfolio_Customer_UserIdOrderBySubmittedAtDescOrderIdDesc(
             Long userId,
             Pageable pageable
+    );
+
+    /**
+     * Accepted market orders whose execution has not completed, accepted within the window.
+     * Orders accepted before {@code acceptedAfter} are left alone: a market order should not
+     * fill at a price long after the client placed it.
+     */
+    @Query("""
+            SELECT o.orderId FROM TradeOrder o
+            WHERE o.orderStatus = com.leaping.portfolio_app.trade.enums.OrderStatus.ACCEPTED
+              AND o.orderType = com.leaping.portfolio_app.trade.enums.OrderType.MARKET
+              AND o.acceptedAt > :acceptedAfter
+              AND o.acceptedAt < :acceptedBefore
+            ORDER BY o.acceptedAt
+            """)
+    List<Long> findStalledMarketOrderIds(
+            @Param("acceptedAfter") OffsetDateTime acceptedAfter,
+            @Param("acceptedBefore") OffsetDateTime acceptedBefore
     );
 
     @Query(value = """

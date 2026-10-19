@@ -33,8 +33,15 @@ public class OrderResponse {
     @JsonProperty("limit_price")
     private BigDecimal limitPrice;
 
+    /** Price (USD) quoted when the order was submitted: ask for BUY, bid for SELL */
+    @JsonProperty("reference_price")
+    private BigDecimal referencePrice;
+
     @JsonProperty("submitted_at")
     private OffsetDateTime submittedAt;
+
+    @JsonProperty("accepted_at")
+    private OffsetDateTime acceptedAt;
 
     @JsonProperty("filled_at")
     private OffsetDateTime filledAt;
@@ -44,6 +51,9 @@ public class OrderResponse {
 
     @JsonProperty("rejection_reason")
     private String rejectionReason;
+
+    @JsonProperty("cancelled_at")
+    private OffsetDateTime cancelledAt;
 
     @JsonProperty("time_in_force")
     private String timeInForce;
@@ -125,12 +135,36 @@ public class OrderResponse {
         this.limitPrice = limitPrice;
     }
 
+    public BigDecimal getReferencePrice() {
+        return referencePrice;
+    }
+
+    public void setReferencePrice(BigDecimal referencePrice) {
+        this.referencePrice = referencePrice;
+    }
+
     public OffsetDateTime getSubmittedAt() {
         return submittedAt;
     }
 
     public void setSubmittedAt(OffsetDateTime submittedAt) {
         this.submittedAt = submittedAt;
+    }
+
+    public OffsetDateTime getAcceptedAt() {
+        return acceptedAt;
+    }
+
+    public void setAcceptedAt(OffsetDateTime acceptedAt) {
+        this.acceptedAt = acceptedAt;
+    }
+
+    public OffsetDateTime getCancelledAt() {
+        return cancelledAt;
+    }
+
+    public void setCancelledAt(OffsetDateTime cancelledAt) {
+        this.cancelledAt = cancelledAt;
     }
 
     public OffsetDateTime getFilledAt() {

@@ -6,9 +6,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.time.OffsetDateTime;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -21,6 +24,7 @@ import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import com.leaping.portfolio_app.market.dto.TradabilityDto;
 import com.leaping.portfolio_app.market.entity.Market;
 import com.leaping.portfolio_app.market.enums.TradabilityReason;
+import com.leaping.portfolio_app.market.service.BidAskQuote;
 import com.leaping.portfolio_app.market.service.PreTradeMarketService;
 import com.leaping.portfolio_app.market.service.MarketPriceService;
 import com.leaping.portfolio_app.holdings.Holding;
@@ -34,7 +38,6 @@ import com.leaping.portfolio_app.trade.dto.PlaceOrderRequest;
 import com.leaping.portfolio_app.trade.entity.Trade;
 import com.leaping.portfolio_app.trade.entity.TradeOrder;
 import com.leaping.portfolio_app.trade.enums.OrderAction;
-import com.leaping.portfolio_app.trade.enums.OrderStatus;
 import com.leaping.portfolio_app.trade.enums.OrderType;
 import com.leaping.portfolio_app.trade.enums.TimeInForce;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
@@ -59,6 +62,8 @@ public class TradeOrderService {
     private final MarketPriceService priceService;
     private final PreTradeMarketService preTradeMarketService;
     private final TradeRepository tradeRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final EntityManager entityManager;
 
     /**
      * Enforce market hours and price freshness when accepting orders (BR-05).
@@ -75,7 +80,9 @@ public class TradeOrderService {
             HoldingRepository holdingRepository,
             MarketPriceService priceService,
             PreTradeMarketService preTradeMarketService,
-            TradeRepository tradeRepository
+            TradeRepository tradeRepository,
+            ApplicationEventPublisher eventPublisher,
+            EntityManager entityManager
     ) {
         this.tradeOrderRepository = tradeOrderRepository;
         this.portfolioRepository = portfolioRepository;
@@ -84,18 +91,26 @@ public class TradeOrderService {
         this.priceService = priceService;
         this.preTradeMarketService = preTradeMarketService;
         this.tradeRepository = tradeRepository;
+        this.eventPublisher = eventPublisher;
+        this.entityManager = entityManager;
     }
 
     /**
      * Place a new order on behalf of a customer.
-     * 
-     * Validates order before creation. If validation fails, throws exception.
-     * Creates order in SUBMITTED status and returns it.
-     * 
+     *
+     * Lifecycle, all recorded in the permanent record (BR-14):
+     * 1. The order is recorded as SUBMITTED as soon as it is received.
+     * 2. It is checked against the firm's trading rules (BR-05).
+     * 3. If it fails, it is REJECTED with a client-readable reason.
+     *    If it passes, it is ACCEPTED: a firm commitment to execute.
+     *
+     * Execution is not attempted here. Once this transaction commits, OrderExecutionWorker
+     * executes accepted orders asynchronously, so the acceptance is always persisted first.
+     *
      * @param customerId The customer placing the order (identified by User ID)
-     * @param request The order request with symbol, quantity, and price
-     * @return The created TradeOrder entity
-     * @throws IllegalArgumentException if validation fails
+     * @param request The order request with instrument, side, type and quantity
+     * @return The order, ACCEPTED or REJECTED (see its rejection reason)
+     * @throws IllegalArgumentException if the request is malformed; nothing is recorded
      */
     public TradeOrder placeOrder(Long customerId, PlaceOrderRequest request) {
         // 1. Load portfolio for customer
@@ -106,10 +121,10 @@ public class TradeOrderService {
         Instrument instrument = instrumentRepository.findById(request.getInstrumentId())
             .orElseThrow(() -> new IllegalArgumentException("Instrument not found"));
 
-        // 3. Validate order
-        validateOrder(request, portfolio, instrument);
+        // 3. Check the request is a well-formed order
+        validateOrderTerms(request);
 
-        // 4. Create and persist order
+        // 4. Record the order as received, with the price quoted at submission
         TradeOrder order = new TradeOrder(
             portfolio,
             instrument,
@@ -119,31 +134,38 @@ public class TradeOrderService {
             request.getQuantity(),
             request.getLimitPrice()
         );
+        order.setReferencePriceUsd(quotedPrice(instrument, order.getOrderAction()));
+        order = tradeOrderRepository.save(order);
 
-        return tradeOrderRepository.save(order);
+        // 5. Pre-trade checks: reject, or accept as a firm commitment
+        String issue = findPreTradeIssue(order, portfolio, instrument);
+        if (issue != null) {
+            order.reject(issue);
+            return tradeOrderRepository.save(order);
+        }
+        order.accept();
+        order = tradeOrderRepository.save(order);
+        // Market orders execute straight away; limit orders rest until their price is reached
+        if (OrderType.MARKET.equals(order.getOrderType())) {
+            eventPublisher.publishEvent(new OrderAcceptedEvent(order.getOrderId()));
+        }
+        return order;
     }
 
     /**
-     * Validate an order request against the firm's trading rules (BR-05).
-     * 
-     * Checks:
-     * - Order action/type are present and quantity is positive
-     * - For LIMIT orders: limit price is specified and positive
-     * - Instrument is currently tradable (active, market open, fresh price)
-     * - For BUY orders: customer has sufficient cash
-     * - For SELL orders: customer holds enough of the instrument
-     * 
-     * @param request The order request to validate
-     * @param portfolio The customer's portfolio
-     * @param instrument The instrument being traded
-     * @throws IllegalArgumentException with a client-readable reason if any check fails
+     * Structural checks on the request. A request that fails these is not an order at all,
+     * so it is refused without being recorded.
+     *
+     * @throws IllegalArgumentException with a client-readable reason
      */
-    private void validateOrder(PlaceOrderRequest request, Portfolio portfolio, Instrument instrument) {
+    private void validateOrderTerms(PlaceOrderRequest request) {
         if (request.getOrderAction() == null || request.getOrderType() == null) {
             throw new IllegalArgumentException("Order action and order type are required");
         }
+        if (request.getQuantity() == null || request.getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Enter a quantity greater than zero.");
+        }
 
-        // Order type and limit price validation
         OrderType orderType = OrderType.valueOf(request.getOrderType().toUpperCase());
         if (OrderType.LIMIT.equals(orderType)) {
             if (request.getLimitPrice() == null) {
@@ -153,25 +175,33 @@ public class TradeOrderService {
                 throw new IllegalArgumentException("Limit price must be positive");
             }
         }
+    }
 
-        OrderAction action = OrderAction.valueOf(request.getOrderAction().toUpperCase());
-        // BUY cash check uses the limit price if given, otherwise the current market price
-        BigDecimal price = request.getLimitPrice() != null
-            ? request.getLimitPrice()
-            : priceService.getCurrentPrice(instrument.getSymbol());
+    /**
+     * Check a recorded order against the firm's trading rules (BR-05).
+     *
+     * Checks:
+     * - Instrument is currently tradable (active, market open, fresh price)
+     * - For BUY orders: customer has sufficient cash
+     * - For SELL orders: customer holds enough of the instrument
+     *
+     * @return a client-readable reason the order must be rejected, or null to accept it
+     */
+    private String findPreTradeIssue(TradeOrder order, Portfolio portfolio, Instrument instrument) {
+        // BUY cash check uses the limit price if given, otherwise the ask quoted at submission
+        BigDecimal price = order.getLimitPriceUsd() != null
+            ? order.getLimitPriceUsd()
+            : order.getReferencePriceUsd();
 
-        String issue = findBlockingIssue(
+        return findBlockingIssue(
             instrument,
-            action,
-            request.getQuantity(),
+            order.getOrderAction(),
+            order.getQuantity(),
             price,
             portfolio.getCashBalanceUsd(),
             getQuantityOwned(portfolio, instrument),
             enforceTradability ? preTradeMarketService.getTradability(instrument.getSymbol()) : null
         );
-        if (issue != null) {
-            throw new IllegalArgumentException(issue);
-        }
     }
 
     /**
@@ -193,7 +223,9 @@ public class TradeOrderService {
             .orElseThrow(() -> new IllegalArgumentException("Instrument not found"));
         OrderAction action = OrderAction.valueOf(orderAction.toUpperCase());
 
-        BigDecimal price = priceService.getCurrentPrice(instrument.getSymbol());
+        BidAskQuote quote = currentQuote(instrument);
+        // Buyers are quoted the ask and sellers the bid: the side the order will fill at
+        BigDecimal price = quote != null ? quote.priceFor(OrderAction.BUY.equals(action)) : null;
         BigDecimal cash = portfolio.getCashBalanceUsd();
         BigDecimal owned = getQuantityOwned(portfolio, instrument);
         TradabilityDto tradability = preTradeMarketService.getTradability(instrument.getSymbol());
@@ -207,6 +239,11 @@ public class TradeOrderService {
         preview.setOrderAction(action.name());
         preview.setQuantity(quantity);
         preview.setIndicativePriceUsd(price);
+        if (quote != null) {
+            preview.setBidUsd(quote.bid());
+            preview.setAskUsd(quote.ask());
+            preview.setSpreadUsd(quote.spread());
+        }
         preview.setCashAvailableUsd(cash);
         preview.setQuantityOwned(owned);
         preview.setTradable(tradability.isTradable());
@@ -261,7 +298,7 @@ public class TradeOrderService {
 
         if (OrderAction.BUY.equals(action)) {
             if (price == null || price.compareTo(BigDecimal.ZERO) <= 0) {
-                return String.format("We don't have a current price for %s, so it can't be traded right now.", symbol);
+                return noLivePriceMessage(symbol);
             }
             BigDecimal required = price.multiply(quantity);
             if (cash.compareTo(required) < 0) {
@@ -291,9 +328,32 @@ public class TradeOrderService {
             return String.format("%s is closed right now.", market.getMarketName());
         }
         if (reason == TradabilityReason.PRICE_UNAVAILABLE || reason == TradabilityReason.PRICE_STALE) {
-            return String.format("We don't have an up-to-date price for %s, so it can't be traded right now.", symbol);
+            return noLivePriceMessage(symbol);
         }
         return String.format("%s isn't available to trade.", symbol);
+    }
+
+    /**
+     * Orders are refused rather than taken without a live price (BR-05), so a client is never
+     * filled at a price they weren't shown. The message says so, rather than just "not available".
+     */
+    private static String noLivePriceMessage(String symbol) {
+        return String.format(
+            "We don't have a live price for %s right now, so we can't take orders for it. "
+                + "Orders are only accepted against a live price, so you're never filled at a price you haven't seen. "
+                + "Please try again shortly.",
+            symbol);
+    }
+
+    /** Two-sided quote from the same price source execution uses (BR-08), or null if there is no price. */
+    private BidAskQuote currentQuote(Instrument instrument) {
+        return BidAskQuote.fromMid(priceService.getCurrentPrice(instrument.getSymbol()), instrument.getInstrumentType());
+    }
+
+    /** The price an order is quoted at: the ask for a buy, the bid for a sell. */
+    private BigDecimal quotedPrice(Instrument instrument, OrderAction action) {
+        BidAskQuote quote = currentQuote(instrument);
+        return quote != null ? quote.priceFor(OrderAction.BUY.equals(action)) : null;
     }
 
     private BigDecimal getQuantityOwned(Portfolio portfolio, Instrument instrument) {
@@ -325,7 +385,7 @@ public class TradeOrderService {
             throw new IllegalArgumentException("Unauthorized access to order");
         }
 
-        OrderResponse response = mapToOrderResponse(order);
+        OrderResponse response = toOrderResponse(order);
         tradeRepository.findByOrderOrderId(orderId).ifPresent(trade -> applyFill(response, trade));
         return response;
     }
@@ -356,7 +416,7 @@ public class TradeOrderService {
 
         List<OrderResponse> items = orders.stream()
             .map(order -> {
-                OrderResponse response = mapToOrderResponse(order);
+                OrderResponse response = toOrderResponse(order);
                 Trade trade = tradesByOrderId.get(order.getOrderId());
                 if (trade != null) {
                     applyFill(response, trade);
@@ -374,8 +434,8 @@ public class TradeOrderService {
     }
 
     /**
-     * Cancel a pending order.
-     * Only allows cancellation of SUBMITTED orders.
+     * Cancel an open order (SUBMITTED or ACCEPTED) that has not been filled yet.
+     * The order row is locked, so a cancel and an in-flight execution can't both succeed.
      * 
      * @param orderId The ID of the order to cancel
      * @param customerId The customer ID (for ownership verification)
@@ -391,25 +451,24 @@ public class TradeOrderService {
             throw new IllegalArgumentException("Unauthorized access to order");
         }
 
-        // Validate order can be cancelled
-        if (!OrderStatus.SUBMITTED.equals(order.getOrderStatus())) {
+        // Re-read under a row lock: execution may be filling it right now
+        entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
+        if (!order.getOrderStatus().isOpen()) {
             throw new IllegalArgumentException(
                 String.format("Cannot cancel order in %s status", order.getOrderStatus())
             );
         }
 
-        // Cancel the order
-        order.setOrderStatus(OrderStatus.CANCELLED);
-        order.setCancelledAt(OffsetDateTime.now());
+        order.cancel();
         tradeOrderRepository.save(order);
 
-        return mapToOrderResponse(order);
+        return toOrderResponse(order);
     }
 
     /**
-     * Map TradeOrder entity to OrderResponse DTO
+     * Map TradeOrder entity to OrderResponse DTO (without fill details)
      */
-    private OrderResponse mapToOrderResponse(TradeOrder order) {
+    public OrderResponse toOrderResponse(TradeOrder order) {
         OrderResponse response = new OrderResponse();
         response.setOrderId(order.getOrderId());
         response.setInstrumentId(order.getInstrument().getInstrumentId());
@@ -420,7 +479,10 @@ public class TradeOrderService {
         response.setOrderStatus(order.getOrderStatus().name());
         response.setQuantity(order.getQuantity());
         response.setLimitPrice(order.getLimitPriceUsd());
+        response.setReferencePrice(order.getReferencePriceUsd());
         response.setSubmittedAt(order.getSubmittedAt());
+        response.setAcceptedAt(order.getAcceptedAt());
+        response.setCancelledAt(order.getCancelledAt());
         response.setFilledAt(order.getFilledAt());
         response.setRejectedAt(order.getRejectedAt());
         response.setRejectionReason(order.getRejectionReason());

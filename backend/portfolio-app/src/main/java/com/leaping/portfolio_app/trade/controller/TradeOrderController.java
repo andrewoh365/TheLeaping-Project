@@ -19,11 +19,9 @@ import com.leaping.portfolio_app.auth.model.User;
 import com.leaping.portfolio_app.auth.repository.UserRepository;
 import com.leaping.portfolio_app.trade.dto.OrderResponse;
 import com.leaping.portfolio_app.trade.dto.PlaceOrderRequest;
-import com.leaping.portfolio_app.trade.dto.TradeConfirmationResponse;
 import com.leaping.portfolio_app.trade.entity.TradeOrder;
-import com.leaping.portfolio_app.trade.exception.TradeRejectedException;
+import com.leaping.portfolio_app.trade.enums.OrderStatus;
 import com.leaping.portfolio_app.trade.service.TradeOrderService;
-import com.leaping.portfolio_app.trade.service.TradeService;
 
 /**
  * TradeOrderController handles all order-related REST endpoints.
@@ -32,10 +30,10 @@ import com.leaping.portfolio_app.trade.service.TradeService;
  * 
  * Endpoints:
  * - GET /api/trade/preview - Preview an order (price, total, availability)
- * - POST /api/trade/orders - Place new buy/sell order
+ * - POST /api/trade/orders - Place new buy/sell order (202 once accepted; executes asynchronously)
  * - GET /api/trade/orders - List the client's orders (newest first, paged)
  * - GET /api/trade/orders/{orderId} - Get order details
- * - POST /api/trade/orders/{orderId}/cancel - Cancel pending order
+ * - POST /api/trade/orders/{orderId}/cancel - Cancel an open (not yet filled) order
  */
 @RestController
 @RequestMapping("/api/trade")
@@ -43,25 +41,27 @@ public class TradeOrderController {
     private static final Logger log = LoggerFactory.getLogger(TradeOrderController.class);
 
     private final TradeOrderService tradeOrderService;
-    private final TradeService tradeService;
     private final UserRepository userRepository;
 
     public TradeOrderController(
             TradeOrderService tradeOrderService,
-            TradeService tradeService,
             UserRepository userRepository
     ) {
         this.tradeOrderService = tradeOrderService;
-        this.tradeService = tradeService;
         this.userRepository = userRepository;
     }
 
     /**
      * Place a new buy or sell order.
-     * 
-     * For MARKET orders: Executes immediately with current market price
-     * For LIMIT orders: Waits for price to reach limit (future implementation)
-     * 
+     *
+     * The order is recorded, checked against the trading rules, and either:
+     * - ACCEPTED: returns 202 with the order. Execution happens asynchronously;
+     *   poll GET /api/trade/orders/{orderId} for the outcome (FILLED or REJECTED).
+     * - REJECTED: returns 400 with the reason and the recorded order.
+     *
+     * MARKET orders are executed straight after acceptance. LIMIT orders stay
+     * ACCEPTED until cancelled (limit execution is a future implementation).
+     *
      * @param request Order details (instrument, quantity, type, price)
      * @param authentication Spring Security authentication (contains user info)
      * @return OrderResponse with order details and status
@@ -74,37 +74,15 @@ public class TradeOrderController {
         try {
             Long userId = resolveCurrentUserId(authentication);
 
-            // 1. Create order in SUBMITTED status
             TradeOrder order = tradeOrderService.placeOrder(userId, request);
+            OrderResponse response = tradeOrderService.toOrderResponse(order);
 
-            // 2. For MARKET orders, execute immediately
-            if ("MARKET".equalsIgnoreCase(request.getOrderType())) {
-                try {
-                    TradeConfirmationResponse tradeConfirmation = tradeService.executeTrade(order.getOrderId());
-                    OrderResponse updatedOrder = tradeOrderService.getOrder(order.getOrderId(), userId);
-                    
-                    // Return both order and trade confirmation
-                    return ResponseEntity.status(HttpStatus.CREATED)
-                        .body(new OrderExecutedResponse(updatedOrder, tradeConfirmation));
-                        
-                } catch (TradeRejectedException e) {
-                    // Rejection is already recorded on the order; its reason is client-readable
-                    OrderResponse updatedOrder = tradeOrderService.getOrder(order.getOrderId(), userId);
-                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(new ErrorResponse(e.getMessage(), updatedOrder));
-                } catch (Exception e) {
-                    // Execution rolled back: the order stays SUBMITTED and no cash or holdings moved
-                    log.error("Execution failed for order {}", order.getOrderId(), e);
-                    OrderResponse updatedOrder = tradeOrderService.getOrder(order.getOrderId(), userId);
-                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(new ErrorResponse(
-                            "We received your order but couldn't complete it right now. No money has been taken.",
-                            updatedOrder));
-                }
+            if (OrderStatus.REJECTED.equals(order.getOrderStatus())) {
+                // Failed the trading rules; recorded as rejected and the reason is client-readable
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse(order.getRejectionReason(), response));
             }
-
-            // For LIMIT orders, return order waiting for execution (future implementation)
-            return ResponseEntity.status(HttpStatus.CREATED).body(mapToOrderResponse(order));
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
 
         } catch (IllegalArgumentException e) {
             // Failed the trading rules before being accepted; message is client-readable
@@ -189,10 +167,10 @@ public class TradeOrderController {
     }
 
     /**
-     * Cancel a pending order.
+     * Cancel an open order.
      * 
-     * Only cancels orders in SUBMITTED status.
-     * Once an order is FILLED, it cannot be cancelled.
+     * Only cancels orders that are still open (SUBMITTED or ACCEPTED).
+     * Once an order is FILLED, REJECTED or CANCELLED, it cannot be cancelled.
      * 
      * @param orderId The ID of the order to cancel
      * @param authentication Spring Security authentication
@@ -218,53 +196,11 @@ public class TradeOrderController {
         }
     }
 
-    /**
-     * Map TradeOrder to OrderResponse
-     */
-    private OrderResponse mapToOrderResponse(TradeOrder order) {
-        OrderResponse response = new OrderResponse();
-        response.setOrderId(order.getOrderId());
-        response.setInstrumentId(order.getInstrument().getInstrumentId());
-        response.setInstrumentSymbol(order.getInstrument().getSymbol());
-        response.setOrderAction(order.getOrderAction().name());
-        response.setOrderType(order.getOrderType().name());
-        response.setOrderStatus(order.getOrderStatus().name());
-        response.setQuantity(order.getQuantity());
-        response.setLimitPrice(order.getLimitPriceUsd());
-        response.setSubmittedAt(order.getSubmittedAt());
-        response.setFilledAt(order.getFilledAt());
-        response.setRejectedAt(order.getRejectedAt());
-        response.setRejectionReason(order.getRejectionReason());
-        response.setTimeInForce(order.getTimeInForce().name());
-        return response;
-    }
-
     private Long resolveCurrentUserId(Authentication authentication) {
         String email = authentication.getName();
         User user = userRepository.findByEmail(email)
             .orElseThrow(() -> new IllegalArgumentException("Authenticated user not found"));
         return user.getId();
-    }
-
-    /**
-     * Response wrapper for successful order execution
-     */
-    public static class OrderExecutedResponse {
-        public OrderResponse order;
-        public TradeConfirmationResponse trade;
-
-        public OrderExecutedResponse(OrderResponse order, TradeConfirmationResponse trade) {
-            this.order = order;
-            this.trade = trade;
-        }
-
-        public OrderResponse getOrder() {
-            return order;
-        }
-
-        public TradeConfirmationResponse getTrade() {
-            return trade;
-        }
     }
 
     /**

@@ -33,8 +33,18 @@ public class OrderPreviewResponse {
     @JsonProperty("quantity")
     private BigDecimal quantity;
 
+    /** Indicative price for this side: the ask when buying, the bid when selling. Not guaranteed. */
     @JsonProperty("indicative_price_usd")
     private BigDecimal indicativePriceUsd;
+
+    @JsonProperty("bid_usd")
+    private BigDecimal bidUsd;
+
+    @JsonProperty("ask_usd")
+    private BigDecimal askUsd;
+
+    @JsonProperty("spread_usd")
+    private BigDecimal spreadUsd;
 
     @JsonProperty("estimated_total_usd")
     private BigDecimal estimatedTotalUsd;
@@ -122,6 +132,30 @@ public class OrderPreviewResponse {
 
     public void setIndicativePriceUsd(BigDecimal indicativePriceUsd) {
         this.indicativePriceUsd = indicativePriceUsd;
+    }
+
+    public BigDecimal getBidUsd() {
+        return bidUsd;
+    }
+
+    public void setBidUsd(BigDecimal bidUsd) {
+        this.bidUsd = bidUsd;
+    }
+
+    public BigDecimal getAskUsd() {
+        return askUsd;
+    }
+
+    public void setAskUsd(BigDecimal askUsd) {
+        this.askUsd = askUsd;
+    }
+
+    public BigDecimal getSpreadUsd() {
+        return spreadUsd;
+    }
+
+    public void setSpreadUsd(BigDecimal spreadUsd) {
+        this.spreadUsd = spreadUsd;
     }
 
     public BigDecimal getEstimatedTotalUsd() {

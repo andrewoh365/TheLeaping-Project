@@ -27,7 +27,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 
 import com.leaping.portfolio_app.auth.model.Customer;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
@@ -79,6 +83,12 @@ class TradeOrderServiceTest {
 
     @Mock
     private TradeRepository tradeRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private EntityManager entityManager;
 
     @InjectMocks
     private TradeOrderService tradeOrderService;
@@ -148,8 +158,13 @@ class TradeOrderServiceTest {
         assertEquals(900L, saved.getOrderId());
         assertEquals(OrderAction.BUY, saved.getOrderAction());
         assertEquals(OrderType.MARKET, saved.getOrderType());
-        assertEquals(OrderStatus.SUBMITTED, saved.getOrderStatus());
-        verify(tradeOrderRepository).save(any(TradeOrder.class));
+        assertEquals(OrderStatus.ACCEPTED, saved.getOrderStatus());
+        assertNotNull(saved.getAcceptedAt());
+        assertNull(saved.getFilledAt());
+        // Quoted the ask at submission
+        assertEquals(new BigDecimal("100.02000000"), saved.getReferencePriceUsd());
+        // Execution is handed off after commit, never attempted during placement
+        verify(eventPublisher).publishEvent(new OrderAcceptedEvent(900L));
     }
 
     @Test
@@ -164,13 +179,18 @@ class TradeOrderServiceTest {
         when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
         when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("200.00"));
         when(preTradeMarketService.getTradability("AAPL")).thenReturn(tradable());
+        when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        IllegalArgumentException ex = assertThrows(
-            IllegalArgumentException.class,
-            () -> tradeOrderService.placeOrder(1L, request)
-        );
+        TradeOrder order = tradeOrderService.placeOrder(1L, request);
 
-        assertEquals("Not enough cash. This order costs about $20,000.00 and you have $10,000.00 available.", ex.getMessage());
+        assertEquals(OrderStatus.REJECTED, order.getOrderStatus());
+        assertEquals("Not enough cash. This order costs about $20,004.00 and you have $10,000.00 available.", order.getRejectionReason());
+        assertNotNull(order.getRejectedAt());
+        assertNull(order.getAcceptedAt());
+        // A rejected order still records the price it was checked against, for order history
+        assertEquals(new BigDecimal("200.04000000"), order.getReferencePriceUsd());
+        assertEquals(new BigDecimal("200.04000000"), tradeOrderService.toOrderResponse(order).getReferencePrice());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -185,13 +205,54 @@ class TradeOrderServiceTest {
         when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
         when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L)).thenReturn(Optional.empty());
         when(preTradeMarketService.getTradability("AAPL")).thenReturn(tradable());
+        when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TradeOrder order = tradeOrderService.placeOrder(1L, request);
+
+        assertEquals(OrderStatus.REJECTED, order.getOrderStatus());
+        assertEquals("You don't own any AAPL to sell.", order.getRejectionReason());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void acceptedLimitOrderShouldRestWithoutBeingSentForExecution() {
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setInstrumentId(100L);
+        request.setOrderAction("BUY");
+        request.setOrderType("LIMIT");
+        request.setLimitPrice(new BigDecimal("1.00"));
+        request.setQuantity(new BigDecimal("1"));
+
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
+        when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
+        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.00"));
+        when(preTradeMarketService.getTradability("AAPL")).thenReturn(tradable());
+        when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TradeOrder order = tradeOrderService.placeOrder(1L, request);
+
+        assertEquals(OrderStatus.ACCEPTED, order.getOrderStatus());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void placeOrderShouldRefuseMalformedQuantityWithoutRecordingIt() {
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setInstrumentId(100L);
+        request.setOrderAction("BUY");
+        request.setOrderType("MARKET");
+        request.setQuantity(BigDecimal.ZERO);
+
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
+        when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
 
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
             () -> tradeOrderService.placeOrder(1L, request)
         );
 
-        assertEquals("You don't own any AAPL to sell.", ex.getMessage());
+        assertEquals("Enter a quantity greater than zero.", ex.getMessage());
+        verify(tradeOrderRepository, never()).save(any(TradeOrder.class));
     }
 
     @Test
@@ -215,6 +276,49 @@ class TradeOrderServiceTest {
         assertEquals("DAY", response.getTimeInForce());
         assertEquals(OrderStatus.CANCELLED, order.getOrderStatus());
         assertNotNull(order.getCancelledAt());
+        verify(entityManager).refresh(order, LockModeType.PESSIMISTIC_WRITE);
+    }
+
+    @Test
+    void cancelOrderShouldCancelAcceptedOrderThatHasNotFilled() {
+        TradeOrder order = openOrder(501L, OrderStatus.ACCEPTED);
+
+        when(tradeOrderRepository.findById(501L)).thenReturn(Optional.of(order));
+        when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderResponse response = tradeOrderService.cancelOrder(501L, 1L);
+
+        assertEquals("CANCELLED", response.getOrderStatus());
+        assertNotNull(response.getCancelledAt());
+    }
+
+    @Test
+    void cancelOrderShouldRefuseFilledOrder() {
+        TradeOrder order = openOrder(502L, OrderStatus.FILLED);
+
+        when(tradeOrderRepository.findById(502L)).thenReturn(Optional.of(order));
+
+        IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> tradeOrderService.cancelOrder(502L, 1L)
+        );
+
+        assertEquals("Cannot cancel order in FILLED status", ex.getMessage());
+        assertEquals(OrderStatus.FILLED, order.getOrderStatus());
+        verify(tradeOrderRepository, never()).save(any(TradeOrder.class));
+    }
+
+    private TradeOrder openOrder(Long orderId, OrderStatus status) {
+        TradeOrder order = new TradeOrder();
+        order.setOrderId(orderId);
+        order.setPortfolio(portfolio);
+        order.setInstrument(instrument);
+        order.setOrderStatus(status);
+        order.setOrderAction(OrderAction.BUY);
+        order.setOrderType(OrderType.MARKET);
+        order.setTimeInForce(TimeInForce.DAY);
+        order.setQuantity(new BigDecimal("1"));
+        return order;
     }
 
     @Test
@@ -228,14 +332,13 @@ class TradeOrderServiceTest {
         when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
         when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
         when(preTradeMarketService.getTradability("AAPL")).thenReturn(marketClosed());
+        when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        IllegalArgumentException ex = assertThrows(
-            IllegalArgumentException.class,
-            () -> tradeOrderService.placeOrder(1L, request)
-        );
+        TradeOrder order = tradeOrderService.placeOrder(1L, request);
 
-        assertEquals("NASDAQ is closed right now. It trades 09:30\u201316:00 (America/New_York).", ex.getMessage());
-        verify(tradeOrderRepository, never()).save(any(TradeOrder.class));
+        assertEquals(OrderStatus.REJECTED, order.getOrderStatus());
+        assertEquals("NASDAQ is closed right now. It trades 09:30\u201316:00 (America/New_York).", order.getRejectionReason());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -249,10 +352,14 @@ class TradeOrderServiceTest {
 
         assertTrue(preview.isCanSubmit());
         assertNull(preview.getMessage());
-        assertEquals(new BigDecimal("222.50"), preview.getIndicativePriceUsd());
-        assertEquals(new BigDecimal("2225.00"), preview.getEstimatedTotalUsd());
+        // Buyers are quoted the ask; both sides and the spread are shown
+        assertEquals(new BigDecimal("222.54450000"), preview.getIndicativePriceUsd());
+        assertEquals(new BigDecimal("222.45550000"), preview.getBidUsd());
+        assertEquals(new BigDecimal("222.54450000"), preview.getAskUsd());
+        assertEquals(new BigDecimal("0.08900000"), preview.getSpreadUsd());
+        assertEquals(new BigDecimal("2225.45"), preview.getEstimatedTotalUsd());
         assertEquals(new BigDecimal("10000.00"), preview.getCashAvailableUsd());
-        assertEquals(new BigDecimal("44"), preview.getMaxQuantity()); // floor(10000 / 222.50)
+        assertEquals(new BigDecimal("44"), preview.getMaxQuantity()); // floor(10000 / 222.5445)
         assertEquals("NASDAQ", preview.getMarketName());
         assertTrue(preview.isMarketOpen());
     }
@@ -267,8 +374,8 @@ class TradeOrderServiceTest {
         OrderPreviewResponse preview = tradeOrderService.previewOrder(1L, 100L, "BUY", new BigDecimal("50"));
 
         assertFalse(preview.isCanSubmit());
-        assertEquals("Not enough cash. This order costs about $11,125.00 and you have $10,000.00 available.", preview.getMessage());
-        assertEquals(new BigDecimal("11125.00"), preview.getEstimatedTotalUsd());
+        assertEquals("Not enough cash. This order costs about $11,127.23 and you have $10,000.00 available.", preview.getMessage());
+        assertEquals(new BigDecimal("11127.23"), preview.getEstimatedTotalUsd());
     }
 
     @Test
@@ -287,6 +394,30 @@ class TradeOrderServiceTest {
         assertFalse(preview.isCanSubmit());
         assertEquals("You only own 3 AAPL.", preview.getMessage());
         assertEquals(new BigDecimal("3"), preview.getMaxQuantity());
+        // Sellers are quoted the bid
+        assertEquals(new BigDecimal("222.45550000"), preview.getIndicativePriceUsd());
+        assertEquals(new BigDecimal("1112.28"), preview.getEstimatedTotalUsd());
+    }
+
+    @Test
+    void previewWithoutPriceShouldExplainWhyOrdersAreBlocked() {
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
+        when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
+        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(null);
+        when(preTradeMarketService.getTradability("AAPL")).thenReturn(
+            new TradabilityDto("AAPL", false, TradabilityReason.PRICE_UNAVAILABLE, true, false, false, false, "No price"));
+
+        OrderPreviewResponse preview = tradeOrderService.previewOrder(1L, 100L, "BUY", new BigDecimal("1"));
+
+        assertFalse(preview.isCanSubmit());
+        assertNull(preview.getIndicativePriceUsd());
+        assertNull(preview.getBidUsd());
+        assertNull(preview.getAskUsd());
+        assertEquals(
+            "We don't have a live price for AAPL right now, so we can't take orders for it. "
+                + "Orders are only accepted against a live price, so you're never filled at a price you haven't seen. "
+                + "Please try again shortly.",
+            preview.getMessage());
     }
 
     @Test
@@ -298,7 +429,7 @@ class TradeOrderServiceTest {
 
         OrderPreviewResponse preview = tradeOrderService.previewOrder(1L, 100L, "BUY", null);
 
-        assertEquals(new BigDecimal("222.50"), preview.getIndicativePriceUsd());
+        assertEquals(new BigDecimal("222.54450000"), preview.getIndicativePriceUsd());
         assertNull(preview.getEstimatedTotalUsd());
         assertFalse(preview.isCanSubmit());
         assertEquals("Enter a quantity greater than zero.", preview.getMessage());
@@ -317,7 +448,7 @@ class TradeOrderServiceTest {
         assertFalse(preview.isMarketOpen());
         assertTrue(preview.getMessage().startsWith("NASDAQ is closed right now"));
         // Price is still shown so the client can plan the trade
-        assertEquals(new BigDecimal("222.50"), preview.getIndicativePriceUsd());
+        assertEquals(new BigDecimal("222.54450000"), preview.getIndicativePriceUsd());
     }
 
     @Test
