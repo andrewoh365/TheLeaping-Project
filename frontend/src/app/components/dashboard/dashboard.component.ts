@@ -615,7 +615,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'FILLED': return 'Filled';
       case 'REJECTED': return 'Rejected';
       case 'CANCELLED': return 'Cancelled';
-      case 'SUBMITTED': return 'Pending';
+      case 'SUBMITTED': return 'Submitted';
+      case 'ACCEPTED': return 'Accepted';
       default: return status.charAt(0) + status.slice(1).toLowerCase();
     }
   }

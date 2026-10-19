@@ -34,7 +34,9 @@ import com.leaping.portfolio_app.trade.entity.TradeOrder;
 import com.leaping.portfolio_app.trade.enums.ExecutionAttemptStatus;
 import com.leaping.portfolio_app.trade.enums.OrderAction;
 import com.leaping.portfolio_app.trade.enums.OrderStatus;
+import com.leaping.portfolio_app.trade.enums.OrderType;
 import com.leaping.portfolio_app.trade.exception.TradeRejectedException;
+import com.leaping.portfolio_app.trade.exception.OrderNotExecutableException;
 import com.leaping.portfolio_app.trade.repository.ExecutionAttemptRepository;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
 import com.leaping.portfolio_app.trade.repository.TradeRepository;
@@ -89,7 +91,7 @@ public class TradeService {
      * Execute a submitted order.
      *
      * Workflow:
-     * 1. Lock the order and validate it is in SUBMITTED status
+    * 1. Lock the order and validate it is in ACCEPTED status
      * 2. Lock the portfolio so concurrent orders on it are serialised
     * 3. Capture the native quote and USD conversion snapshot
     * 4. Re-check cash (BUY) or holding (SELL) against the USD execution value
@@ -101,7 +103,7 @@ public class TradeService {
     * the REJECTED order status before throwing TradeRejectedException. That
     * exception does not roll back, so the rejection remains durable without any
     * successful trade, holding, or cash settlement. Any other failure rolls back
-    * the entire execution transaction and leaves the order SUBMITTED.
+    * the entire execution transaction and leaves the accepted order ACCEPTED.
      *
      * @param orderId The order to execute
      * @return Trade confirmation details
@@ -118,7 +120,7 @@ public class TradeService {
             .orElseThrow(() -> new IllegalArgumentException("Order not found"));
         entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
 
-        if (!OrderStatus.SUBMITTED.equals(order.getOrderStatus())) {
+        if (!OrderStatus.ACCEPTED.equals(order.getOrderStatus())) {
             throw new IllegalArgumentException(
                 String.format("Order cannot be executed in %s status", order.getOrderStatus())
             );
@@ -152,6 +154,13 @@ public class TradeService {
                 reason
             );
             throw reject(order, reason, failedAttempt);
+        }
+
+        if (OrderType.LIMIT.equals(order.getOrderType())
+                && !limitPriceReached(order, quote.usdPrice())) {
+            throw new OrderNotExecutableException(
+                String.format("Limit price for %s has not been reached.", instrument.getSymbol())
+            );
         }
 
         // 4. Re-check funds under the lock, at the actual execution price
@@ -263,7 +272,7 @@ public class TradeService {
         tradeDetails.put("exchangeRateToUsd", trade.getExchangeRateToUsdAtExecution());
         tradeDetails.put("executionPriceUsd", trade.getExecutionPriceUsd());
         tradeDetails.put("totalUsdValue", trade.getTotalUsdValue());
-        tradeDetails.put("orderStatusBefore", OrderStatus.SUBMITTED.name());
+        tradeDetails.put("orderStatusBefore", OrderStatus.ACCEPTED.name());
         tradeDetails.put("orderStatusAfter", savedOrder.getOrderStatus().name());
         tradeDetails.put("filledAt", savedOrder.getFilledAt());
 
@@ -536,7 +545,7 @@ public class TradeService {
         details.put("executionAttemptId", attempt.getExecutionAttemptId());
         details.put("reason", reason);
         details.put("rejectedAt", savedOrder.getRejectedAt());
-        details.put("previousStatus", OrderStatus.SUBMITTED.name());
+        details.put("previousStatus", OrderStatus.ACCEPTED.name());
         details.put("newStatus", savedOrder.getOrderStatus().name());
 
         auditService.recordEvent(
@@ -703,5 +712,16 @@ public class TradeService {
         response.setTotalUsdValue(trade.getTotalUsdValue());
         response.setExecutedAt(trade.getExecutedAt());
         return response;
+    }
+
+    private boolean limitPriceReached(TradeOrder order, BigDecimal currentUsdPrice) {
+        BigDecimal limitPrice = order.getLimitPriceUsd();
+        if (limitPrice == null) {
+            return false;
+        }
+
+        return OrderAction.BUY.equals(order.getOrderAction())
+            ? currentUsdPrice.compareTo(limitPrice) <= 0
+            : currentUsdPrice.compareTo(limitPrice) >= 0;
     }
 }

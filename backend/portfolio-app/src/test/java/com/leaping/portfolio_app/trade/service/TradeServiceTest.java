@@ -59,6 +59,7 @@ import com.leaping.portfolio_app.trade.enums.ExecutionAttemptStatus;
 import com.leaping.portfolio_app.trade.enums.OrderAction;
 import com.leaping.portfolio_app.trade.enums.OrderStatus;
 import com.leaping.portfolio_app.trade.enums.OrderType;
+import com.leaping.portfolio_app.trade.exception.OrderNotExecutableException;
 import com.leaping.portfolio_app.trade.exception.TradeRejectedException;
 import com.leaping.portfolio_app.trade.repository.ExecutionAttemptRepository;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
@@ -133,6 +134,43 @@ class TradeServiceTest {
     }
 
     @Test
+    void buyLimitRemainsAcceptedUntilMarketPriceReachesLimit() {
+        TradeOrder order = pendingLimitOrder(OrderAction.BUY, new BigDecimal("90.00"));
+        when(tradeOrderRepository.findById(10L)).thenReturn(Optional.of(order));
+
+        assertThrows(OrderNotExecutableException.class, () -> tradeService.executeTrade(10L));
+
+        assertEquals(OrderStatus.ACCEPTED, order.getOrderStatus());
+        verify(executionAttemptRepository, never()).save(any(ExecutionAttempt.class));
+        verify(tradeRepository, never()).save(any(Trade.class));
+    }
+
+    @Test
+    void sellLimitRemainsAcceptedUntilMarketPriceReachesLimit() {
+        TradeOrder order = pendingLimitOrder(OrderAction.SELL, new BigDecimal("110.00"));
+        when(tradeOrderRepository.findById(10L)).thenReturn(Optional.of(order));
+
+        assertThrows(OrderNotExecutableException.class, () -> tradeService.executeTrade(10L));
+
+        assertEquals(OrderStatus.ACCEPTED, order.getOrderStatus());
+        verify(executionAttemptRepository, never()).save(any(ExecutionAttempt.class));
+        verify(tradeRepository, never()).save(any(Trade.class));
+    }
+
+    private TradeOrder pendingLimitOrder(OrderAction action, BigDecimal limitPrice) {
+        TradeOrder order = new TradeOrder();
+        order.setOrderId(10L);
+        order.setPortfolio(portfolio);
+        order.setInstrument(instrument);
+        order.setOrderAction(action);
+        order.setOrderType(OrderType.LIMIT);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
+        order.setLimitPriceUsd(limitPrice);
+        order.setQuantity(new BigDecimal("1"));
+        return order;
+    }
+
+    @Test
     void executeTradeBuyShouldUpdateHoldingAndCashAndFillOrder() {
         Currency gbp = new Currency();
         gbp.setCurrencyCode("GBP");
@@ -147,7 +185,7 @@ class TradeServiceTest {
         order.setInstrument(instrument);
         order.setOrderAction(OrderAction.BUY);
         order.setOrderType(OrderType.MARKET);
-        order.setOrderStatus(OrderStatus.SUBMITTED);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
         order.setQuantity(new BigDecimal("2"));
 
         Holding existing = new Holding();
@@ -536,7 +574,7 @@ class TradeServiceTest {
         order.setInstrument(instrument);
         order.setOrderAction(OrderAction.SELL);
         order.setOrderType(OrderType.MARKET);
-        order.setOrderStatus(OrderStatus.SUBMITTED);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
         order.setQuantity(new BigDecimal("1"));
 
         when(tradeOrderRepository.findById(77L)).thenReturn(Optional.of(order));
@@ -767,7 +805,7 @@ class TradeServiceTest {
         order.setInstrument(instrument);
         order.setOrderAction(action);
         order.setOrderType(OrderType.MARKET);
-        order.setOrderStatus(OrderStatus.SUBMITTED);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
         order.setQuantity(new BigDecimal(quantity));
         return order;
     }

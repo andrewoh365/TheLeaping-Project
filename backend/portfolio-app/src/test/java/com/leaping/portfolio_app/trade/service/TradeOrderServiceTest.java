@@ -26,6 +26,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -95,6 +96,9 @@ class TradeOrderServiceTest {
 
     @Mock
     private AuditService auditService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @Mock
     private EntityManager entityManager;
@@ -171,8 +175,9 @@ class TradeOrderServiceTest {
         assertEquals(900L, saved.getOrderId());
         assertEquals(OrderAction.BUY, saved.getOrderAction());
         assertEquals(OrderType.MARKET, saved.getOrderType());
-        assertEquals(OrderStatus.SUBMITTED, saved.getOrderStatus());
-        verify(tradeOrderRepository).save(any(TradeOrder.class));
+        assertEquals(OrderStatus.ACCEPTED, saved.getOrderStatus());
+        assertNotNull(saved.getAcceptedAt());
+        verify(tradeOrderRepository, org.mockito.Mockito.times(2)).save(any(TradeOrder.class));
 
         ArgumentCaptor<TradeOrder> orderCaptor =
             ArgumentCaptor.forClass(TradeOrder.class);
@@ -196,6 +201,22 @@ class TradeOrderServiceTest {
         assertEquals("BUY", detailsCaptor.getValue().get("action"));
         assertEquals(new BigDecimal("10"), detailsCaptor.getValue().get("quantity"));
         assertEquals(saved.getSubmittedAt(), detailsCaptor.getValue().get("submittedAt"));
+
+        ArgumentCaptor<Map<String, Object>> acceptanceDetailsCaptor =
+            ArgumentCaptor.forClass(Map.class);
+        verify(auditService).recordEvent(
+            eq(AuditEventType.ORDER_ACCEPTED),
+            eq(portfolio.getCustomer().getUser()),
+            eq(saved),
+            isNull(),
+            isNull(),
+            isNull(),
+            acceptanceDetailsCaptor.capture()
+        );
+        assertEquals("SUBMITTED", acceptanceDetailsCaptor.getValue().get("previousStatus"));
+        assertEquals("ACCEPTED", acceptanceDetailsCaptor.getValue().get("newStatus"));
+        assertEquals(saved.getAcceptedAt(), acceptanceDetailsCaptor.getValue().get("acceptedAt"));
+        verify(eventPublisher).publishEvent(any(OrderAcceptedEvent.class));
     }
 
     @Test
@@ -216,8 +237,8 @@ class TradeOrderServiceTest {
 
         TradeOrder saved = tradeOrderService.placeOrder(1L, request);
 
-        assertEquals(OrderStatus.SUBMITTED, saved.getOrderStatus());
-        verify(tradeOrderRepository).save(saved);
+        assertEquals(OrderStatus.ACCEPTED, saved.getOrderStatus());
+        verify(tradeOrderRepository, org.mockito.Mockito.times(2)).save(saved);
     }
 
     @Test
@@ -288,12 +309,12 @@ class TradeOrderServiceTest {
     }
 
     @Test
-    void cancelOrderShouldSetCancelledStatusForSubmittedOrder() {
+    void cancelOrderShouldSetCancelledStatusForAcceptedOrder() {
         TradeOrder order = new TradeOrder();
         order.setOrderId(500L);
         order.setPortfolio(portfolio);
         order.setInstrument(instrument);
-        order.setOrderStatus(OrderStatus.SUBMITTED);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
         order.setOrderAction(OrderAction.BUY);
         order.setOrderType(OrderType.MARKET);
         order.setTimeInForce(TimeInForce.DAY);
@@ -323,7 +344,7 @@ class TradeOrderServiceTest {
 
         assertEquals(1L, detailsCaptor.getValue().get("customerId"));
         assertEquals(500L, detailsCaptor.getValue().get("orderId"));
-        assertEquals("SUBMITTED", detailsCaptor.getValue().get("previousStatus"));
+        assertEquals("ACCEPTED", detailsCaptor.getValue().get("previousStatus"));
         assertEquals("CANCELLED", detailsCaptor.getValue().get("newStatus"));
         assertEquals(order.getCancelledAt(), detailsCaptor.getValue().get("cancelledAt"));
         verify(entityManager).refresh(order, LockModeType.PESSIMISTIC_WRITE);
@@ -335,7 +356,7 @@ class TradeOrderServiceTest {
         order.setOrderId(501L);
         order.setPortfolio(portfolio);
         order.setInstrument(instrument);
-        order.setOrderStatus(OrderStatus.SUBMITTED);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
         order.setOrderAction(OrderAction.BUY);
         order.setOrderType(OrderType.MARKET);
         order.setTimeInForce(TimeInForce.DAY);
@@ -374,7 +395,7 @@ class TradeOrderServiceTest {
         order.setOrderId(500L);
         order.setPortfolio(portfolio);
         order.setInstrument(instrument);
-        order.setOrderStatus(OrderStatus.SUBMITTED);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
         order.setOrderAction(OrderAction.BUY);
         order.setOrderType(OrderType.MARKET);
         order.setTimeInForce(TimeInForce.DAY);

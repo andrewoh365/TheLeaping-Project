@@ -36,6 +36,9 @@ public class OrderResponse {
     @JsonProperty("submitted_at")
     private OffsetDateTime submittedAt;
 
+    @JsonProperty("accepted_at")
+    private OffsetDateTime acceptedAt;
+
     @JsonProperty("filled_at")
     private OffsetDateTime filledAt;
 
@@ -131,6 +134,14 @@ public class OrderResponse {
 
     public void setSubmittedAt(OffsetDateTime submittedAt) {
         this.submittedAt = submittedAt;
+    }
+
+    public OffsetDateTime getAcceptedAt() {
+        return acceptedAt;
+    }
+
+    public void setAcceptedAt(OffsetDateTime acceptedAt) {
+        this.acceptedAt = acceptedAt;
     }
 
     public OffsetDateTime getFilledAt() {

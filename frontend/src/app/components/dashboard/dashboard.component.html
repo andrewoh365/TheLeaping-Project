@@ -279,6 +279,7 @@
             <div class="activity-details" *ngIf="expandedOrderId === order.order_id">
               <p *ngIf="order.rejection_reason"><strong>Why it was rejected:</strong> {{ order.rejection_reason }}</p>
               <p>Order #{{ order.order_id }} · Placed {{ order.submitted_at | date:'MMM d, y, h:mm:ss a' }}</p>
+              <p *ngIf="order.accepted_at">Accepted {{ order.accepted_at | date:'MMM d, y, h:mm:ss a' }}</p>
               <p *ngIf="order.filled_at">Filled {{ order.filled_at | date:'MMM d, y, h:mm:ss a' }}</p>
               <p *ngIf="order.rejected_at">Rejected {{ order.rejected_at | date:'MMM d, y, h:mm:ss a' }}</p>
             </div>

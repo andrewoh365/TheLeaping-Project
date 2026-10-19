@@ -13,6 +13,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -67,6 +68,7 @@ public class TradeOrderService {
     private final TradeRepository tradeRepository;
     private final AuditService auditService;
     private final EntityManager entityManager;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Enforce market hours and price freshness when accepting orders (BR-05).
@@ -85,7 +87,8 @@ public class TradeOrderService {
             PreTradeMarketService preTradeMarketService,
             TradeRepository tradeRepository,
             AuditService auditService,
-            EntityManager entityManager
+            EntityManager entityManager,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.tradeOrderRepository = tradeOrderRepository;
         this.portfolioRepository = portfolioRepository;
@@ -96,6 +99,7 @@ public class TradeOrderService {
         this.tradeRepository = tradeRepository;
         this.auditService = auditService;
         this.entityManager = entityManager;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -103,7 +107,8 @@ public class TradeOrderService {
      * 
         * Validates the request before creating or persisting an order. If validation
         * fails, no order or audit event is written. A valid request creates an order
-        * in SUBMITTED status; this workflow does not transition orders to ACCEPTED.
+        * in ACCEPTED status after validation and persistence. Execution is a separate
+        * step and may fill, reject, or remain pending.
      * 
      * @param customerId The customer placing the order (identified by User ID)
      * @param request The order request with symbol, quantity, and price
@@ -145,7 +150,25 @@ public class TradeOrderService {
             orderAuditDetails(customerId, savedOrder)
         );
 
-        return savedOrder;
+        savedOrder.setOrderStatus(OrderStatus.ACCEPTED);
+        savedOrder.setAcceptedAt(OffsetDateTime.now());
+        TradeOrder acceptedOrder = tradeOrderRepository.save(savedOrder);
+
+        auditService.recordEvent(
+            AuditEventType.ORDER_ACCEPTED,
+            portfolio.getCustomer().getUser(),
+            acceptedOrder,
+            null,
+            null,
+            null,
+            acceptanceAuditDetails(customerId, acceptedOrder)
+        );
+
+        if (acceptedOrder.getOrderType() == OrderType.MARKET) {
+            eventPublisher.publishEvent(new OrderAcceptedEvent(acceptedOrder.getOrderId()));
+        }
+
+        return acceptedOrder;
     }
 
     /**
@@ -401,7 +424,7 @@ public class TradeOrderService {
 
     /**
      * Cancel a pending order.
-     * Only allows cancellation of SUBMITTED orders.
+    * Only allows cancellation of ACCEPTED orders.
      * 
      * @param orderId The ID of the order to cancel
      * @param customerId The customer ID (for ownership verification)
@@ -421,7 +444,7 @@ public class TradeOrderService {
         }
 
         // Validate order can be cancelled
-        if (!OrderStatus.SUBMITTED.equals(order.getOrderStatus())) {
+        if (!OrderStatus.ACCEPTED.equals(order.getOrderStatus())) {
             throw new IllegalArgumentException(
                 String.format("Cannot cancel order in %s status", order.getOrderStatus())
             );
@@ -475,9 +498,20 @@ public class TradeOrderService {
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("customerId", customerId);
         details.put("orderId", order.getOrderId());
-        details.put("previousStatus", OrderStatus.SUBMITTED.name());
+        details.put("previousStatus", OrderStatus.ACCEPTED.name());
         details.put("newStatus", order.getOrderStatus().name());
         details.put("cancelledAt", order.getCancelledAt());
+        return details;
+    }
+
+    private Map<String, Object> acceptanceAuditDetails(
+            Long customerId,
+            TradeOrder order
+    ) {
+        Map<String, Object> details = orderAuditDetails(customerId, order);
+        details.put("previousStatus", OrderStatus.SUBMITTED.name());
+        details.put("newStatus", order.getOrderStatus().name());
+        details.put("acceptedAt", order.getAcceptedAt());
         return details;
     }
 
@@ -496,6 +530,7 @@ public class TradeOrderService {
         response.setQuantity(order.getQuantity());
         response.setLimitPrice(order.getLimitPriceUsd());
         response.setSubmittedAt(order.getSubmittedAt());
+        response.setAcceptedAt(order.getAcceptedAt());
         response.setFilledAt(order.getFilledAt());
         response.setRejectedAt(order.getRejectedAt());
         response.setRejectionReason(order.getRejectionReason());

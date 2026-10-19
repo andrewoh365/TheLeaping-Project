@@ -75,7 +75,7 @@ class TradeServiceAtomicityIntegrationTest {
         );
 
         TradeOrder order = tradeOrderRepository.findById(orderId).orElseThrow();
-        assertEquals("SUBMITTED", order.getOrderStatus().name());
+        assertEquals("ACCEPTED", order.getOrderStatus().name());
         assertEquals(0L, count("execution_attempts", orderId));
         assertEquals(0L, count("trades", orderId));
         assertEquals(0L, count("audit_events", orderId));
@@ -156,7 +156,7 @@ class TradeServiceAtomicityIntegrationTest {
                     created_at,
                     updated_at
                 )
-                VALUES (?, ?, 'BUY', 'MARKET', 'SUBMITTED', 'DAY', 1,
+                VALUES (?, ?, 'BUY', 'MARKET', 'ACCEPTED', 'DAY', 1,
                         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 RETURNING order_id
                 """,
