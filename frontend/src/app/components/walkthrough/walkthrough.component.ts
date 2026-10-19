@@ -4,6 +4,7 @@ import {
   ElementRef,
   EventEmitter,
   HostBinding,
+  HostListener,
   Input,
   NgZone,
   OnChanges,
@@ -46,6 +47,16 @@ const COMET_LENGTH = 110;
 const COMET_PX_PER_MS = 0.3;
 const COMET_MIN_LAP_MS = 2200;
 const COMET_MAX_LAP_MS = 6000;
+
+// Elements the Tab key can land on.
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])'
+].join(', ');
 
 /**
  * Dims the whole screen except the element the current step points at, draws
@@ -164,10 +175,38 @@ export class WalkthroughComponent implements AfterViewInit, OnChanges, OnDestroy
     this.fadeOutThen(this.skip);
   }
 
+  // The dark boxes only stop the mouse. Without this, Tab (or Shift+Tab) could
+  // reach buttons hidden behind the overlay, e.g. Transfer while the trade
+  // panel step is showing. Tab instead cycles through the highlighted area
+  // (on steps waiting for the user) and the popup's buttons, and does nothing
+  // while the overlay is changing between steps.
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Tab') {
+      return;
+    }
+    event.preventDefault();
+
+    const focusable = this.visible ? this.getFocusableElements() : [];
+    if (focusable.length === 0) {
+      return;
+    }
+
+    const current = focusable.indexOf(document.activeElement as HTMLElement);
+    const direction = event.shiftKey ? -1 : 1;
+    const nextIndex = current === -1
+      ? (event.shiftKey ? focusable.length - 1 : 0)
+      : (current + direction + focusable.length) % focusable.length;
+    focusable[nextIndex].focus();
+  }
+
   // Fade out, swap in the new step, scroll to it, pause, then fade back in.
   private async showStep(step: WalkthroughStep, index: number): Promise<void> {
     const id = ++this.transitionId;
     this.cancelScroll();
+    // Move focus off whatever was just used (e.g. the Transfer button), which
+    // is about to be covered by the overlay.
+    this.focusPopover();
 
     if (this.visible) {
       this.visible = false;
@@ -192,6 +231,26 @@ export class WalkthroughComponent implements AfterViewInit, OnChanges, OnDestroy
 
     this.cometProgress = 0;
     this.visible = true;
+    this.focusPopover();
+  }
+
+  private focusPopover(): void {
+    this.popover?.nativeElement.focus({ preventScroll: true });
+  }
+
+  // Highlighted area first (only on steps waiting for the user), then the popup.
+  private getFocusableElements(): HTMLElement[] {
+    const step = this.displayedStep;
+    const target = step?.advanceOn ? this.findTarget(step) : null;
+    const targetElements = target
+      ? [target, ...Array.from(target.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))]
+          .filter((element) => element.matches(FOCUSABLE_SELECTOR))
+      : [];
+    const popoverElements = Array.from(
+      this.popover.nativeElement.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+    );
+    // Skip anything not currently displayed (e.g. hidden by *ngIf or display: none).
+    return [...targetElements, ...popoverElements].filter((element) => element.getClientRects().length > 0);
   }
 
   private async fadeOutThen(output: EventEmitter<void>): Promise<void> {

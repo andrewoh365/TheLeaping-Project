@@ -11,7 +11,7 @@
   <rect class="tour-comet tour-comet--head" #cometHead></rect>
 </svg>
 
-<div class="tour-popover" #popover role="dialog" aria-labelledby="tour-title" aria-describedby="tour-body">
+<div class="tour-popover" #popover tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-body">
   <ng-container *ngIf="displayedStep as shown">
     <p class="tour-progress" *ngIf="!isWelcome">Step {{ displayedIndex }} of {{ totalSteps - 1 }}</p>
     <h2 id="tour-title">{{ shown.title }}</h2>

@@ -269,6 +269,37 @@ export class AuthService {
   }
 
   /**
+   * Email of the account whose token is
+   * stored, read from the token itself.
+   *
+   * Unlike getCurrentUser(), this is set
+   * straight after registering too.
+   */
+  getSignedInEmail(): string | null {
+
+    const token =
+      this.getToken();
+
+    if (!token) {
+      return null;
+    }
+
+    try {
+
+      const subject =
+        this.parseJwt(token).sub;
+
+      return typeof subject === 'string'
+        ? subject.trim().toLowerCase()
+        : null;
+
+    } catch {
+
+      return null;
+    }
+  }
+
+  /**
    * Get current user's role.
    */
   getCurrentRole(): UserRole | null {

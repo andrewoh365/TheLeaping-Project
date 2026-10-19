@@ -89,6 +89,12 @@ $fade-in-popover: 500ms ease-out 350ms;
   transform: translateY(8px);
   transition: opacity $fade-out, transform $fade-out;
 
+  // The popup receives focus so keyboard users start inside it; its own
+  // buttons still show their focus outline.
+  &:focus {
+    outline: none;
+  }
+
   h2 {
     margin: 0 0 8px;
     font-size: 18px;

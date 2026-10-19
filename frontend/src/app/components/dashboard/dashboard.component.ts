@@ -180,9 +180,37 @@ export class DashboardComponent implements OnInit, OnDestroy {
   orderSubmitMessage = '';
   orderSubmitError = '';
   orderResult: OrderResult | null = null;
-  tradePanelOpen = false;
 
-  cashPanelOpen = false;
+  // Every way a panel opens or closes (its own buttons, opening the other
+  // panel, picking an instrument from search...) goes through these setters,
+  // so the walkthrough always hears about it.
+  private tradePanelOpenState = false;
+  private cashPanelOpenState = false;
+
+  get tradePanelOpen(): boolean {
+    return this.tradePanelOpenState;
+  }
+
+  set tradePanelOpen(open: boolean) {
+    if (open === this.tradePanelOpenState) {
+      return;
+    }
+    this.tradePanelOpenState = open;
+    this.onTourEvent(open ? 'tradePanelOpened' : 'tradePanelClosed');
+  }
+
+  get cashPanelOpen(): boolean {
+    return this.cashPanelOpenState;
+  }
+
+  set cashPanelOpen(open: boolean) {
+    if (open === this.cashPanelOpenState) {
+      return;
+    }
+    this.cashPanelOpenState = open;
+    this.onTourEvent(open ? 'cashPanelOpened' : 'cashPanelClosed');
+  }
+
   cashDirection: CashDirection = 'DEPOSIT';
   cashAmount: number | null = null;
   cashSubmitInProgress = false;
@@ -666,18 +694,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.orderSubmitMessage = '';
     this.cashPanelOpen = false;
     this.tradePanelOpen = true;
-    this.onTourEvent('tradePanelOpened');
   }
 
   openCashPanel(): void {
     this.tradePanelOpen = false;
     this.cashPanelOpen = true;
-    this.onTourEvent('cashPanelOpened');
   }
 
   closeCashPanel(): void {
     this.cashPanelOpen = false;
-    this.onTourEvent('cashPanelClosed');
   }
 
   get tourStep(): WalkthroughStep | null {
@@ -685,9 +710,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   startTour(): void {
+    // Set the step first: the welcome step ignores the "panel closed" events below.
+    this.tourStepIndex = 0;
     this.tradePanelOpen = false;
     this.cashPanelOpen = false;
-    this.tourStepIndex = 0;
   }
 
   advanceTour(): void {
@@ -706,7 +732,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.walkthroughService.clearPending();
   }
 
-  // Called wherever the user does something a tour step may be waiting for.
+  // Called whenever something happens that a tour step may be waiting for:
+  // panels opening/closing (from the setters above), a deposit or an order.
   onTourEvent(event: TourEvent): void {
     const step = this.tourStep;
     if (!step || this.tourStepIndex === null) {
@@ -812,7 +839,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.tradePanelOpen) {
       this.cashPanelOpen = false;
     }
-    this.onTourEvent(this.tradePanelOpen ? 'tradePanelOpened' : 'tradePanelClosed');
   }
 
   onTicketSearchInput(): void {
