@@ -32,6 +32,7 @@ import { AuthService } from '../../services/auth.service';
 import {
     AnalyticsService,
     AssetType,
+    ClientSegment,
     DashboardFilters,
     DashboardResponse,
     OrderStatus
@@ -74,6 +75,9 @@ export class AnalyticsDashboardComponent
     @ViewChild('clientsChart')
     clientsChartRef?: ElementRef<HTMLCanvasElement>;
 
+    @ViewChild('segmentsChart')
+    segmentsChartRef?: ElementRef<HTMLCanvasElement>;
+
     @ViewChild('rejectionsChart')
     rejectionsChartRef?: ElementRef<HTMLCanvasElement>;
 
@@ -91,6 +95,7 @@ export class AnalyticsDashboardComponent
     assetType: AssetType | '' = '';
     market = '';
     orderStatus: OrderStatus | '' = '';
+    clientSegment: ClientSegment | '' = '';
 
     readonly markets = [
         'NASDAQ',
@@ -107,6 +112,7 @@ export class AnalyticsDashboardComponent
     private outcomesChart?: Chart;
     private instrumentsChart?: Chart;
     private clientsChart?: Chart;
+    private segmentsChart?: Chart;
     private rejectionsChart?: Chart;
 
     constructor(
@@ -131,6 +137,7 @@ export class AnalyticsDashboardComponent
         this.assetType = '';
         this.market = '';
         this.orderStatus = '';
+        this.clientSegment = '';
 
         this.loadDashboard();
     }
@@ -164,6 +171,10 @@ export class AnalyticsDashboardComponent
 
         if (this.orderStatus) {
             filters.orderStatus = this.orderStatus;
+        }
+
+        if (this.clientSegment) {
+            filters.clientSegment = this.clientSegment;
         }
 
         this.analyticsService
@@ -210,6 +221,7 @@ export class AnalyticsDashboardComponent
         this.renderOutcomesChart();
         this.renderInstrumentsChart();
         this.renderClientsChart();
+        this.renderSegmentsChart();
         this.renderRejectionsChart();
     }
 
@@ -382,17 +394,52 @@ export class AnalyticsDashboardComponent
         );
     }
 
+    private renderSegmentsChart(): void {
+        if (!this.segmentsChartRef || !this.dashboard) {
+            return;
+        }
+
+        const configuration: ChartConfiguration = {
+            type: 'bar',
+            data: {
+                labels:
+                    this.dashboard.client_segment_breakdown
+                        .map(segment => segment.segment),
+
+                datasets: [
+                    {
+                        label: 'Orders',
+                        data:
+                            this.dashboard.client_segment_breakdown
+                                .map(segment => segment.order_count)
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        };
+
+        this.segmentsChart = new Chart(
+            this.segmentsChartRef.nativeElement,
+            configuration
+        );
+    }
+
     private destroyCharts(): void {
         this.volumeChart?.destroy();
         this.outcomesChart?.destroy();
         this.instrumentsChart?.destroy();
         this.clientsChart?.destroy();
+        this.segmentsChart?.destroy();
         this.rejectionsChart?.destroy();
 
         this.volumeChart = undefined;
         this.outcomesChart = undefined;
         this.instrumentsChart = undefined;
         this.clientsChart = undefined;
+        this.segmentsChart = undefined;
         this.rejectionsChart = undefined;
     }
 

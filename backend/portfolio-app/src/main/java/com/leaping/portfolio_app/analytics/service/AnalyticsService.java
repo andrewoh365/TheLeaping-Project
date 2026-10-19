@@ -1,5 +1,6 @@
 package com.leaping.portfolio_app.analytics.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -13,11 +14,19 @@ public class AnalyticsService {
     private final RestClient restClient;
     private final String analyticsBaseUrl;
 
+    @Autowired
     public AnalyticsService(
             @Value("${analytics.service.base-url:http://localhost:8000}")
             String analyticsBaseUrl
     ) {
-        this.restClient = RestClient.builder().build();
+        this(RestClient.builder().build(), analyticsBaseUrl);
+    }
+
+    AnalyticsService(
+            RestClient restClient,
+            String analyticsBaseUrl
+    ) {
+        this.restClient = restClient;
         this.analyticsBaseUrl = analyticsBaseUrl;
     }
 
@@ -26,7 +35,8 @@ public class AnalyticsService {
             LocalDate dateTo,
             String assetType,
             String market,
-            String orderStatus
+            String orderStatus,
+            String clientSegment
     ) {
         UriComponentsBuilder uriBuilder = UriComponentsBuilder
                 .fromUriString(analyticsBaseUrl)
@@ -50,6 +60,10 @@ public class AnalyticsService {
 
         if (orderStatus != null && !orderStatus.isBlank()) {
             uriBuilder.queryParam("order_status", orderStatus);
+        }
+
+        if (clientSegment != null && !clientSegment.isBlank()) {
+            uriBuilder.queryParam("client_segment", clientSegment);
         }
 
         return restClient
