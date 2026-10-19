@@ -1,5 +1,6 @@
 package com.leaping.portfolio_app.auth.security;
 
+import com.leaping.portfolio_app.auth.service.SessionService;
 import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -38,8 +39,9 @@ public class SecurityConfig {
      */
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
-                                                           UserDetailsService userDetailsService) {
-        return new JwtAuthenticationFilter(jwtTokenProvider, userDetailsService);
+                                                           UserDetailsService userDetailsService,
+                                                           SessionService sessionService) {
+        return new JwtAuthenticationFilter(jwtTokenProvider, userDetailsService, sessionService);
     }
 
     @Bean

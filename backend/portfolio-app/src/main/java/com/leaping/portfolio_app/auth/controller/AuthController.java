@@ -63,9 +63,32 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<AuthResponse> logout() {
-        AuthResponse response = authService.logout();
-        return ResponseEntity.ok(response);
+    public ResponseEntity<AuthResponse> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody(required = false) RefreshRequest refreshRequest
+    ) {
+        String accessToken = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            accessToken = authHeader.substring(7);
+        }
+        String refreshToken = refreshRequest == null ? null : refreshRequest.getRefreshToken();
+        return ResponseEntity.ok(authService.logout(accessToken, refreshToken));
+    }
+
+    @PostMapping("/sessions/revoke-others")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<AuthResponse> revokeOtherSessions(
+            @RequestHeader(value = "Authorization", required = false) String authHeader
+    ) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new AuthResponse(null, null, "Missing or invalid authorization header", false));
+        }
+        AuthResponse response = authService.revokeOtherSessions(authHeader.substring(7));
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
     @PostMapping("/refresh")

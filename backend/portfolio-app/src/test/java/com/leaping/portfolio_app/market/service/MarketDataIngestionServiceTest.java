@@ -15,6 +15,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
@@ -51,6 +53,9 @@ class MarketDataIngestionServiceTest {
     @Mock
     private CurrencyRepository currencyRepository;
 
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
     private final List<Price> prices = new ArrayList<>();
     private final Map<String, Instrument> instruments = new HashMap<>();
     private final MarketHoursService marketHoursService = new MarketHoursService();
@@ -62,6 +67,8 @@ class MarketDataIngestionServiceTest {
         instruments.clear();
         stubReferences();
         stubPrices();
+        lenient().when(transactionManager.getTransaction(any()))
+                .thenReturn(new SimpleTransactionStatus());
 
         service = new MarketDataIngestionService(
                 instrumentRepository,
@@ -70,7 +77,8 @@ class MarketDataIngestionServiceTest {
                 currencyRepository,
                 new DefaultResourceLoader(),
                 marketHoursService,
-                new PriceMovementSimulator(0.05d, 0.02d)
+                new PriceMovementSimulator(0.05d, 0.02d),
+                transactionManager
         );
         ReflectionTestUtils.setField(service, "historyDays", 2);
         ReflectionTestUtils.setField(service, "universeCsvPath", "classpath:data/closed-market-universe.csv");

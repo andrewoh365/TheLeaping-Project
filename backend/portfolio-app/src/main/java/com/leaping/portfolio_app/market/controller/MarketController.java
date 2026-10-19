@@ -13,6 +13,7 @@ import com.leaping.portfolio_app.market.repository.CurrencyRepository;
 import com.leaping.portfolio_app.market.repository.MarketRepository;
 import com.leaping.portfolio_app.market.service.MarketHoursService;
 import com.leaping.portfolio_app.market.service.MarketInsightsService;
+import com.leaping.portfolio_app.market.service.MarketPriceService;
 import com.leaping.portfolio_app.market.service.PreTradeMarketService;
 import com.leaping.portfolio_app.market.service.MarketStatus;
 import com.leaping.portfolio_app.market.service.PricingService;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -37,6 +39,7 @@ public class MarketController {
     private final CurrencyRepository currencyRepository;
     private final MarketHoursService marketHoursService;
     private final PricingService pricingService;
+    private final MarketPriceService marketPriceService;
     private final PreTradeMarketService preTradeMarketService;
     private final MarketInsightsService marketInsightsService;
 
@@ -45,6 +48,7 @@ public class MarketController {
             CurrencyRepository currencyRepository,
             MarketHoursService marketHoursService,
             PricingService pricingService,
+            MarketPriceService marketPriceService,
             PreTradeMarketService preTradeMarketService,
             MarketInsightsService marketInsightsService
     ) {
@@ -52,6 +56,7 @@ public class MarketController {
         this.currencyRepository = currencyRepository;
         this.marketHoursService = marketHoursService;
         this.pricingService = pricingService;
+        this.marketPriceService = marketPriceService;
         this.preTradeMarketService = preTradeMarketService;
         this.marketInsightsService = marketInsightsService;
     }
@@ -103,7 +108,7 @@ public class MarketController {
             @RequestParam String symbol
     ) {
         return pricingService.getLatestPriceBySymbol(symbol)
-                .map(this::toPriceDto)
+                .flatMap(this::toUsdPriceDto)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -116,7 +121,8 @@ public class MarketController {
     ) {
         List<PricePointDto> history = pricingService.getPriceHistoryBySymbol(symbol, from, to)
                 .stream()
-                .map(this::toPriceDto)
+                .map(this::toUsdPriceDto)
+                .flatMap(Optional::stream)
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(history);
@@ -158,15 +164,19 @@ public class MarketController {
         return ResponseEntity.ok(preTradeMarketService.getTradability(symbol));
     }
 
-    private PricePointDto toPriceDto(Price price) {
-        return new PricePointDto(
+    private Optional<PricePointDto> toUsdPriceDto(Price price) {
+        BigDecimal usdPrice = marketPriceService.toUsd(price);
+        if (usdPrice == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new PricePointDto(
                 price.getInstrument().getSymbol(),
-                price.getPrice(),
-                price.getPriceCurrency().getCurrencyCode(),
+                usdPrice,
+                MarketPriceService.DISPLAY_CURRENCY,
                 price.getPriceTimestamp(),
                 price.getSourceType().name(),
                 price.getProviderName()
-        );
+        ));
     }
 
     private MarketStatusDto toStatusDto(MarketStatus status) {
