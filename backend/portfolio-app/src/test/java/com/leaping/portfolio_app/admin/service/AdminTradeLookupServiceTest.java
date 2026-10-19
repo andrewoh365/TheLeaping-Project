@@ -5,6 +5,7 @@ import com.leaping.portfolio_app.admin.dto.AdminOrderPageResponse;
 import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
 import com.leaping.portfolio_app.audit.entity.AuditEvent;
 import com.leaping.portfolio_app.audit.repository.AuditEventRepository;
+import com.leaping.portfolio_app.trade.entity.Trade;
 import com.leaping.portfolio_app.trade.entity.TradeOrder;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
 import com.leaping.portfolio_app.trade.repository.TradeRepository;
@@ -26,11 +27,13 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -93,6 +96,79 @@ class AdminTradeLookupServiceTest {
         assertEquals(100, response.getSize());
         assertEquals(250, response.getTotalElements());
         assertEquals(3, response.getTotalPages());
+    }
+
+    @Test
+    void getOrdersLoadsTradesForPageInOneBatchAndMapsMissingTrades() {
+        TradeOrder filledOrder = order(101L);
+        TradeOrder openOrder = order(102L);
+        Trade filledTrade = trade(201L, filledOrder);
+
+        when(tradeOrderRepository.findAdminPage(
+                eq(""),
+                eq(""),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(
+                List.of(filledOrder, openOrder),
+                PageRequest.of(0, 2),
+                2
+        ));
+        when(tradeRepository.findByOrderOrderIdIn(
+                eq(List.of(101L, 102L))
+        )).thenReturn(List.of(filledTrade));
+
+        AdminOrderPageResponse response =
+                adminTradeLookupService.getOrders(null, null, 0, 2);
+
+        assertEquals(2, response.getOrders().size());
+        assertEquals(201L, response.getOrders().get(0).getTradeId());
+        assertNull(response.getOrders().get(1).getTradeId());
+        assertEquals(2, response.getTotalElements());
+        assertEquals(1, response.getTotalPages());
+        verify(tradeRepository, times(1))
+                .findByOrderOrderIdIn(eq(List.of(101L, 102L)));
+        verify(tradeRepository, never()).findByOrderOrderId(any());
+    }
+
+    @Test
+    void getOrdersByClientCapsPageSizeAndUsesOneTradeBatch() {
+        TradeOrder firstOrder = order(301L);
+        TradeOrder secondOrder = order(302L);
+        Trade firstTrade = trade(401L, firstOrder);
+
+        when(tradeOrderRepository
+                .findByPortfolio_Customer_UserIdOrderBySubmittedAtDescOrderIdDesc(
+                        eq(77L),
+                        any(Pageable.class)
+                )).thenReturn(new PageImpl<>(
+                        List.of(firstOrder, secondOrder),
+                        PageRequest.of(1, 100),
+                        102
+                ));
+        when(tradeRepository.findByOrderOrderIdIn(
+                eq(List.of(301L, 302L))
+        )).thenReturn(List.of(firstTrade));
+
+        AdminOrderPageResponse response =
+                adminTradeLookupService.getOrdersByClient(77L, 1, 500);
+
+        ArgumentCaptor<Pageable> pageable =
+                ArgumentCaptor.forClass(Pageable.class);
+        verify(tradeOrderRepository)
+                .findByPortfolio_Customer_UserIdOrderBySubmittedAtDescOrderIdDesc(
+                        eq(77L),
+                        pageable.capture()
+                );
+        assertEquals(1, pageable.getValue().getPageNumber());
+        assertEquals(100, pageable.getValue().getPageSize());
+        assertEquals(2, response.getOrders().size());
+        assertEquals(401L, response.getOrders().get(0).getTradeId());
+        assertNull(response.getOrders().get(1).getTradeId());
+        assertEquals(102, response.getTotalElements());
+        assertEquals(2, response.getTotalPages());
+        verify(tradeRepository, times(1))
+                .findByOrderOrderIdIn(eq(List.of(301L, 302L)));
+        verify(tradeRepository, never()).findByOrderOrderId(any());
     }
 
     // AUDIT: Verify chronological order and structured event details.
@@ -205,4 +281,17 @@ class AdminTradeLookupServiceTest {
 
         return event;
     }
+
+        private TradeOrder order(Long orderId) {
+                TradeOrder order = new TradeOrder();
+                order.setOrderId(orderId);
+                return order;
+        }
+
+        private Trade trade(Long tradeId, TradeOrder order) {
+                Trade trade = new Trade();
+                trade.setTradeId(tradeId);
+                trade.setOrder(order);
+                return trade;
+        }
 }

@@ -22,6 +22,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class AdminTradeLookupService {
@@ -76,9 +79,23 @@ public class AdminTradeLookupService {
     private AdminOrderPageResponse toPageResponse(
             Page<TradeOrder> orderPage
     ) {
-        List<AdminOrderLookupResponse> orders = orderPage
-                .map(this::toLookupResponse)
-                .getContent();
+        List<TradeOrder> pageOrders = orderPage.getContent();
+        Map<Long, Trade> tradesByOrderId = pageOrders.isEmpty()
+                ? Map.of()
+                : tradeRepository.findByOrderOrderIdIn(
+                        pageOrders.stream()
+                                .map(TradeOrder::getOrderId)
+                                .toList()
+                ).stream().collect(Collectors.toMap(
+                        trade -> trade.getOrder().getOrderId(),
+                        Function.identity()
+                ));
+        List<AdminOrderLookupResponse> orders = pageOrders.stream()
+                .map(order -> toLookupResponse(
+                        order,
+                        tradesByOrderId.get(order.getOrderId())
+                ))
+                .toList();
         return new AdminOrderPageResponse(
                 orders,
                 orderPage.getNumber(),
@@ -191,11 +208,9 @@ public class AdminTradeLookupService {
     }
 
     private AdminOrderLookupResponse toLookupResponse(
-            TradeOrder order
+            TradeOrder order,
+            Trade trade
     ) {
-        Trade trade = tradeRepository
-                .findByOrderOrderId(order.getOrderId())
-                .orElse(null);
         User user = null;
         Long clientId = null;
         if (order.getPortfolio() != null
