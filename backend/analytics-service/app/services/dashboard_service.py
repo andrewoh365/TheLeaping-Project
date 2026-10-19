@@ -1,8 +1,6 @@
 from datetime import date, timedelta
 from typing import Dict, List
 
-import pandas as pd
-
 from app.repositories.analytics_repository import (
     get_active_clients,
     get_client_activity_rows,
@@ -78,34 +76,6 @@ def _determine_time_grouping(
     return TimeGrouping.MONTHLY
 
 
-def _create_period_labels(
-    timestamps: pd.Series,
-    grouping: TimeGrouping,
-) -> pd.Series:
-    timestamps = pd.to_datetime(
-        timestamps,
-        utc=True,
-    ).dt.tz_convert(None)
-
-    if grouping == TimeGrouping.DAILY:
-        return timestamps.dt.strftime("%Y-%m-%d")
-
-    if grouping == TimeGrouping.WEEKLY:
-        return (
-            timestamps
-            .dt.to_period("W-SUN")
-            .dt.start_time
-            .dt.strftime("%Y-%m-%d")
-        )
-
-    return (
-        timestamps
-        .dt.to_period("M")
-        .dt.start_time
-        .dt.strftime("%Y-%m-%d")
-    )
-
-
 def _build_summary(
     filters: DashboardFilters,
 ) -> DashboardSummary:
@@ -141,32 +111,13 @@ def _build_trading_volume_trend(
     filters: DashboardFilters,
     grouping: TimeGrouping,
 ) -> TradingVolumeTrend:
-    rows = get_trading_volume_rows(filters)
+    rows = get_trading_volume_rows(filters, grouping)
 
     if not rows:
         return TradingVolumeTrend(
             grouping=grouping,
             points=[],
         )
-
-    dataframe = pd.DataFrame(rows)
-
-    dataframe["period"] = _create_period_labels(
-        dataframe["executed_at"],
-        grouping,
-    )
-
-    dataframe["total_usd_value"] = pd.to_numeric(
-        dataframe["total_usd_value"],
-        errors="coerce",
-    ).fillna(0)
-
-    grouped = (
-        dataframe
-        .groupby("period", as_index=False)["total_usd_value"]
-        .sum()
-        .sort_values("period")
-    )
 
     points = [
         TradingVolumePoint(
@@ -176,7 +127,7 @@ def _build_trading_volume_trend(
                 2,
             ),
         )
-        for _, row in grouped.iterrows()
+        for row in rows
     ]
 
     return TradingVolumeTrend(
@@ -224,7 +175,10 @@ def _build_order_outcomes(
 def _build_most_active_instruments(
     filters: DashboardFilters,
 ) -> List[InstrumentActivity]:
-    rows = get_most_active_instruments(filters)
+    rows = get_most_active_instruments(
+        filters,
+        limit=TOP_INSTRUMENT_LIMIT,
+    )
 
     return [
         InstrumentActivity(
@@ -239,7 +193,7 @@ def _build_client_activity_trend(
     filters: DashboardFilters,
     grouping: TimeGrouping,
 ) -> ClientActivityTrend:
-    rows = get_client_activity_rows(filters)
+    rows = get_client_activity_rows(filters, grouping)
 
     if not rows:
         return ClientActivityTrend(
@@ -247,33 +201,12 @@ def _build_client_activity_trend(
             points=[],
         )
 
-    dataframe = pd.DataFrame(rows)
-
-    dataframe["period"] = _create_period_labels(
-        dataframe["submitted_at"],
-        grouping,
-    )
-
-    grouped = (
-        dataframe
-        .groupby("period", as_index=False)["customer_id"]
-        .nunique()
-        .rename(
-            columns={
-                "customer_id": "active_clients",
-            }
-        )
-        .sort_values("period")
-    )
-
     points = [
         ClientActivityPoint(
             period=row["period"],
-            active_clients=int(
-                row["active_clients"]
-            ),
+            active_clients=int(row["active_clients"]),
         )
-        for _, row in grouped.iterrows()
+        for row in rows
     ]
 
     return ClientActivityTrend(
@@ -285,7 +218,10 @@ def _build_client_activity_trend(
 def _build_rejection_reasons(
     filters: DashboardFilters,
 ) -> List[RejectionReason]:
-    rows = get_rejection_reasons(filters)
+    rows = get_rejection_reasons(
+        filters,
+        limit=TOP_REJECTION_REASON_LIMIT,
+    )
 
     return [
         RejectionReason(

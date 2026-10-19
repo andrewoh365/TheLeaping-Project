@@ -65,6 +65,10 @@
 }
 
 .table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
   padding: 20px 20px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 
@@ -80,6 +84,31 @@
     color: rgba(255, 255, 255, 0.6);
     font-size: 13px;
   }
+}
+
+.table-paginator {
+  background: transparent;
+  color: var(--text-color);
+}
+
+:host ::ng-deep .table-paginator {
+  .mat-mdc-paginator-container {
+    min-height: 56px;
+    padding: 0;
+  }
+
+  .mat-mdc-paginator-page-size-label,
+  .mat-mdc-paginator-range-label {
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  .mat-mdc-icon-button {
+    color: var(--text-color);
+  }
+}
+
+.table-paginator-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .table-wrapper {
@@ -280,5 +309,14 @@
   .filter-actions {
     grid-column: span 1;
     flex-wrap: wrap;
+  }
+
+  .table-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .table-paginator-top {
+    width: 100%;
   }
 }

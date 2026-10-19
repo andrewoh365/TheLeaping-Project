@@ -1,7 +1,8 @@
+
 package com.leaping.portfolio_app.admin.controller;
 
 import com.leaping.portfolio_app.admin.dto.AdminOrderDetailResponse;
-import com.leaping.portfolio_app.admin.dto.AdminOrderLookupResponse;
+import com.leaping.portfolio_app.admin.dto.AdminOrderPageResponse;
 import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
 import com.leaping.portfolio_app.admin.service.AdminTradeLookupService;
 
@@ -28,39 +29,45 @@ public class AdminTradeLookupController {
         this.adminTradeLookupService = adminTradeLookupService;
     }
 
+    // DEV: Paginated order search
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<AdminOrderLookupResponse>> getOrders(
+    public ResponseEntity<AdminOrderPageResponse> getOrders(
             @RequestParam(required = false) String search,
-            @RequestParam(required = false) String status
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size
     ) {
-
-        List<AdminOrderLookupResponse> response =
+        AdminOrderPageResponse response =
                 adminTradeLookupService.getOrders(
                         search,
-                        status
+                        status,
+                        page,
+                        size
                 );
 
         return ResponseEntity.ok(response);
     }
 
-        @GetMapping("/{orderId}")
-        @PreAuthorize("hasRole('ADMIN')")
-        public ResponseEntity<AdminOrderDetailResponse> getOrder(
-                        @PathVariable Long orderId
-        ) {
-                return ResponseEntity.ok(
-                                adminTradeLookupService.getOrder(orderId)
-                );
-        }
+    // DEV: Individual order details
+    @GetMapping("/{orderId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AdminOrderDetailResponse> getOrder(
+            @PathVariable Long orderId
+    ) {
+        return ResponseEntity.ok(
+                adminTradeLookupService.getOrder(orderId)
+        );
+    }
 
-        @GetMapping("/{orderId}/audit")
-        @PreAuthorize("hasRole('ADMIN')")
-        public ResponseEntity<List<AuditEventResponse>> getOrderAudit(
-                        @PathVariable Long orderId
-        ) {
-                return ResponseEntity.ok(
-                                adminTradeLookupService.getOrderAudit(orderId)
-                );
-        }
+    // AUDIT: Retrieve audit history for an order
+    @GetMapping("/{orderId}/audit")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<AuditEventResponse>> getOrderAudit(
+            @PathVariable Long orderId
+    ) {
+        return ResponseEntity.ok(
+                adminTradeLookupService.getOrderAudit(orderId)
+        );
+    }
 }

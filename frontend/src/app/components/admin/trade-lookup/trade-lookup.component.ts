@@ -1,33 +1,31 @@
-import {
-  Component,
-  OnDestroy,
-  OnInit
-} from '@angular/core';
+import { Component, OnDestroy, OnInit } from "@angular/core";
 
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { CommonModule } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { Router } from "@angular/router";
 
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSelectModule } from '@angular/material/select';
-import { MatTableModule } from '@angular/material/table';
+import { MatButtonModule } from "@angular/material/button";
+import { MatCardModule } from "@angular/material/card";
+import { MatFormFieldModule } from "@angular/material/form-field";
+import { MatInputModule } from "@angular/material/input";
+import { MatPaginatorModule, PageEvent } from "@angular/material/paginator";
+import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
+import { MatSelectModule } from "@angular/material/select";
+import { MatTableModule } from "@angular/material/table";
 
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { Subject } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 
 import {
   AdminOrderLookup,
-  AdminService
-} from '../../../services/admin.service';
+  AdminOrderPage,
+  AdminService,
+} from "../../../services/admin.service";
 
-import { InternalNavComponent } from '../../internal-nav/internal-nav.component';
+import { InternalNavComponent } from "../../internal-nav/internal-nav.component";
 
 @Component({
-  selector: 'app-trade-lookup',
+  selector: "app-trade-lookup",
   standalone: true,
   imports: [
     CommonModule,
@@ -36,42 +34,44 @@ import { InternalNavComponent } from '../../internal-nav/internal-nav.component'
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
+    MatPaginatorModule,
     MatProgressSpinnerModule,
     MatSelectModule,
     MatTableModule,
-    InternalNavComponent
+    InternalNavComponent,
   ],
-  templateUrl: './trade-lookup.component.html',
-  styleUrls: ['./trade-lookup.component.scss']
+  templateUrl: "./trade-lookup.component.html",
+  styleUrls: ["./trade-lookup.component.scss"],
 })
-export class TradeLookupComponent
-  implements OnInit, OnDestroy {
-
+export class TradeLookupComponent implements OnInit, OnDestroy {
   orders: AdminOrderLookup[] = [];
 
   displayedColumns: string[] = [
-    'orderId',
-    'tradeId',
-    'client',
-    'instrument',
-    'side',
-    'quantity',
-    'status',
-    'submittedAt'
+    "orderId",
+    "tradeId",
+    "client",
+    "instrument",
+    "side",
+    "quantity",
+    "status",
+    "submittedAt",
   ];
 
-  search = '';
-  status = '';
+  search = "";
+  status = "";
 
   loading = false;
-  errorMessage = '';
+  errorMessage = "";
 
-  private readonly destroy$ =
-    new Subject<void>();
+  pageIndex = 0;
+  pageSize = 100;
+  totalOrders = 0;
+
+  private readonly destroy$ = new Subject<void>();
 
   constructor(
     private adminService: AdminService,
-    private router: Router
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -79,61 +79,69 @@ export class TradeLookupComponent
   }
 
   applyFilters(): void {
+    this.pageIndex = 0;
     this.loadOrders();
   }
 
   resetFilters(): void {
-    this.search = '';
-    this.status = '';
+    this.search = "";
+    this.status = "";
+    this.pageIndex = 0;
 
     this.loadOrders();
   }
 
-  openOrder(
-    order: AdminOrderLookup
-  ): void {
+  changePage(event: PageEvent): void {
+    this.pageIndex = event.pageIndex;
+    this.pageSize = event.pageSize;
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+    this.loadOrders();
+  }
 
-    this.router.navigate([
-      '/admin/orders',
-      order.orderId
-    ]);
+  openOrder(order: AdminOrderLookup): void {
+    this.router.navigate(["/admin/orders", order.orderId]);
   }
 
   private loadOrders(): void {
     this.loading = true;
-    this.errorMessage = '';
+    this.errorMessage = "";
 
     this.adminService
-      .getOrders({
-        search: this.search,
-        status: this.status
-      })
-      .pipe(
-        takeUntil(this.destroy$)
+      .getOrders(
+        {
+          search: this.search,
+          status: this.status,
+        },
+        this.pageIndex,
+        this.pageSize,
       )
+      .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: orders => {
-          this.orders = orders;
+        next: (response: AdminOrderPage) => {
+          this.orders = response.orders;
+          this.pageIndex = response.page;
+          this.pageSize = response.size;
+          this.totalOrders = response.totalElements;
           this.loading = false;
         },
 
-        error: error => {
-          console.error(
-            'Failed to load admin orders:',
-            error
-          );
+        error: (error) => {
+          console.error("Failed to load admin orders:", error);
 
           this.orders = [];
+          this.totalOrders = 0;
           this.loading = false;
 
           if (error.status === 403) {
             this.errorMessage =
-              'You do not have permission to view trade lookup.';
+              "You do not have permission to view trade lookup.";
           } else {
-            this.errorMessage =
-              'Unable to load trade lookup.';
+            this.errorMessage = "Unable to load trade lookup.";
           }
-        }
+        },
       });
   }
 
