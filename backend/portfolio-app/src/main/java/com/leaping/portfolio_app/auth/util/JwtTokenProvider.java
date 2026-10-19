@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtTokenProvider {
@@ -22,74 +23,91 @@ public class JwtTokenProvider {
     @Value("${jwt.refresh-expiration:604800000}")  // 7 days for refresh token
     private long refreshTokenExpirationMs;
 
-    public String generateToken(String email) {
+    public long getAccessTokenTtlMs() {
+        return jwtExpirationMs;
+    }
+
+    public long getRefreshTokenTtlMs() {
+        return refreshTokenExpirationMs;
+    }
+
+    public String generateAccessToken(String email, UUID sessionId, Date expiresAt) {
+        return buildToken(email, sessionId, "access", expiresAt);
+    }
+
+    public String generateRefreshToken(String email, UUID sessionId, Date expiresAt) {
+        return buildToken(email, sessionId, "refresh", expiresAt);
+    }
+
+    private String buildToken(String email, UUID sessionId, String type, Date expiresAt) {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
         return Jwts.builder()
                 .subject(email)
+                .id(UUID.randomUUID().toString())
+                .claim("sid", sessionId.toString())
+                .claim("type", type)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+                .expiration(expiresAt)
                 .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
     }
 
     public String getEmailFromToken(String token) {
-        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
-        Claims claims = Jwts.parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-        return claims.getSubject();
+        return parseClaims(token).getSubject();
     }
 
-    public boolean validateToken(String token) {
+    public UUID getSessionId(String token) {
         try {
-            SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
-            Jwts.parser()
-                    .verifyWith(key)
-                    .build()
-                    .parseSignedClaims(token);
-            return true;
-        } catch (Exception e) {
+            Object sessionId = parseClaims(token).get("sid");
+            if (sessionId == null) {
+                return null;
+            }
+            return UUID.fromString(sessionId.toString());
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    public Date getExpiration(String token) {
+        return parseClaims(token).getExpiration();
+    }
+
+    public boolean isRefreshToken(String token) {
+        try {
+            return "refresh".equals(parseClaims(token).get("type"));
+        } catch (RuntimeException ex) {
             return false;
         }
     }
 
-    public String generateRefreshToken(String email) {
-        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
-        return Jwts.builder()
-                .subject(email)
-                .claim("type", "refresh")
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + refreshTokenExpirationMs))
-                .signWith(key, SignatureAlgorithm.HS512)
-                .compact();
+    public boolean validateToken(String token) {
+        try {
+            parseClaims(token);
+            return true;
+        } catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     public boolean validateRefreshToken(String token) {
         try {
-            SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
-            Claims claims = Jwts.parser()
-                    .verifyWith(key)
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
-            
-            // Verify it's a refresh token
-            Object type = claims.get("type");
-            return type != null && type.equals("refresh");
-        } catch (Exception e) {
+            Claims claims = parseClaims(token);
+            return "refresh".equals(claims.get("type")) && claims.get("sid") != null;
+        } catch (RuntimeException ex) {
             return false;
         }
     }
 
     public String getEmailFromRefreshToken(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    private Claims parseClaims(String token) {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
-        Claims claims = Jwts.parser()
+        return Jwts.parser()
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-        return claims.getSubject();
     }
 }

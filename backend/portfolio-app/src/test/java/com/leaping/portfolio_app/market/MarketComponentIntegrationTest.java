@@ -10,6 +10,8 @@ import com.leaping.portfolio_app.market.repository.CurrencyRepository;
 import com.leaping.portfolio_app.market.repository.MarketRepository;
 import com.leaping.portfolio_app.market.repository.PriceRepository;
 import com.leaping.portfolio_app.market.service.MarketDataIngestionService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,13 +19,18 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -69,6 +76,9 @@ class MarketComponentIntegrationTest {
 
     @Autowired
     private PriceRepository priceRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void seedReferenceDataAndIngest() {
@@ -117,6 +127,7 @@ class MarketComponentIntegrationTest {
         mockMvc.perform(get("/api/market/instruments/price/latest").param("symbol", "AAPL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.symbol").value("AAPL"))
+                .andExpect(jsonPath("$.currencyCode").value("USD"))
                 .andExpect(jsonPath("$.provider").value("price-simulator"));
 
         mockMvc.perform(get("/api/market/instruments/price/history")
@@ -129,6 +140,7 @@ class MarketComponentIntegrationTest {
         mockMvc.perform(get("/api/market/instruments/quote").param("symbol", "AAPL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.symbol").value("AAPL"))
+                .andExpect(jsonPath("$.currencyCode").value("USD"))
                 .andExpect(jsonPath("$.provider").value("price-simulator"));
 
         mockMvc.perform(get("/api/market/quotes")
@@ -220,6 +232,87 @@ class MarketComponentIntegrationTest {
                         "Repeated ingestion should not bulk-duplicate same-day rows"
                 );
         }
+
+    @Test
+    @WithMockUser(username = "market.tester@example.com", roles = {"CUSTOMER"})
+    void londonAndIndiaPricesAreShownInUsdAndTheStoredPrintStaysNative() throws Exception {
+        assertShownInUsd("VOD", "GBP");
+        assertShownInUsd("RELIANCE", "INR");
+        assertShownInUsd("AAPL", "USD");
+    }
+
+    private void assertShownInUsd(String symbol, String nativeCurrency) throws Exception {
+        NativePrint stored = latestNative(symbol);
+        assertEquals(nativeCurrency, stored.currencyCode());
+        BigDecimal expectedUsd = stored.price().multiply(stored.rate()).setScale(8, RoundingMode.HALF_UP);
+
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode quote = mapper.readTree(mockMvc.perform(get("/api/market/instruments/quote").param("symbol", symbol))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+        assertEquals("USD", quote.get("currencyCode").asText());
+        assertEquals(0, expectedUsd.compareTo(new BigDecimal(quote.get("price").asText())));
+
+        JsonNode latest = mapper.readTree(mockMvc.perform(get("/api/market/instruments/price/latest").param("symbol", symbol))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+        assertEquals("USD", latest.get("currencyCode").asText());
+        assertEquals(0, expectedUsd.compareTo(new BigDecimal(latest.get("price").asText())));
+
+        OffsetDateTime to = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(1);
+        OffsetDateTime from = to.minusDays(40);
+        JsonNode history = mapper.readTree(mockMvc.perform(get("/api/market/instruments/price/history")
+                        .param("symbol", symbol)
+                        .param("from", from.toString())
+                        .param("to", to.toString()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+        assertTrue(history.size() > 0, symbol + " history should contain a dollar price");
+        List<Price> storedHistory = priceRepository
+                .findByInstrumentSymbolIgnoreCaseAndPriceTimestampBetweenOrderByPriceTimestampAsc(
+                        symbol, from, to);
+        assertEquals(storedHistory.size(), history.size(), symbol + " history should keep every stored print");
+        for (int index = 0; index < history.size(); index++) {
+            JsonNode point = history.get(index);
+            Price nativePoint = storedHistory.get(index);
+            BigDecimal expectedPoint = nativePoint.getPrice().multiply(stored.rate()).setScale(8, RoundingMode.HALF_UP);
+            assertEquals("USD", point.get("currencyCode").asText());
+            assertEquals(0, expectedPoint.compareTo(new BigDecimal(point.get("price").asText())));
+            assertEquals(0, nativePoint.getPrice().compareTo(
+                    priceRepository.findById(nativePoint.getPriceId()).orElseThrow().getPrice()));
+        }
+
+        NativePrint storedAfter = latestNative(symbol);
+        assertEquals(0, stored.price().compareTo(storedAfter.price()));
+        assertEquals(nativeCurrency, storedAfter.currencyCode());
+        assertEquals(0, stored.rate().compareTo(storedAfter.rate()));
+    }
+
+    /**
+     * Price.currency is lazy, and this test reads it outside a web request, so the rate
+     * has to be copied while a session is open.
+     */
+    private NativePrint latestNative(String symbol) {
+        NativePrint print = new TransactionTemplate(transactionManager).execute(status -> {
+            Price price = priceRepository
+                    .findFirstByInstrumentSymbolIgnoreCaseOrderByPriceTimestampDesc(symbol)
+                    .orElseThrow(() -> new IllegalStateException("No stored price for " + symbol));
+            return new NativePrint(
+                    price.getPrice(),
+                    price.getPriceCurrency().getCurrentExchangeRateToUsd(),
+                    price.getPriceCurrency().getCurrencyCode());
+        });
+        assertNotNull(print, "No stored price for " + symbol);
+        return print;
+    }
+
+    private record NativePrint(BigDecimal price, BigDecimal rate, String currencyCode) {}
 
     private void seedCurrencies() {
         upsertCurrency("USD", "US Dollar", "$", BigDecimal.ONE);

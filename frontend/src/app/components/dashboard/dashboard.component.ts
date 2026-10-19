@@ -29,6 +29,9 @@ import {
   PortfolioService
 } from '../../services/portfolio.service';
 import { WatchlistInstrumentResponse, WatchlistResponse, WatchlistService } from '../../services/watchlist.service';
+import { WalkthroughService } from '../../services/walkthrough.service';
+import { WalkthroughComponent } from '../walkthrough/walkthrough.component';
+import { TourEvent, WALKTHROUGH_STEPS, WalkthroughStep } from '../walkthrough/walkthrough-steps';
 import {
   OrderAction,
   OrderHistoryPage,
@@ -96,7 +99,8 @@ const MAX_CASH_TRANSFER_USD = 1_000_000;
     MatButtonModule,
     MatIconModule,
     MatMenuModule,
-    MatDividerModule
+    MatDividerModule,
+    WalkthroughComponent
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss']
@@ -176,14 +180,46 @@ export class DashboardComponent implements OnInit, OnDestroy {
   orderSubmitMessage = '';
   orderSubmitError = '';
   orderResult: OrderResult | null = null;
-  tradePanelOpen = false;
 
-  cashPanelOpen = false;
+  // Every way a panel opens or closes (its own buttons, opening the other
+  // panel, picking an instrument from search...) goes through these setters,
+  // so the walkthrough always hears about it.
+  private tradePanelOpenState = false;
+  private cashPanelOpenState = false;
+
+  get tradePanelOpen(): boolean {
+    return this.tradePanelOpenState;
+  }
+
+  set tradePanelOpen(open: boolean) {
+    if (open === this.tradePanelOpenState) {
+      return;
+    }
+    this.tradePanelOpenState = open;
+    this.onTourEvent(open ? 'tradePanelOpened' : 'tradePanelClosed');
+  }
+
+  get cashPanelOpen(): boolean {
+    return this.cashPanelOpenState;
+  }
+
+  set cashPanelOpen(open: boolean) {
+    if (open === this.cashPanelOpenState) {
+      return;
+    }
+    this.cashPanelOpenState = open;
+    this.onTourEvent(open ? 'cashPanelOpened' : 'cashPanelClosed');
+  }
+
   cashDirection: CashDirection = 'DEPOSIT';
   cashAmount: number | null = null;
   cashSubmitInProgress = false;
   cashResult: OrderResult | null = null;
   readonly quickDepositAmounts = [100, 1000, 10000];
+
+  // First-time walkthrough. null when it isn't showing; 0 is the welcome popup.
+  readonly tourSteps = WALKTHROUGH_STEPS;
+  tourStepIndex: number | null = null;
 
   readonly rangeOptions: RangeKey[] = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
   private destroy$ = new Subject<void>();
@@ -203,7 +239,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private portfolioService: PortfolioService,
     private marketService: MarketService,
     private watchlistService: WatchlistService,
-    private tradeService: TradeService
+    private tradeService: TradeService,
+    private walkthroughService: WalkthroughService
   ) {}
 
   get displayName(): string {
@@ -559,6 +596,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.loadDashboard();
     this.startLiveUpdates();
     this.startMarketContextUpdates();
+
+    if (this.walkthroughService.isPending()) {
+      this.startTour();
+    }
   }
 
   ngOnDestroy(): void {
@@ -665,6 +706,54 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.cashPanelOpen = false;
   }
 
+  get tourStep(): WalkthroughStep | null {
+    return this.tourStepIndex === null ? null : this.tourSteps[this.tourStepIndex];
+  }
+
+  startTour(): void {
+    // Set the step first: the welcome step ignores the "panel closed" events below.
+    this.tourStepIndex = 0;
+    this.tradePanelOpen = false;
+    this.cashPanelOpen = false;
+  }
+
+  advanceTour(): void {
+    if (this.tourStepIndex === null) {
+      return;
+    }
+    if (this.tourStepIndex >= this.tourSteps.length - 1) {
+      this.endTour();
+      return;
+    }
+    this.goToTourStep(this.tourStepIndex + 1);
+  }
+
+  endTour(): void {
+    this.tourStepIndex = null;
+    this.walkthroughService.clearPending();
+  }
+
+  // Called whenever something happens that a tour step may be waiting for:
+  // panels opening/closing (from the setters above), a deposit or an order.
+  onTourEvent(event: TourEvent): void {
+    const step = this.tourStep;
+    if (!step || this.tourStepIndex === null) {
+      return;
+    }
+    if (step.advanceOn === event) {
+      this.advanceTour();
+    } else if (step.backOn === event) {
+      this.goToTourStep(this.tourStepIndex - 1);
+    }
+  }
+
+  private goToTourStep(index: number): void {
+    this.tourStepIndex = index;
+    if (this.tourSteps[index].id === 'holdings') {
+      this.setSelectedTab('holdings');
+    }
+  }
+
   setCashDirection(direction: CashDirection): void {
     this.cashDirection = direction;
     this.cashResult = null;
@@ -710,6 +799,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
           this.refreshPortfolioSlice();
           if (this.ticketInstrument) {
             this.requestPreview();
+          }
+          if (deposited) {
+            this.onTourEvent('depositCompleted');
           }
         },
         error: (error: HttpErrorResponse) => {
@@ -811,6 +903,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
           this.refreshPortfolioSlice();
           this.refreshActivityIfLoaded();
           this.requestPreview();
+          this.onTourEvent('orderPlaced');
         },
         error: (error: HttpErrorResponse) => {
           this.orderResult = this.describeFailedOrder(error);
@@ -1228,8 +1321,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
           return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
         });
         const currentPriceUsd = this.toNumber(holding.currentPriceUsd || holding.averageCostUsd);
-        const usdRate = this.historyToUsdRate(history, currentPriceUsd);
-        const price = this.findHistoricalPrice(history, targetTime, currentPriceUsd / usdRate) * usdRate;
+        const price = this.findHistoricalPrice(history, targetTime, currentPriceUsd);
         return sum + this.toNumber(holding.quantity) * price;
       }, 0);
 
@@ -1238,18 +1330,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
         value: this.cashBalance + holdingsValue
       };
     });
-  }
-
-  /**
-   * History prices come in the instrument's own currency (GBP, INR, ...) but holdings are valued in USD.
-   * Derive the conversion from the latest history price vs. the current USD price.
-   */
-  private historyToUsdRate(history: PricePointResponse[], currentPriceUsd: number): number {
-    const latest = history[history.length - 1];
-    if (!latest || latest.currencyCode === 'USD' || !currentPriceUsd || !this.toNumber(latest.price)) {
-      return 1;
-    }
-    return currentPriceUsd / this.toNumber(latest.price);
   }
 
   private findHistoricalPrice(history: PricePointResponse[], targetTime: number, fallback: number): number {

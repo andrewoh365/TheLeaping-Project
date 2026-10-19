@@ -14,6 +14,8 @@ import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 // Portfolio repository for managing portfolio entities
 import com.leaping.portfolio_app.portfolio.entity.Portfolio;
 import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
@@ -27,17 +29,18 @@ public class AuthService {
     private final CustomerRepository customerRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
-    
     private final PortfolioRepository portfolioRepository;
+    private final SessionService sessionService;
     
     public AuthService(UserRepository userRepository, CustomerRepository customerRepository,
                       JwtTokenProvider jwtTokenProvider, PasswordEncoder passwordEncoder, 
-                      PortfolioRepository portfolioRepository) {
+                      PortfolioRepository portfolioRepository, SessionService sessionService) {
         this.userRepository = userRepository;
         this.customerRepository = customerRepository;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
         this.portfolioRepository = portfolioRepository;
+        this.sessionService = sessionService;
     }
 
     public AuthResponse authenticate(LoginRequest loginRequest) {
@@ -65,16 +68,19 @@ public class AuthService {
             return new AuthResponse(null, null, "Invalid email or password", false);
         }
 
-        // Generate JWT access token and refresh token
-        String token = jwtTokenProvider.generateToken(email);
-        String refreshToken = jwtTokenProvider.generateRefreshToken(email);
-        
-        // Return response with role and refresh token included
-        return new AuthResponse(token, email, "Authentication successful", true, user.getRole().name(), refreshToken);
+        IssuedTokens tokens = sessionService.openSession(user);
+        return new AuthResponse(
+                tokens.accessToken(),
+                email,
+                "Authentication successful",
+                true,
+                user.getRole().name(),
+                tokens.refreshToken()
+        );
     }
 
     public boolean validateToken(String token) {
-        return jwtTokenProvider.validateToken(token);
+        return sessionService.isAccessTokenActive(token);
     }
 
     public String getEmailFromToken(String token) {
@@ -179,56 +185,41 @@ public class AuthService {
         Portfolio newPortfolio = new Portfolio(newCustomer);
         portfolioRepository.save(newPortfolio);
         
-        // STEP 11: Generate JWT access token and refresh token for the new user
-        String token = jwtTokenProvider.generateToken(savedUser.getEmail());
-        String refreshToken = jwtTokenProvider.generateRefreshToken(savedUser.getEmail());
-        
-        // STEP 12: Return success response with token, refresh token, and user info
+        IssuedTokens tokens = sessionService.openSession(savedUser);
+
         return new RegisterResponse(
-            token,
+            tokens.accessToken(),
             savedUser.getEmail(),
             savedUser.getFirstName(),
             savedUser.getLastName(),
             "User created successfully",
             true,
-            refreshToken
+            tokens.refreshToken()
         );
     }
 
     public AuthResponse refreshToken(RefreshRequest refreshRequest) {
-        // Validate refresh token is provided
-        if (refreshRequest == null || refreshRequest.getRefreshToken() == null || 
-            refreshRequest.getRefreshToken().trim().isEmpty()) {
-            return new AuthResponse(null, null, "Refresh token is required", false);
-        }
-
-        String refreshToken = refreshRequest.getRefreshToken();
-        
-        // Validate refresh token
-        if (!jwtTokenProvider.validateRefreshToken(refreshToken)) {
-            return new AuthResponse(null, null, "Invalid or expired refresh token", false);
-        }
-
-        // Extract email from refresh token
-        String email = jwtTokenProvider.getEmailFromRefreshToken(refreshToken);
-        
-        // Verify user still exists and is active
-        User user = userRepository.findByEmail(email).orElse(null);
-        if (user == null || !user.isActive()) {
-            return new AuthResponse(null, null, "User account is inactive or not found", false);
-        }
-
-        // Generate new access token and optionally new refresh token
-        String newAccessToken = jwtTokenProvider.generateToken(email);
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(email);
-        
-        // Return response with new tokens
-        return new AuthResponse(newAccessToken, email, "Token refreshed successfully", true, 
-                               user.getRole().name(), newRefreshToken);
+        String refreshToken = refreshRequest == null ? null : refreshRequest.getRefreshToken();
+        return sessionService.refresh(refreshToken);
     }
 
-    public AuthResponse logout() {
+    public AuthResponse logout(String accessToken, String refreshToken) {
+        sessionService.revokePresented(accessToken, refreshToken);
         return new AuthResponse(null, null, "Logout successful", true);
+    }
+
+    public AuthResponse revokeOtherSessions(String accessToken) {
+        if (!sessionService.isAccessTokenActive(accessToken)) {
+            return new AuthResponse(null, null, "Invalid or expired token", false);
+        }
+        UUID sessionId = jwtTokenProvider.getSessionId(accessToken);
+        String email = jwtTokenProvider.getEmailFromToken(accessToken);
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null || sessionId == null) {
+            return new AuthResponse(null, null, "Invalid or expired token", false);
+        }
+        sessionService.revokeOtherSessions(user.getId(), sessionId);
+        return new AuthResponse(null, email, "Other sessions revoked", true);
     }
 
     public UserDto getUserByEmail(String email) {
