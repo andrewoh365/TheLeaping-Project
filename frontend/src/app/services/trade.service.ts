@@ -22,10 +22,14 @@ export interface OrderResponse {
   order_status: string;
   quantity: number;
   limit_price?: number;
+  /** Market price when the order was submitted */
+  reference_price?: number | null;
   submitted_at?: string;
+  accepted_at?: string;
   filled_at?: string;
   rejected_at?: string;
   rejection_reason?: string;
+  cancelled_at?: string;
   instrument_name?: string;
   execution_price?: number | null;
   total_usd_value?: number | null;
@@ -37,22 +41,6 @@ export interface OrderHistoryPage {
   size: number;
   total_elements: number;
   has_more: boolean;
-}
-
-export interface TradeResponse {
-  trade_id: number;
-  order_id?: number;
-  instrument_symbol?: string;
-  order_action?: string;
-  executed_quantity?: number;
-  execution_price: number;
-  total_usd_value: number;
-  executed_at?: string;
-}
-
-export interface PlaceOrderSuccess {
-  order: OrderResponse;
-  trade?: TradeResponse;
 }
 
 export interface TradeApiError {
@@ -69,7 +57,11 @@ export interface OrderPreview {
   market_name: string | null;
   order_action: OrderAction;
   quantity: number | null;
+  /** Indicative price for this side: the ask when buying, the bid when selling. */
   indicative_price_usd: number | null;
+  bid_usd: number | null;
+  ask_usd: number | null;
+  spread_usd: number | null;
   estimated_total_usd: number | null;
   cash_available_usd: number;
   quantity_owned: number;
@@ -98,8 +90,9 @@ export class TradeService {
     return this.http.get<OrderPreview>(`${this.apiUrl}/preview`, { params });
   }
 
-  placeOrder(request: PlaceOrderRequest): Observable<OrderResponse | PlaceOrderSuccess> {
-    return this.http.post<OrderResponse | PlaceOrderSuccess>(`${this.apiUrl}/orders`, request);
+  /** Returns the order once accepted (202); it then executes asynchronously, so poll getOrder for the outcome. */
+  placeOrder(request: PlaceOrderRequest): Observable<OrderResponse> {
+    return this.http.post<OrderResponse>(`${this.apiUrl}/orders`, request);
   }
 
   getOrderHistory(page = 0, size = 20): Observable<OrderHistoryPage> {

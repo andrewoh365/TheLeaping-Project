@@ -240,7 +240,7 @@
           </ng-container>
         </div>
 
-        <div class="activity-list" *ngIf="selectedTab === 'activity'">
+        <div class="activity-list" *ngIf="selectedTab === 'activity'" [class.activity-list--loading]="activityLoading && activityLoaded">
           <div class="activity-cols">
             <p>DATE</p>
             <p>ASSET</p>
@@ -270,7 +270,25 @@
                 <span class="side" [class.sell]="order.order_action === 'SELL'">{{ order.order_action === 'SELL' ? 'Sell' : 'Buy' }}</span>
                 {{ order.quantity | number:'1.0-8' }}
               </span>
-              <span class="num">{{ order.execution_price != null ? (order.execution_price | currency:'USD':'symbol':'1.2-2') : '—' }}</span>
+              <span class="num activity-price">
+                <ng-container *ngIf="order.execution_price != null; else unfilledPrice">
+                  {{ order.execution_price | currency:'USD':'symbol':'1.2-2' }}
+                  <small>Filled</small>
+                </ng-container>
+                <ng-template #unfilledPrice>
+                  <ng-container *ngIf="order.order_type === 'LIMIT' && order.limit_price != null; else marketPrice">
+                    {{ order.limit_price | currency:'USD':'symbol':'1.2-2' }}
+                    <small>Limit</small>
+                  </ng-container>
+                </ng-template>
+                <ng-template #marketPrice>
+                  <ng-container *ngIf="order.reference_price != null; else noPrice">
+                    ≈ {{ order.reference_price | currency:'USD':'symbol':'1.2-2' }}
+                    <small>At submission</small>
+                  </ng-container>
+                </ng-template>
+                <ng-template #noPrice>Unavailable</ng-template>
+              </span>
               <span class="num">{{ order.total_usd_value != null ? (order.total_usd_value | currency:'USD':'symbol':'1.2-2') : '—' }}</span>
               <span class="num">
                 <span class="status-badge" [ngClass]="'status-' + order.order_status.toLowerCase()">{{ orderStatusLabel(order.order_status) }}</span>
@@ -278,9 +296,11 @@
             </button>
             <div class="activity-details" *ngIf="expandedOrderId === order.order_id">
               <p *ngIf="order.rejection_reason"><strong>Why it was rejected:</strong> {{ order.rejection_reason }}</p>
-              <p>Order #{{ order.order_id }} · Placed {{ order.submitted_at | date:'MMM d, y, h:mm:ss a' }}</p>
+              <p>Order #{{ order.order_id }} · Submitted {{ order.submitted_at | date:'MMM d, y, h:mm:ss a' }}</p>
+              <p *ngIf="order.accepted_at">Accepted {{ order.accepted_at | date:'MMM d, y, h:mm:ss a' }}</p>
               <p *ngIf="order.filled_at">Filled {{ order.filled_at | date:'MMM d, y, h:mm:ss a' }}</p>
               <p *ngIf="order.rejected_at">Rejected {{ order.rejected_at | date:'MMM d, y, h:mm:ss a' }}</p>
+              <p *ngIf="order.cancelled_at">Cancelled {{ order.cancelled_at | date:'MMM d, y, h:mm:ss a' }}</p>
             </div>
           </ng-container>
 
@@ -290,9 +310,32 @@
           <div class="empty-state" *ngIf="activityLoading && !activityLoaded">Loading your orders...</div>
           <div class="empty-state error" *ngIf="activityError">{{ activityError }}</div>
 
-          <button type="button" class="load-more" *ngIf="activityHasMore" (click)="loadMoreActivity()" [disabled]="activityLoading">
-            {{ activityLoading ? 'Loading...' : 'Show older orders' }}
-          </button>
+          <nav class="activity-pager" *ngIf="activityLoaded && activityTotal > 0" aria-label="Order history pages">
+            <p class="activity-pager-range">
+              Showing {{ activityRangeStart }}–{{ activityRangeEnd }} of {{ activityTotal }} {{ activityTotal === 1 ? 'order' : 'orders' }}
+            </p>
+            <div class="activity-pager-controls" *ngIf="activityTotalPages > 1">
+              <button type="button" class="pager-step" (click)="goToActivityPage(activityPage - 1)" [disabled]="activityPage === 0 || activityLoading" aria-label="Previous page">
+                <mat-icon aria-hidden="true">chevron_left</mat-icon>
+              </button>
+              <ng-container *ngFor="let link of activityPageLinks">
+                <span class="pager-gap" *ngIf="link === null" aria-hidden="true">…</span>
+                <button
+                  *ngIf="link !== null"
+                  type="button"
+                  class="pager-page"
+                  [class.active]="link === activityPage"
+                  [attr.aria-current]="link === activityPage ? 'page' : null"
+                  [attr.aria-label]="'Page ' + (link + 1)"
+                  [disabled]="activityLoading"
+                  (click)="goToActivityPage(link)"
+                >{{ link + 1 }}</button>
+              </ng-container>
+              <button type="button" class="pager-step" (click)="goToActivityPage(activityPage + 1)" [disabled]="activityPage >= activityTotalPages - 1 || activityLoading" aria-label="Next page">
+                <mat-icon aria-hidden="true">chevron_right</mat-icon>
+              </button>
+            </div>
+          </nav>
         </div>
 
         <div *ngIf="selectedTab === 'watchlist'">
@@ -416,7 +459,7 @@
     <div class="trade-drawer-header">
       <div>
         <h2>Trade</h2>
-        <p>Orders fill straight away at the current market price.</p>
+        <p>Buys fill at the ask and sells at the bid, at the market price when your order executes.</p>
       </div>
       <button type="button" class="ghost-figma" (click)="toggleTradePanel()" aria-label="Close trade panel">
         <mat-icon>close</mat-icon>
@@ -490,11 +533,23 @@
 
       <dl class="ticket-summary" *ngIf="preview">
         <div>
-          <dt>Price per {{ preview.instrument_type === 'STOCK' ? 'share' : 'unit' }}</dt>
-          <dd>{{ preview.indicative_price_usd !== null ? '≈ ' + (preview.indicative_price_usd | currency:'USD':'symbol':'1.2-2') : 'Unavailable' }}</dd>
+          <!-- Labelled from the quote itself, so the label never runs ahead of the price while a new quote loads -->
+          <dt>Indicative {{ preview.order_action === 'BUY' ? 'buy price (ask)' : 'sell price (bid)' }}</dt>
+          <dd>{{ preview.indicative_price_usd !== null ? '≈ ' + (preview.indicative_price_usd | currency:'USD':'symbol':priceDigits(preview.indicative_price_usd)) : 'Price unavailable' }}</dd>
+        </div>
+        <div *ngIf="preview.bid_usd !== null && preview.ask_usd !== null">
+          <dt>Bid / Ask</dt>
+          <dd>
+            {{ preview.bid_usd | currency:'USD':'symbol':priceDigits(preview.bid_usd) }}
+            / {{ preview.ask_usd | currency:'USD':'symbol':priceDigits(preview.ask_usd) }}
+          </dd>
+        </div>
+        <div *ngIf="preview.spread_usd !== null">
+          <dt>Spread</dt>
+          <dd>{{ preview.spread_usd | currency:'USD':'symbol':priceDigits(preview.ask_usd) }}</dd>
         </div>
         <div>
-          <dt>Estimated {{ orderForm.order_action === 'BUY' ? 'cost' : 'proceeds' }}</dt>
+          <dt>Estimated {{ preview.order_action === 'BUY' ? 'cost' : 'proceeds' }}</dt>
           <dd>{{ preview.estimated_total_usd !== null ? '≈ ' + (preview.estimated_total_usd | currency:'USD':'symbol':'1.2-2') : '—' }}</dd>
         </div>
         <div *ngIf="orderForm.order_action === 'BUY'">
@@ -508,7 +563,7 @@
       </dl>
       <p class="ticket-hint" *ngIf="previewLoading && !preview">Getting the latest price...</p>
       <p class="ticket-note" *ngIf="preview?.indicative_price_usd !== null && preview">
-        Prices are indicative. Your order fills at the market price when it executes.
+        Indicative prices aren't guaranteed. Your order fills at the {{ orderForm.order_action === 'BUY' ? 'ask' : 'bid' }} when it executes, which may differ from the price shown.
       </p>
 
       <p class="ticket-warning" *ngIf="ticketWarning" role="alert">{{ ticketWarning }}</p>

@@ -9,7 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
 import { Subject, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
+import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, take, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrumentService';
 import {
@@ -35,9 +35,7 @@ import {
   OrderPreview,
   OrderResponse,
   PlaceOrderRequest,
-  PlaceOrderSuccess,
   TradeApiError,
-  TradeResponse,
   TradeService
 } from '../../services/trade.service';
 
@@ -78,6 +76,13 @@ interface TicketInstrument {
 
 /** How often the dashboard refreshes portfolio, prices and order status while visible. */
 const LIVE_UPDATE_MS = 15000;
+
+/** Orders per page on the Activity tab. */
+const ACTIVITY_PAGE_SIZE = 10;
+
+/** After an order is accepted, how often and how many times to check for its execution outcome. */
+const ORDER_OUTCOME_POLL_MS = 1000;
+const ORDER_OUTCOME_MAX_POLLS = 15;
 /** How long a changed value stays highlighted. */
 const HIGHLIGHT_MS = 2000;
 /** News and movers change slowly and are cached server-side; refresh them every 5 minutes. */
@@ -138,7 +143,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   activeWatchlistName = 'Watchlist';
   activityOrders: OrderResponse[] = [];
   activityPage = 0;
-  activityHasMore = false;
+  activityTotal = 0;
+  readonly activityPageSize = ACTIVITY_PAGE_SIZE;
   activityLoading = false;
   activityLoaded = false;
   activityError = '';
@@ -191,6 +197,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private holdingsSearch$ = new Subject<string>();
   private ticketSearch$ = new Subject<string>();
   private previewRequest$ = new Subject<void>();
+  /** Emits to stop following the previous order's outcome. */
+  private orderTracking$ = new Subject<void>();
   private holdingsSearchResults: DashboardHolding[] | null = null;
   private lastHoldingsFilterQuery = '';
   holdingsSearchLoading = false;
@@ -565,6 +573,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.highlightTimer) {
       clearTimeout(this.highlightTimer);
     }
+    this.orderTracking$.complete();
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -598,16 +607,61 @@ export class DashboardComponent implements OnInit, OnDestroy {
   setSelectedTab(tab: DashboardTab): void {
     this.selectedTab = tab;
     if (tab === 'activity' && !this.activityLoaded) {
-      this.loadActivity(true);
+      this.loadActivity(0);
     }
   }
 
-  loadMoreActivity(): void {
-    this.loadActivity(false);
+  get activityTotalPages(): number {
+    return Math.max(1, Math.ceil(this.activityTotal / ACTIVITY_PAGE_SIZE));
+  }
+
+  /** "Showing 11–20 of 42" range for the pager */
+  get activityRangeStart(): number {
+    return this.activityTotal === 0 ? 0 : this.activityPage * ACTIVITY_PAGE_SIZE + 1;
+  }
+
+  get activityRangeEnd(): number {
+    return Math.min(this.activityTotal, (this.activityPage + 1) * ACTIVITY_PAGE_SIZE);
+  }
+
+  /**
+   * Page numbers to show, zero-based. Always the first, last and the pages either side of
+   * the current one; null marks a gap (rendered as an ellipsis), e.g. 1 … 4 5 6 … 12.
+   */
+  get activityPageLinks(): (number | null)[] {
+    const total = this.activityTotalPages;
+    const current = this.activityPage;
+    const links: (number | null)[] = [];
+    for (let page = 0; page < total; page++) {
+      if (page === 0 || page === total - 1 || Math.abs(page - current) <= 1) {
+        links.push(page);
+      } else if (links[links.length - 1] !== null) {
+        links.push(null);
+      }
+    }
+    return links;
+  }
+
+  goToActivityPage(page: number): void {
+    const target = Math.min(Math.max(page, 0), this.activityTotalPages - 1);
+    if (target === this.activityPage || this.activityLoading) {
+      return;
+    }
+    this.expandedOrderId = null;
+    this.loadActivity(target);
   }
 
   toggleOrderDetails(orderId: number): void {
     this.expandedOrderId = this.expandedOrderId === orderId ? null : orderId;
+  }
+
+  /** Enough decimals to tell bid from ask: cents for most prices, more for FX rates and low-priced coins. */
+  priceDigits(value: number | null | undefined): string {
+    const price = Math.abs(this.toNumber(value));
+    if (price >= 10) {
+      return '1.2-2';
+    }
+    return price >= 1 ? '1.4-4' : '1.4-6';
   }
 
   orderStatusLabel(status: string): string {
@@ -615,7 +669,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'FILLED': return 'Filled';
       case 'REJECTED': return 'Rejected';
       case 'CANCELLED': return 'Cancelled';
-      case 'SUBMITTED': return 'Pending';
+      case 'ACCEPTED': return 'Accepted';
+      case 'SUBMITTED': return 'Submitted';
       default: return status.charAt(0) + status.slice(1).toLowerCase();
     }
   }
@@ -801,15 +856,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
         })
       )
       .subscribe({
-        next: (response) => {
-          const executed = response as PlaceOrderSuccess;
-          const order = executed.order ?? (response as OrderResponse);
-          this.orderResult = this.describeAcceptedOrder(order, executed.trade ?? null, symbol);
+        next: (order) => {
+          this.orderResult = this.describeOrder(order, symbol);
           // Clear the quantity so the same order can't be sent twice by accident
           this.orderForm.quantity = null;
-          this.refreshPortfolioSlice();
           this.refreshActivityIfLoaded();
-          this.requestPreview();
+          this.trackOrderOutcome(order, symbol);
         },
         error: (error: HttpErrorResponse) => {
           this.orderResult = this.describeFailedOrder(error);
@@ -824,6 +876,43 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   dismissOrderResult(): void {
     this.orderResult = null;
+  }
+
+  /**
+   * An accepted order executes in the background. Follow it until it fills or is rejected,
+   * then show the outcome and refresh holdings and cash.
+   */
+  private trackOrderOutcome(accepted: OrderResponse, symbol: string): void {
+    this.orderTracking$.next();
+    const settled = (order: OrderResponse) => {
+      // Keep the card dismissed if the client closed it while waiting
+      if (this.orderResult) {
+        this.orderResult = this.describeOrder(order, symbol);
+      }
+      this.refreshPortfolioSlice();
+      this.refreshActivityIfLoaded();
+      this.requestPreview();
+    };
+
+    if (!this.isOpenStatus(accepted.order_status)) {
+      settled(accepted);
+      return;
+    }
+
+    timer(ORDER_OUTCOME_POLL_MS / 2, ORDER_OUTCOME_POLL_MS)
+      .pipe(
+        take(ORDER_OUTCOME_MAX_POLLS),
+        exhaustMap(() => this.tradeService.getOrder(accepted.order_id).pipe(catchError(() => of<OrderResponse | null>(null)))),
+        filter((order): order is OrderResponse => order !== null),
+        takeWhile((order) => this.isOpenStatus(order.order_status), true),
+        filter((order) => !this.isOpenStatus(order.order_status)),
+        takeUntil(merge(this.destroy$, this.orderTracking$))
+      )
+      .subscribe(settled);
+  }
+
+  private isOpenStatus(status: string): boolean {
+    return status === 'SUBMITTED' || status === 'ACCEPTED';
   }
 
   private setTicketInstrument(instrument: TicketInstrument): void {
@@ -884,22 +973,37 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   }
 
-  private describeAcceptedOrder(order: OrderResponse, trade: TradeResponse | null, symbol: string): OrderResult {
-    const quantity = this.formatQuantity(trade?.executed_quantity ?? order.quantity);
-    if (trade && order.order_status === 'FILLED') {
-      const verb = order.order_action === 'SELL' ? 'Sold' : 'Bought';
-      const total = this.formatUsd(trade.total_usd_value);
-      return {
-        kind: 'filled',
-        title: `${verb} ${quantity} ${symbol} at ${this.formatUsd(trade.execution_price)}`,
-        detail: `${order.order_action === 'SELL' ? 'You received' : 'Total cost'} ${total}. Your holdings and cash are updated. Order #${order.order_id}.`
-      };
+  private describeOrder(order: OrderResponse, symbol: string): OrderResult {
+    const quantity = this.formatQuantity(order.quantity);
+    const side = order.order_action === 'SELL' ? 'sell' : 'buy';
+    switch (order.order_status) {
+      case 'FILLED': {
+        const verb = order.order_action === 'SELL' ? 'Sold' : 'Bought';
+        return {
+          kind: 'filled',
+          title: `${verb} ${quantity} ${symbol} at ${this.formatUsd(order.execution_price)}`,
+          detail: `${order.order_action === 'SELL' ? 'You received' : 'Total cost'} ${this.formatUsd(order.total_usd_value)}. Your holdings and cash are updated. Order #${order.order_id}.`
+        };
+      }
+      case 'REJECTED':
+        return {
+          kind: 'rejected',
+          title: 'Order rejected',
+          detail: `${order.rejection_reason ?? 'The order could not be filled.'} Nothing was charged. Order #${order.order_id}.`
+        };
+      case 'CANCELLED':
+        return {
+          kind: 'rejected',
+          title: 'Order cancelled',
+          detail: `Order #${order.order_id} to ${side} ${quantity} ${symbol} was cancelled before it filled. Nothing was charged.`
+        };
+      default:
+        return {
+          kind: 'pending',
+          title: 'Order accepted',
+          detail: `Order #${order.order_id} to ${side} ${quantity} ${symbol} is accepted and being filled. You can follow it in Activity.`
+        };
     }
-    return {
-      kind: 'pending',
-      title: 'Order received',
-      detail: `Order #${order.order_id} to ${order.order_action === 'SELL' ? 'sell' : 'buy'} ${quantity} ${symbol} is waiting to be filled.`
-    };
   }
 
   private describeFailedOrder(error: HttpErrorResponse): OrderResult {
@@ -915,15 +1019,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const reason = apiError?.message || 'Something went wrong placing your order. Please try again.';
     const order = apiError?.order;
     if (order?.order_status === 'REJECTED') {
+      // Failed the pre-trade checks; recorded in order history with the reason
       return {
         kind: 'rejected',
-        title: 'Order not completed',
+        title: 'Order rejected',
         detail: `${reason} Nothing was charged. Order #${order.order_id} is recorded as rejected.`
       };
-    }
-    if (order) {
-      // Accepted but execution failed and rolled back
-      return { kind: 'pending', title: 'Order not completed yet', detail: reason };
     }
     return { kind: 'rejected', title: 'Order not placed', detail: reason };
   }
@@ -1014,9 +1115,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         if (portfolio) {
           this.applyLivePortfolio(portfolio);
         }
-        // Keep the first page of activity current (e.g. orders placed in another tab)
-        if (this.activityLoaded && this.activityPage === 0 && this.selectedTab === 'activity') {
-          this.loadActivity(true);
+        // Keep the visible page of activity current (status changes, orders placed in another tab)
+        if (this.activityLoaded && this.selectedTab === 'activity') {
+          this.loadActivity(this.activityPage);
         }
         if (this.tradePanelOpen && this.ticketInstrument) {
           this.requestPreview();
@@ -1084,12 +1185,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
   }
 
-  private loadActivity(reset: boolean): void {
-    const page = reset ? 0 : this.activityPage + 1;
+  private loadActivity(page: number): void {
     this.activityLoading = true;
     this.activityError = '';
 
-    this.tradeService.getOrderHistory(page)
+    this.tradeService.getOrderHistory(page, ACTIVITY_PAGE_SIZE)
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {
@@ -1098,9 +1198,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (history: OrderHistoryPage) => {
-          this.activityOrders = reset ? history.orders : [...this.activityOrders, ...history.orders];
+          this.activityTotal = history.total_elements;
+          // The page can fall off the end if orders disappear; show the last page instead
+          if (history.orders.length === 0 && page > 0 && history.total_elements > 0) {
+            this.loadActivity(Math.ceil(history.total_elements / ACTIVITY_PAGE_SIZE) - 1);
+            return;
+          }
+          this.activityOrders = history.orders;
           this.activityPage = history.page;
-          this.activityHasMore = history.has_more;
           this.activityLoaded = true;
         },
         error: () => {
@@ -1111,7 +1216,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private refreshActivityIfLoaded(): void {
     if (this.activityLoaded) {
-      this.loadActivity(true);
+      this.loadActivity(this.activityPage);
     }
   }
 
