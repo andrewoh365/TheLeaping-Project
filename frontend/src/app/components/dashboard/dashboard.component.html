@@ -64,6 +64,22 @@
         <mat-icon>explore</mat-icon>
         <span>Take the tour</span>
       </button>
+      <button
+        mat-menu-item
+        *ngIf="marketOverride?.allowed"
+        class="market-override-toggle"
+        role="menuitemcheckbox"
+        [attr.aria-checked]="marketOverride?.enabled ? 'true' : 'false'"
+        [disabled]="marketOverrideSaving"
+        (click)="toggleMarketOverride($event)"
+      >
+        <mat-icon>{{ marketOverride?.enabled ? 'lock_open' : 'schedule' }}</mat-icon>
+        <span class="market-override-text">
+          After-hours trading
+          <small>{{ marketOverride?.enabled ? 'On · markets held open' : 'Off · real market hours' }}</small>
+        </span>
+        <span class="market-override-switch" [class.on]="marketOverride?.enabled" aria-hidden="true"></span>
+      </button>
       <button mat-menu-item class="logout-button" (click)="logout()">
         <mat-icon>logout</mat-icon>
         <span class="logout-text">Logout</span>

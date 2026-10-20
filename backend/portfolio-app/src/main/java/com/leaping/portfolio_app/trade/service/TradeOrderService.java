@@ -498,7 +498,8 @@ public class TradeOrderService {
         }
         var market = order.getInstrument().getMarket();
         var status = marketHoursService.getMarketStatus(market);
-        if (status.isAlwaysOpen() || market.getCloseTime() == null
+        // Not while the market is open, including when the testing override holds it open
+        if (status.isAlwaysOpen() || status.isOpen() || market.getCloseTime() == null
                 || status.getMarketTime().toLocalTime().isBefore(market.getCloseTime())) {
             return false;
         }

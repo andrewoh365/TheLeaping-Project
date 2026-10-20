@@ -17,6 +17,7 @@ import {
   MarketMovers,
   MarketNews,
   MarketService,
+  MarketOverrideStatus,
   MarketStatusResponse,
   NewsItem,
   PricePointResponse
@@ -133,6 +134,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   isChartLoading = false;
   dashboardError = '';
   marketStatus: MarketStatusResponse | null = null;
+  /** After-hours testing switch; null until loaded, and only shown where the backend allows it. */
+  marketOverride: MarketOverrideStatus | null = null;
+  marketOverrideSaving = false;
   portfolio: PortfolioResponse | null = null;
   holdings: DashboardHolding[] = [];
   allInstruments: Instrument[] = [];
@@ -262,6 +266,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get marketStatusLabel(): string {
+    if (this.marketStatus?.open && this.marketOverride?.enabled) {
+      return 'MARKET OPEN (OVERRIDE)';
+    }
     return this.marketStatus?.open ? 'MARKET OPEN' : 'MARKET CLOSED';
   }
 
@@ -600,6 +607,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
 
     this.loadDashboard();
+    this.loadMarketOverride();
     this.startLiveUpdates();
     this.startMarketContextUpdates();
 
@@ -728,6 +736,59 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get tourStep(): WalkthroughStep | null {
     return this.tourStepIndex === null ? null : this.tourSteps[this.tourStepIndex];
+  }
+
+  /** Turn the after-hours override on or off, keeping the menu open so the switch visibly flips. */
+  toggleMarketOverride(event: Event): void {
+    event.stopPropagation();
+    if (!this.marketOverride?.allowed || this.marketOverrideSaving) {
+      return;
+    }
+    this.marketOverrideSaving = true;
+    this.marketService.setMarketOverride(!this.marketOverride.enabled)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.marketOverrideSaving = false;
+        })
+      )
+      .subscribe({
+        next: (status) => {
+          this.marketOverride = status;
+          this.refreshMarketStatus();
+          // The ticket's open/closed state and price may have changed
+          if (this.tradePanelOpen && this.ticketInstrument) {
+            this.requestPreview();
+          }
+        },
+        error: () => {
+          // Leave the switch as it was; the server didn't change anything
+        }
+      });
+  }
+
+  private loadMarketOverride(): void {
+    this.marketService.getMarketOverride()
+      .pipe(
+        catchError(() => of<MarketOverrideStatus | null>(null)),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((status) => {
+        this.marketOverride = status;
+      });
+  }
+
+  private refreshMarketStatus(): void {
+    this.marketService.getMarketStatus('NASDAQ')
+      .pipe(
+        catchError(() => of<MarketStatusResponse | null>(null)),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((status) => {
+        if (status) {
+          this.marketStatus = status;
+        }
+      });
   }
 
   startTour(): void {
