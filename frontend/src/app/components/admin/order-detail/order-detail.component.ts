@@ -106,6 +106,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       ORDER_VALIDATED: "Order validated",
       ORDER_REJECTED: "Order rejected",
       ORDER_CANCELLED: "Order cancelled",
+      ORDER_EXPIRED: "Order expired",
       PRICE_CAPTURED: "Price captured",
       PRICE_CAPTURE_FAILED: "Price capture failed",
       TRADE_FILLED: "Trade filled",

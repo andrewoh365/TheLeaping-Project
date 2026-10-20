@@ -475,6 +475,9 @@ public class TradeOrderService {
     @Transactional
     public boolean expireDayOrder(Long orderId) {
         TradeOrder order = tradeOrderRepository.findById(orderId).orElse(null);
+        if (order != null) {
+            entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
+        }
         if (order == null || !OrderStatus.ACCEPTED.equals(order.getOrderStatus())
                 || !TimeInForce.DAY.equals(order.getTimeInForce())) {
             return false;
