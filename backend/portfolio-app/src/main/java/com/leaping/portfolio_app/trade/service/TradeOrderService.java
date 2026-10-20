@@ -44,6 +44,7 @@ import com.leaping.portfolio_app.trade.enums.OrderAction;
 import com.leaping.portfolio_app.trade.enums.OrderStatus;
 import com.leaping.portfolio_app.trade.enums.OrderType;
 import com.leaping.portfolio_app.trade.enums.TimeInForce;
+import com.leaping.portfolio_app.market.service.MarketHoursService;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
 import com.leaping.portfolio_app.trade.repository.TradeRepository;
 
@@ -69,6 +70,7 @@ public class TradeOrderService {
     private final AuditService auditService;
     private final EntityManager entityManager;
     private final ApplicationEventPublisher eventPublisher;
+    private final MarketHoursService marketHoursService;
 
     /**
      * Enforce market hours and price freshness when accepting orders (BR-05).
@@ -88,7 +90,8 @@ public class TradeOrderService {
             TradeRepository tradeRepository,
             AuditService auditService,
             EntityManager entityManager,
-            ApplicationEventPublisher eventPublisher
+            ApplicationEventPublisher eventPublisher,
+            MarketHoursService marketHoursService
     ) {
         this.tradeOrderRepository = tradeOrderRepository;
         this.portfolioRepository = portfolioRepository;
@@ -100,6 +103,7 @@ public class TradeOrderService {
         this.auditService = auditService;
         this.entityManager = entityManager;
         this.eventPublisher = eventPublisher;
+        this.marketHoursService = marketHoursService;
     }
 
     /**
@@ -468,6 +472,44 @@ public class TradeOrderService {
         return mapToOrderResponse(savedOrder);
     }
 
+    @Transactional
+    public boolean expireDayOrder(Long orderId) {
+        TradeOrder order = tradeOrderRepository.findById(orderId).orElse(null);
+        if (order == null || !OrderStatus.ACCEPTED.equals(order.getOrderStatus())
+                || !TimeInForce.DAY.equals(order.getTimeInForce())) {
+            return false;
+        }
+
+        if (order.getInstrument().getMarket() == null) {
+            return false;
+        }
+        var market = order.getInstrument().getMarket();
+        var status = marketHoursService.getMarketStatus(market);
+        if (status.isAlwaysOpen() || market.getCloseTime() == null
+                || status.getMarketTime().toLocalTime().isBefore(market.getCloseTime())) {
+            return false;
+        }
+
+        order.setOrderStatus(OrderStatus.EXPIRED);
+        order.setExpiredAt(OffsetDateTime.now());
+        TradeOrder savedOrder = tradeOrderRepository.save(order);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("orderId", savedOrder.getOrderId());
+        details.put("previousStatus", OrderStatus.ACCEPTED.name());
+        details.put("newStatus", OrderStatus.EXPIRED.name());
+        details.put("expiredAt", savedOrder.getExpiredAt());
+        auditService.recordEvent(
+            AuditEventType.ORDER_EXPIRED,
+            savedOrder.getPortfolio().getCustomer().getUser(),
+            savedOrder,
+            null,
+            null,
+            null,
+            details
+        );
+        return true;
+    }
+
     private Map<String, Object> orderAuditDetails(
             Long customerId,
             TradeOrder order
@@ -532,6 +574,7 @@ public class TradeOrderService {
         response.setSubmittedAt(order.getSubmittedAt());
         response.setAcceptedAt(order.getAcceptedAt());
         response.setFilledAt(order.getFilledAt());
+        response.setExpiredAt(order.getExpiredAt());
         response.setRejectedAt(order.getRejectedAt());
         response.setRejectionReason(order.getRejectionReason());
         response.setTimeInForce(order.getTimeInForce().name());

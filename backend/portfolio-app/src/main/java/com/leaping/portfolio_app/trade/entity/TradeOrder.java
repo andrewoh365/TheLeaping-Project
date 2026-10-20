@@ -87,6 +87,9 @@ public class TradeOrder {
     @Column(name = "cancelled_at")
     private OffsetDateTime cancelledAt;
 
+    @Column(name = "expired_at")
+    private OffsetDateTime expiredAt;
+
     @Column(name = "filled_at")
     private OffsetDateTime filledAt;
 
@@ -253,6 +256,14 @@ public class TradeOrder {
 
     public OffsetDateTime getFilledAt() {
         return filledAt;
+    }
+
+    public OffsetDateTime getExpiredAt() {
+        return expiredAt;
+    }
+
+    public void setExpiredAt(OffsetDateTime expiredAt) {
+        this.expiredAt = expiredAt;
     }
 
     public void setFilledAt(OffsetDateTime filledAt) {

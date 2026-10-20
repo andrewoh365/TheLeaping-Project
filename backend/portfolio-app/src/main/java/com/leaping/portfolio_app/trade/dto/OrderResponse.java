@@ -45,6 +45,9 @@ public class OrderResponse {
     @JsonProperty("rejected_at")
     private OffsetDateTime rejectedAt;
 
+    @JsonProperty("expired_at")
+    private OffsetDateTime expiredAt;
+
     @JsonProperty("rejection_reason")
     private String rejectionReason;
 
@@ -158,6 +161,14 @@ public class OrderResponse {
 
     public void setRejectedAt(OffsetDateTime rejectedAt) {
         this.rejectedAt = rejectedAt;
+    }
+
+    public OffsetDateTime getExpiredAt() {
+        return expiredAt;
+    }
+
+    public void setExpiredAt(OffsetDateTime expiredAt) {
+        this.expiredAt = expiredAt;
     }
 
     public String getRejectionReason() {

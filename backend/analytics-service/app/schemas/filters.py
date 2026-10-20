@@ -17,6 +17,7 @@ class OrderStatus(str, Enum):
     FILLED = "FILLED"
     REJECTED = "REJECTED"
     CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
 
 
 class ClientSegment(str, Enum):

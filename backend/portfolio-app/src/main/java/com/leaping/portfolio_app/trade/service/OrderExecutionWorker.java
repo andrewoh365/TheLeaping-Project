@@ -23,13 +23,16 @@ public class OrderExecutionWorker {
     private static final Duration RETRY_WINDOW = Duration.ofMinutes(15);
 
     private final TradeService tradeService;
+    private final TradeOrderService tradeOrderService;
     private final TradeOrderRepository tradeOrderRepository;
 
     public OrderExecutionWorker(
             TradeService tradeService,
+            TradeOrderService tradeOrderService,
             TradeOrderRepository tradeOrderRepository
     ) {
         this.tradeService = tradeService;
+        this.tradeOrderService = tradeOrderService;
         this.tradeOrderRepository = tradeOrderRepository;
     }
 
@@ -42,6 +45,9 @@ public class OrderExecutionWorker {
     @Scheduled(initialDelay = 30_000, fixedDelay = 15_000)
     public void retryAwaitingOrders() {
         OffsetDateTime now = OffsetDateTime.now();
+        for (Long orderId : tradeOrderRepository.findAcceptedDayOrderIds()) {
+            tradeOrderService.expireDayOrder(orderId);
+        }
         for (Long orderId : tradeOrderRepository.findOrdersAwaitingExecution(
                 now.minus(RETRY_WINDOW), now.minus(RETRY_AFTER))) {
             execute(orderId);

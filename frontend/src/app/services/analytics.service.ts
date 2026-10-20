@@ -14,7 +14,8 @@ export type OrderStatus =
   | 'ACCEPTED'
   | 'FILLED'
   | 'REJECTED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'EXPIRED';
 
 export type ClientSegment =
   | 'INACTIVE'

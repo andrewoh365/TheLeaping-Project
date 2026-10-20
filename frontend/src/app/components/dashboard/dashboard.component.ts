@@ -158,7 +158,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   totalValueChanged = false;
   private highlightTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Only market/day orders are offered: limit orders are not executed yet.
   orderForm: PlaceOrderRequest = {
     instrument_id: 0,
     order_action: 'BUY',
@@ -340,7 +339,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       && !this.orderSubmitInProgress
       && preview.instrument_id === this.ticketInstrument.instrumentId
       && preview.order_action === this.orderForm.order_action
-      && Number(preview.quantity) === Number(this.orderForm.quantity);
+      && Number(preview.quantity) === Number(this.orderForm.quantity)
+      && (this.orderForm.order_type === 'MARKET'
+        || (this.orderForm.limit_price !== null && this.orderForm.limit_price > 0));
   }
 
   get submitButtonLabel(): string {
@@ -357,6 +358,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** Show the preview's blocking reason, except the "enter a quantity" prompt before anything is typed. */
   get ticketWarning(): string {
     if (!this.ticketInstrument || !this.preview || this.preview.can_submit || this.previewLoading) {
+      if (this.orderForm.order_type === 'LIMIT'
+          && this.orderForm.quantity !== null
+          && (!this.orderForm.limit_price || this.orderForm.limit_price <= 0)) {
+        return 'Enter a positive limit price.';
+      }
       return '';
     }
     const noQuantityYet = this.orderForm.quantity === null || this.orderForm.quantity === undefined;
@@ -656,6 +662,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'FILLED': return 'Filled';
       case 'REJECTED': return 'Rejected';
       case 'CANCELLED': return 'Cancelled';
+      case 'EXPIRED': return 'Expired';
       case 'SUBMITTED': return 'Submitted';
       case 'ACCEPTED': return 'Accepted';
       default: return status.charAt(0) + status.slice(1).toLowerCase();
@@ -669,6 +676,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.activeRange = range;
     this.loadPortfolioHistory();
+  }
+
+  setOrderType(orderType: 'MARKET' | 'LIMIT'): void {
+    this.orderForm.order_type = orderType;
+    this.orderForm.limit_price = orderType === 'MARKET' ? null : this.orderForm.limit_price;
+    if (orderType === 'MARKET') {
+      this.orderForm.time_in_force = 'DAY';
+    }
+    this.requestPreview();
+  }
+
+  setTimeInForce(timeInForce: 'DAY' | 'GTC'): void {
+    this.orderForm.time_in_force = timeInForce;
   }
 
   selectInstrument(instrument: Instrument): void {
@@ -886,7 +906,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.orderResult = null;
     this.orderSubmitInProgress = true;
 
-    this.tradeService.placeOrder({ ...this.orderForm, order_type: 'MARKET', limit_price: null, time_in_force: 'DAY' })
+    this.tradeService.placeOrder({ ...this.orderForm })
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {

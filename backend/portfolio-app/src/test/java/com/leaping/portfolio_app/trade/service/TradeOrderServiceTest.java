@@ -42,6 +42,8 @@ import com.leaping.portfolio_app.market.dto.TradabilityDto;
 import com.leaping.portfolio_app.market.entity.Market;
 import com.leaping.portfolio_app.market.enums.TradabilityReason;
 import com.leaping.portfolio_app.market.service.PreTradeMarketService;
+import com.leaping.portfolio_app.market.service.MarketHoursService;
+import com.leaping.portfolio_app.market.service.MarketStatus;
 import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.service.MarketPriceService;
@@ -101,6 +103,9 @@ class TradeOrderServiceTest {
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
+    private MarketHoursService marketHoursService;
+
+    @Mock
     private EntityManager entityManager;
 
     @InjectMocks
@@ -147,6 +152,36 @@ class TradeOrderServiceTest {
 
     private TradabilityDto marketClosed() {
         return new TradabilityDto("AAPL", false, TradabilityReason.MARKET_CLOSED, false, false, false, false, "Market is currently closed");
+    }
+
+    @Test
+    void expireDayOrderAfterMarketCloseAuditsExpiredStatus() {
+        TradeOrder order = new TradeOrder();
+        order.setOrderId(700L);
+        order.setPortfolio(portfolio);
+        order.setInstrument(instrument);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
+        order.setOrderType(OrderType.LIMIT);
+        order.setTimeInForce(TimeInForce.DAY);
+        order.setOrderAction(OrderAction.BUY);
+        order.setQuantity(BigDecimal.ONE);
+
+        when(tradeOrderRepository.findById(700L)).thenReturn(Optional.of(order));
+        when(marketHoursService.getMarketStatus(market)).thenReturn(new MarketStatus(
+            "NASDAQ", "America/New_York",
+            OffsetDateTime.parse("2026-10-20T17:00:00-04:00"),
+            false, false, null, null
+        ));
+        when(tradeOrderRepository.save(order)).thenReturn(order);
+
+        assertTrue(tradeOrderService.expireDayOrder(700L));
+        assertEquals(OrderStatus.EXPIRED, order.getOrderStatus());
+        assertNotNull(order.getExpiredAt());
+        verify(auditService).recordEvent(
+            eq(AuditEventType.ORDER_EXPIRED),
+            eq(portfolio.getCustomer().getUser()),
+            eq(order), isNull(), isNull(), isNull(), any(Map.class)
+        );
     }
 
     @Test

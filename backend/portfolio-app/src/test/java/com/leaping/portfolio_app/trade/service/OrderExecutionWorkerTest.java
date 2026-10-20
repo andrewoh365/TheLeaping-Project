@@ -26,6 +26,9 @@ class OrderExecutionWorkerTest {
     private TradeService tradeService;
 
     @Mock
+    private TradeOrderService tradeOrderService;
+
+    @Mock
     private TradeOrderRepository tradeOrderRepository;
 
     @InjectMocks
@@ -60,6 +63,7 @@ class OrderExecutionWorkerTest {
 
     @Test
     void stalledAcceptedMarketOrdersAreRetried() {
+        when(tradeOrderRepository.findAcceptedDayOrderIds()).thenReturn(List.of());
         when(tradeOrderRepository.findOrdersAwaitingExecution(any(), any()))
                 .thenReturn(List.of(3L, 4L));
 

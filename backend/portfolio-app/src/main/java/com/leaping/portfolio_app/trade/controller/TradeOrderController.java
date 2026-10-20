@@ -209,6 +209,7 @@ public class TradeOrderController {
         response.setSubmittedAt(order.getSubmittedAt());
         response.setAcceptedAt(order.getAcceptedAt());
         response.setFilledAt(order.getFilledAt());
+        response.setExpiredAt(order.getExpiredAt());
         response.setRejectedAt(order.getRejectedAt());
         response.setRejectionReason(order.getRejectionReason());
         response.setTimeInForce(order.getTimeInForce().name());

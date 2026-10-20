@@ -44,6 +44,14 @@ public interface TradeOrderRepository extends JpaRepository<TradeOrder, Long> {
             @Param("acceptedBefore") OffsetDateTime acceptedBefore
         );
 
+        @Query("""
+                        SELECT o.orderId FROM TradeOrder o
+                        WHERE o.orderStatus = com.leaping.portfolio_app.trade.enums.OrderStatus.ACCEPTED
+                            AND o.timeInForce = com.leaping.portfolio_app.trade.enums.TimeInForce.DAY
+                        ORDER BY o.acceptedAt
+                        """)
+        List<Long> findAcceptedDayOrderIds();
+
     @Query(value = """
             SELECT o.*
             FROM trade_orders o
