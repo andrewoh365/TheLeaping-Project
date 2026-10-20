@@ -12,6 +12,7 @@ import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -21,6 +22,7 @@ public class PreTradeMarketService {
 
     private final InstrumentRepository instrumentRepository;
     private final PricingService pricingService;
+    private final MarketPriceService marketPriceService;
     private final MarketHoursService marketHoursService;
 
     @Value("${market.quote.max-age.stock-minutes:4320}")
@@ -35,10 +37,12 @@ public class PreTradeMarketService {
     public PreTradeMarketService(
             InstrumentRepository instrumentRepository,
             PricingService pricingService,
+            MarketPriceService marketPriceService,
             MarketHoursService marketHoursService
     ) {
         this.instrumentRepository = instrumentRepository;
         this.pricingService = pricingService;
+        this.marketPriceService = marketPriceService;
         this.marketHoursService = marketHoursService;
     }
 
@@ -55,13 +59,17 @@ public class PreTradeMarketService {
 
         Instrument instrument = instrumentOpt.get();
         Price latestPrice = latestPriceOpt.get();
+        BigDecimal usdPrice = marketPriceService.toUsd(latestPrice);
+        if (usdPrice == null) {
+            return Optional.empty();
+        }
         boolean stale = isPriceStale(instrument, latestPrice);
         long ageSeconds = Duration.between(latestPrice.getPriceTimestamp(), OffsetDateTime.now()).toSeconds();
 
         return Optional.of(new QuoteDto(
                 instrument.getSymbol(),
-                latestPrice.getPrice(),
-                latestPrice.getPriceCurrency().getCurrencyCode(),
+                usdPrice,
+                MarketPriceService.DISPLAY_CURRENCY,
                 latestPrice.getPriceTimestamp(),
                 latestPrice.getSourceType().name(),
                 latestPrice.getProviderName(),

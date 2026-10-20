@@ -34,6 +34,7 @@ export class JwtInterceptor implements HttpInterceptor {
         if (
           error.status === 401
           && !this.isRefreshUrl(request.url)
+          && !this.isLogoutUrl(request.url)
           && !this.isExcludedUrl(request.url)
         ) {
           return this.handleAuthError(request, next);
@@ -89,4 +90,7 @@ export class JwtInterceptor implements HttpInterceptor {
     return url.includes('/auth/refresh');
   }
 
+  private isLogoutUrl(url: string): boolean {
+    return url.includes('/auth/logout');
+  }
 }

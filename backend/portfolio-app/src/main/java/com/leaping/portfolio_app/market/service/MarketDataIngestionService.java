@@ -17,7 +17,8 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +53,7 @@ public class MarketDataIngestionService {
     private final ResourceLoader resourceLoader;
     private final MarketHoursService marketHoursService;
     private final PriceMovementSimulator priceMovementSimulator;
+    private final TransactionTemplate transactionTemplate;
 
     @Value("${market.pricing.history-days:30}")
     private int historyDays;
@@ -75,7 +77,8 @@ public class MarketDataIngestionService {
             CurrencyRepository currencyRepository,
             ResourceLoader resourceLoader,
             MarketHoursService marketHoursService,
-            PriceMovementSimulator priceMovementSimulator
+            PriceMovementSimulator priceMovementSimulator,
+            PlatformTransactionManager transactionManager
     ) {
         this.instrumentRepository = instrumentRepository;
         this.priceRepository = priceRepository;
@@ -84,29 +87,40 @@ public class MarketDataIngestionService {
         this.resourceLoader = resourceLoader;
         this.marketHoursService = marketHoursService;
         this.priceMovementSimulator = priceMovementSimulator;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    @Transactional
     public void initialBackfill() {
         List<UniverseRow> universe = loadUniverseRows();
         if (universe.isEmpty()) {
             return;
         }
 
-        // Daily history is written for every universe row, including an equity
-        // whose exchange is closed on this first start. Live ticks stay inside
-        // market hours, so that opening price does not move until the session opens.
-        backfillHistoricalPrices(universe);
-        appendLiveTicks(universe);
+        // Lock first, then open the transaction. Startup and the scheduler share
+        // liveTickLock; taking a database connection before the lock deadlocks
+        // when backfill still holds row locks and the scheduler holds the lock.
+        synchronized (liveTickLock) {
+            transactionTemplate.executeWithoutResult(status -> {
+                // Daily history is written for every universe row, including an equity
+                // whose exchange is closed on this first start. Live ticks stay inside
+                // market hours, so that opening price does not move until the session opens.
+                backfillHistoricalPrices(universe);
+                if (simulationEnabled) {
+                    appendLiveTicksLocked(universe);
+                }
+            });
+        }
     }
 
     @Scheduled(
             initialDelayString = "${market.pricing.refresh-ms:30000}",
             fixedDelayString = "${market.pricing.refresh-ms:30000}"
     )
-    @Transactional
     public void scheduledRefresh() {
+        if (!simulationEnabled) {
+            return;
+        }
         List<UniverseRow> universe = loadUniverseRows();
         if (universe.isEmpty()) {
             return;
@@ -196,7 +210,7 @@ public class MarketDataIngestionService {
             return;
         }
         synchronized (liveTickLock) {
-            appendLiveTicksLocked(universe);
+            transactionTemplate.executeWithoutResult(status -> appendLiveTicksLocked(universe));
         }
     }
 

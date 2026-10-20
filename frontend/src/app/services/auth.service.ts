@@ -202,13 +202,36 @@ export class AuthService {
    */
   logout(): void {
 
-    this.clearToken();
+    const token =
+      this.getToken();
 
-    this.currentUserSubject
-      .next(null);
+    const refreshToken =
+      localStorage.getItem(
+        this.REFRESH_TOKEN_KEY
+      );
 
-    this.isAuthenticatedSubject
-      .next(false);
+    if (token || refreshToken) {
+
+      const headers:
+        Record<string, string> = {};
+
+      if (token) {
+        headers['Authorization'] =
+          `Bearer ${token}`;
+      }
+
+      this.http
+        .post(
+          `${this.API_URL}/auth/logout`,
+          { refreshToken },
+          { headers }
+        )
+        .subscribe({
+          error: () => undefined
+        });
+    }
+
+    this.clearLocalSession();
   }
 
   /**
@@ -235,6 +258,37 @@ export class AuthService {
   getCurrentUser(): User | null {
 
     return this.currentUserSubject.value;
+  }
+
+  /**
+   * Email of the account whose token is
+   * stored, read from the token itself.
+   *
+   * Unlike getCurrentUser(), this is set
+   * straight after registering too.
+   */
+  getSignedInEmail(): string | null {
+
+    const token =
+      this.getToken();
+
+    if (!token) {
+      return null;
+    }
+
+    try {
+
+      const subject =
+        this.parseJwt(token).sub;
+
+      return typeof subject === 'string'
+        ? subject.trim().toLowerCase()
+        : null;
+
+    } catch {
+
+      return null;
+    }
   }
 
   /**
@@ -364,6 +418,21 @@ export class AuthService {
         refreshToken
       );
     }
+  }
+
+  /**
+   * Drop the signed-in session in the browser.
+   * The server revoke is requested separately.
+   */
+  private clearLocalSession(): void {
+
+    this.clearToken();
+
+    this.currentUserSubject
+      .next(null);
+
+    this.isAuthenticatedSubject
+      .next(false);
   }
 
   /**
