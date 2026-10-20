@@ -36,6 +36,7 @@ import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.enums.TradabilityReason;
 import com.leaping.portfolio_app.market.service.MarketPriceService;
 import com.leaping.portfolio_app.market.service.PreTradeMarketService;
+import com.leaping.portfolio_app.market.service.UsdQuote;
 import com.leaping.portfolio_app.holdings.Holding;
 import com.leaping.portfolio_app.holdings.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.entity.CashTransaction;
@@ -133,7 +134,7 @@ class TradeServiceTest {
         existing.setAverageCostUsd(new BigDecimal("90.00"));
 
         when(tradeOrderRepository.findById(10L)).thenReturn(Optional.of(order));
-        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.00"));
+        when(marketPriceService.getCurrentQuote("AAPL")).thenReturn(usdQuote("100.00"));
         when(executionAttemptRepository.save(any(ExecutionAttempt.class))).thenAnswer(invocation -> {
             ExecutionAttempt attempt = invocation.getArgument(0);
             attempt.setExecutionAttemptId(200L);
@@ -187,7 +188,7 @@ class TradeServiceTest {
         existing.setAverageCostUsd(new BigDecimal("90.00"));
 
         when(tradeOrderRepository.findById(14L)).thenReturn(Optional.of(order));
-        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.00"));
+        when(marketPriceService.getCurrentQuote("AAPL")).thenReturn(usdQuote("100.00"));
         when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L))
             .thenReturn(Optional.of(existing));
         when(executionAttemptRepository.save(any(ExecutionAttempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -219,7 +220,7 @@ class TradeServiceTest {
         order.setQuantity(new BigDecimal("1"));
 
         when(tradeOrderRepository.findById(77L)).thenReturn(Optional.of(order));
-        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(BigDecimal.ZERO);
+        when(marketPriceService.getCurrentQuote("AAPL")).thenReturn(usdQuote("0"));
         when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TradeRejectedException ex = assertThrows(
@@ -252,7 +253,7 @@ class TradeServiceTest {
         TradeOrder order = marketOrder(11L, OrderAction.BUY, "2");
 
         when(tradeOrderRepository.findById(11L)).thenReturn(Optional.of(order));
-        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.00"));
+        when(marketPriceService.getCurrentQuote("AAPL")).thenReturn(usdQuote("100.00"));
         when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TradeRejectedException ex = assertThrows(TradeRejectedException.class, () -> tradeService.executeTrade(11L));
@@ -274,7 +275,7 @@ class TradeServiceTest {
         existing.setQuantity(new BigDecimal("3"));
 
         when(tradeOrderRepository.findById(12L)).thenReturn(Optional.of(order));
-        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.00"));
+        when(marketPriceService.getCurrentQuote("AAPL")).thenReturn(usdQuote("100.00"));
         when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L)).thenReturn(Optional.of(existing));
         when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -352,7 +353,7 @@ class TradeServiceTest {
         TradeOrder order = marketOrder(17L, OrderAction.BUY, "1");
 
         when(tradeOrderRepository.findById(17L)).thenReturn(Optional.of(order));
-        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.00"));
+        when(marketPriceService.getCurrentQuote("AAPL")).thenReturn(usdQuote("100.00"));
         when(executionAttemptRepository.countByOrderOrderId(17L)).thenReturn(1L);
         when(executionAttemptRepository.save(any(ExecutionAttempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(tradeRepository.save(any(Trade.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -414,6 +415,59 @@ class TradeServiceTest {
         assertFalse(tradeService.recordFailedAttempt(20L, "Connection reset", 3));
         verify(executionAttemptRepository, never()).save(any(ExecutionAttempt.class));
         assertEquals(OrderStatus.CANCELLED, order.getOrderStatus());
+    }
+
+    @Test
+    void executeTradeBuyStoresTheNativePriceAndFillsCashInUsd() {
+        Currency gbp = new Currency();
+        gbp.setCurrencyCode("GBP");
+        gbp.setCurrentExchangeRateToUsd(new BigDecimal("1.35"));
+        instrument.setPriceCurrency(gbp);
+
+        TradeOrder order = marketOrder(22L, OrderAction.BUY, "2");
+        when(tradeOrderRepository.findById(22L)).thenReturn(Optional.of(order));
+        when(marketPriceService.getCurrentQuote("AAPL")).thenReturn(new UsdQuote(
+                new BigDecimal("100.00"),
+                "GBP",
+                new BigDecimal("1.35"),
+                new BigDecimal("135.00")
+        ));
+        when(executionAttemptRepository.save(any(ExecutionAttempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tradeRepository.save(any(Trade.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(holdingRepository.findByPortfolio_PortfolioIdAndInstrument_InstrumentId(1L, 100L)).thenReturn(Optional.empty());
+        when(holdingRepository.save(any(Holding.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(portfolioRepository.save(any(Portfolio.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(cashTransactionRepository.save(any(CashTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TradeConfirmationResponse response = tradeService.executeTrade(22L);
+
+        // Mid 100.00 GBP = 135.00 USD; a buy fills at the ask, in both currencies (4 bps spread)
+        assertEquals(0, new BigDecimal("135.027").compareTo(response.getExecutionPrice()));
+        assertEquals(0, new BigDecimal("270.054").compareTo(response.getTotalUsdValue()));
+        assertEquals(0, new BigDecimal("729.946").compareTo(portfolio.getCashBalanceUsd()));
+
+        ArgumentCaptor<Trade> tradeCaptor = ArgumentCaptor.forClass(Trade.class);
+        verify(tradeRepository).save(tradeCaptor.capture());
+        Trade trade = tradeCaptor.getValue();
+        assertEquals(0, new BigDecimal("100.02").compareTo(trade.getExecutionPrice()));
+        assertEquals(0, new BigDecimal("1.35").compareTo(trade.getExchangeRateToUsdAtExecution()));
+        assertEquals(0, new BigDecimal("135.027").compareTo(trade.getExecutionPriceUsd()));
+        assertEquals("GBP", trade.getExecutionPriceCurrency().getCurrencyCode());
+
+        ArgumentCaptor<ExecutionAttempt> attemptCaptor = ArgumentCaptor.forClass(ExecutionAttempt.class);
+        verify(executionAttemptRepository).save(attemptCaptor.capture());
+        assertEquals(0, new BigDecimal("100.02").compareTo(attemptCaptor.getValue().getQuotedPrice()));
+        assertEquals(0, new BigDecimal("135.027").compareTo(attemptCaptor.getValue().getQuotedPriceUsd()));
+
+        ArgumentCaptor<Holding> holdingCaptor = ArgumentCaptor.forClass(Holding.class);
+        verify(holdingRepository).save(holdingCaptor.capture());
+        assertEquals(0, new BigDecimal("135.027").compareTo(holdingCaptor.getValue().getAverageCostUsd()));
+    }
+
+    private static UsdQuote usdQuote(String usdPrice) {
+        BigDecimal price = new BigDecimal(usdPrice);
+        return new UsdQuote(price, "USD", BigDecimal.ONE, price);
     }
 
     private TradeOrder marketOrder(Long orderId, OrderAction action, String quantity) {

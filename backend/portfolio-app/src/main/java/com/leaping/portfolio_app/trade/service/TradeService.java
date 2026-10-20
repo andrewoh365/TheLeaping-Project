@@ -21,6 +21,7 @@ import com.leaping.portfolio_app.market.enums.TradabilityReason;
 import com.leaping.portfolio_app.market.service.BidAskQuote;
 import com.leaping.portfolio_app.market.service.MarketPriceService;
 import com.leaping.portfolio_app.market.service.PreTradeMarketService;
+import com.leaping.portfolio_app.market.service.UsdQuote;
 import com.leaping.portfolio_app.holdings.Holding;
 import com.leaping.portfolio_app.holdings.HoldingRepository;
 import com.leaping.portfolio_app.portfolio.entity.CashTransaction;
@@ -158,17 +159,17 @@ public class TradeService {
             }
         }
 
-        // Price the fill: buys pay the ask, sells receive the bid
-        BidAskQuote quote = BidAskQuote.fromMid(
-            priceService.getCurrentPrice(instrument.getSymbol()), instrument.getInstrumentType());
-        if (quote == null) {
+        // Price the fill: buys pay the ask, sells receive the bid. The latest print is the mid;
+        // the spread is applied to both its native price and its dollar price (fixed
+        // currency-table rate), so the audit records keep the real currency and rate.
+        UsdQuote fill = sideOf(priceService.getCurrentQuote(instrument.getSymbol()), instrument, order.getOrderAction());
+        if (fill == null) {
             throw reject(order, String.format(
                 "We don't have a current price for %s, so the order couldn't be filled.", instrument.getSymbol()));
         }
-        BigDecimal executionPrice = quote.priceFor(OrderAction.BUY.equals(order.getOrderAction()));
 
         // 4. Re-check funds under the lock, at the actual execution price
-        BigDecimal totalUsdValue = executionPrice.multiply(order.getQuantity());
+        BigDecimal totalUsdValue = fill.usdPrice().multiply(order.getQuantity());
         if (OrderAction.BUY.equals(order.getOrderAction())) {
             if (portfolio.getCashBalanceUsd().compareTo(totalUsdValue) < 0) {
                 throw reject(order, String.format(
@@ -191,8 +192,8 @@ public class TradeService {
         }
 
         // 5. Create ExecutionAttempt and Trade records
-        ExecutionAttempt attempt = createExecutionAttempt(order, executionPrice);
-        Trade trade = createTrade(order, attempt, executionPrice);
+        ExecutionAttempt attempt = createExecutionAttempt(order, fill);
+        Trade trade = createTrade(order, attempt, fill);
 
         // 6. Update holdings and cash
         updateHoldings(order, trade);
@@ -235,16 +236,33 @@ public class TradeService {
     }
 
     /**
+     * The side of the market an order fills at, from the mid quote: the ask for a BUY, the bid
+     * for a SELL, in both the native currency and USD. Null if there is no usable price.
+     */
+    private UsdQuote sideOf(UsdQuote mid, Instrument instrument, OrderAction action) {
+        if (mid == null) {
+            return null;
+        }
+        BidAskQuote usd = BidAskQuote.fromMid(mid.usdPrice(), instrument.getInstrumentType());
+        BidAskQuote nativeSide = BidAskQuote.fromMid(mid.nativePrice(), instrument.getInstrumentType());
+        if (usd == null || nativeSide == null) {
+            return null;
+        }
+        boolean buying = OrderAction.BUY.equals(action);
+        return new UsdQuote(nativeSide.priceFor(buying), mid.currencyCode(), mid.rateToUsd(), usd.priceFor(buying));
+    }
+
+    /**
      * Create ExecutionAttempt record for audit trail.
      */
-    private ExecutionAttempt createExecutionAttempt(TradeOrder order, BigDecimal currentPrice) {
+    private ExecutionAttempt createExecutionAttempt(TradeOrder order, UsdQuote quote) {
         ExecutionAttempt attempt = new ExecutionAttempt();
         attempt.setOrder(order);
         attempt.setAttemptNumber((int) executionAttemptRepository.countByOrderOrderId(order.getOrderId()) + 1);
-        attempt.setQuotedPrice(currentPrice);
+        attempt.setQuotedPrice(quote.nativePrice());
         attempt.setPriceCurrency(order.getInstrument().getPriceCurrency());
-        attempt.setExchangeRateToUsd(BigDecimal.ONE);  // Assuming prices are in USD
-        attempt.setQuotedPriceUsd(currentPrice);
+        attempt.setExchangeRateToUsd(quote.rateToUsd());
+        attempt.setQuotedPriceUsd(quote.usdPrice());
         attempt.setQuoteTimestamp(OffsetDateTime.now());
         attempt.setSourceType(PriceSourceType.MOCK);
         attempt.setProviderName("MarketPriceService");
@@ -257,18 +275,17 @@ public class TradeService {
     /**
      * Create Trade record when order is filled.
      */
-    private Trade createTrade(TradeOrder order, ExecutionAttempt attempt, BigDecimal executionPrice) {
+    private Trade createTrade(TradeOrder order, ExecutionAttempt attempt, UsdQuote quote) {
         Trade trade = new Trade();
         trade.setOrder(order);
         trade.setExecutionAttempt(attempt);
         trade.setQuantity(order.getQuantity());
-        trade.setExecutionPrice(executionPrice);
+        trade.setExecutionPrice(quote.nativePrice());
         trade.setExecutionPriceCurrency(order.getInstrument().getPriceCurrency());
-        trade.setExchangeRateToUsdAtExecution(BigDecimal.ONE);
-        
-        // Calculate total USD value
-        BigDecimal totalUsdValue = executionPrice.multiply(order.getQuantity());
-        trade.setExecutionPriceUsd(executionPrice);
+        trade.setExchangeRateToUsdAtExecution(quote.rateToUsd());
+
+        BigDecimal totalUsdValue = quote.usdPrice().multiply(order.getQuantity());
+        trade.setExecutionPriceUsd(quote.usdPrice());
         trade.setTotalUsdValue(totalUsdValue);
         trade.setExecutedAt(OffsetDateTime.now());
 
@@ -346,7 +363,7 @@ public class TradeService {
             newHolding.setPortfolio(portfolio);
             newHolding.setInstrument(instrument);
             newHolding.setQuantity(trade.getQuantity());
-            newHolding.setAverageCostUsd(trade.getExecutionPrice());
+            newHolding.setAverageCostUsd(trade.getExecutionPriceUsd());
             newHolding.setUpdatedAt(OffsetDateTime.now());
 
             holdingRepository.save(newHolding);
@@ -418,7 +435,7 @@ public class TradeService {
         response.setInstrumentSymbol(order.getInstrument().getSymbol());
         response.setOrderAction(order.getOrderAction().name());
         response.setExecutedQuantity(trade.getQuantity());
-        response.setExecutionPrice(trade.getExecutionPrice());
+        response.setExecutionPrice(trade.getExecutionPriceUsd());
         response.setTotalUsdValue(trade.getTotalUsdValue());
         response.setExecutedAt(trade.getExecutedAt());
         return response;
