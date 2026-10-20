@@ -2,6 +2,7 @@ package com.leaping.portfolio_app.analytics.controller;
 
 import com.leaping.portfolio_app.analytics.service.AnalyticsService;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 
@@ -46,17 +48,28 @@ public class AnalyticsController {
             @RequestParam(name = "market", required = false)
             String market,
 
+            @RequestParam(name = "instrument_id", required = false)
+            Long instrumentId,
+
             @RequestParam(name = "order_status", required = false)
             String orderStatus,
 
             @RequestParam(name = "client_segment", required = false)
             ClientSegment clientSegment
     ) {
+        if (instrumentId != null && instrumentId <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "instrument_id must be greater than zero"
+            );
+        }
+
         String dashboard = analyticsService.getDashboard(
                 dateFrom,
                 dateTo,
                 assetType,
                 market,
+                instrumentId,
                 orderStatus,
                 clientSegment != null ? clientSegment.name() : null
         );

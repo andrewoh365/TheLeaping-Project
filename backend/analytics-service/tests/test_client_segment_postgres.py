@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 
 import app.repositories.analytics_repository as repository
+from app.schemas.dashboard import TimeGrouping
 from app.schemas.filters import (
     AssetType,
     ClientSegment,
@@ -56,7 +57,10 @@ def postgres_engine(monkeypatch):
             CREATE TABLE instruments (
                 instrument_id BIGINT PRIMARY KEY,
                 market_id BIGINT NOT NULL,
-                instrument_type VARCHAR(20) NOT NULL
+                symbol VARCHAR(50) NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                instrument_type VARCHAR(20) NOT NULL,
+                is_active BOOLEAN NOT NULL
             );
 
             CREATE TABLE trade_orders (
@@ -64,6 +68,7 @@ def postgres_engine(monkeypatch):
                 portfolio_id BIGINT NOT NULL,
                 instrument_id BIGINT NOT NULL,
                 order_status VARCHAR(20) NOT NULL,
+                rejection_reason VARCHAR(200),
                 submitted_at TIMESTAMPTZ NOT NULL
             );
 
@@ -135,11 +140,15 @@ def _seed_boundary_data(test_engine):
                 INSERT INTO instruments (
                     instrument_id,
                     market_id,
-                    instrument_type
+                    symbol,
+                    name,
+                    instrument_type,
+                    is_active
                 )
                 VALUES
-                    (1, 1, 'STOCK'),
-                    (2, 2, 'CRYPTO')
+                    (1, 1, 'DUPL', 'First Duplicate', 'STOCK', TRUE),
+                    (2, 2, 'DUPL', 'Second Duplicate', 'CRYPTO', FALSE),
+                    (3, 1, 'QUIET', 'No Recent Orders', 'STOCK', FALSE)
                 """
             )
         )
@@ -387,3 +396,111 @@ def test_segment_boundaries_window_and_report_filter_independence(
             text("SELECT COUNT(*) FROM trade_orders")
         ).scalar_one()
     assert after_count == before_count
+
+
+def test_instrument_filter_uses_id_and_preserves_historical_metadata(
+    postgres_engine,
+):
+    _seed_boundary_data(postgres_engine)
+
+    selected_filters = DashboardFilters(
+        date_from=date(2026, 7, 3),
+        date_to=date(2026, 9, 30),
+        instrument_id=2,
+    )
+
+    metadata = repository.get_instrument_metadata(2)
+    assert metadata == {
+        "instrument_id": 2,
+        "symbol": "DUPL",
+        "name": "Second Duplicate",
+        "instrument_type": "CRYPTO",
+        "market_name": "NYSE",
+        "is_active": False,
+    }
+
+    # Instrument 1 has the same symbol in another market. The ID predicate
+    # must keep its orders and trades out of instrument 2's report.
+    assert repository.get_total_orders(selected_filters) == 30
+    assert repository.get_total_orders(
+        DashboardFilters(
+            date_from=date(2026, 7, 3),
+            date_to=date(2026, 9, 30),
+            instrument_id=1,
+        )
+    ) == 29
+    assert repository.get_trading_volume(selected_filters) == 80
+    assert repository.get_active_clients(selected_filters) == 2
+    assert repository.get_fill_rate_counts(selected_filters) == {
+        "total_orders": 30,
+        "filled_orders": 0,
+    }
+
+    volume_rows = repository.get_trading_volume_rows(
+        selected_filters,
+        TimeGrouping.DAILY,
+    )
+    assert volume_rows == [
+        {
+            "period": "2026-09-30",
+            "total_usd_value": 80,
+        }
+    ]
+
+    outcome_rows = {
+        row["order_status"]: row["order_count"]
+        for row in repository.get_order_outcomes(selected_filters)
+    }
+    assert outcome_rows == {
+        "REJECTED": 10,
+        "CANCELLED": 20,
+    }
+
+    client_activity_rows = repository.get_client_activity_rows(
+        selected_filters,
+        TimeGrouping.DAILY,
+    )
+    assert client_activity_rows[0] == {
+        "period": "2026-07-03",
+        "active_clients": 2,
+    }
+
+    segment_rows = _rows_by_segment(
+        repository.get_client_segment_breakdown(selected_filters)
+    )
+    assert segment_rows["REGULAR"] == {
+        "segment": "REGULAR",
+        "total_clients": 2,
+        "active_clients": 1,
+        "order_count": 10,
+        "trading_volume_usd": 30,
+    }
+    assert segment_rows["FREQUENT"] == {
+        "segment": "FREQUENT",
+        "total_clients": 1,
+        "active_clients": 1,
+        "order_count": 20,
+        "trading_volume_usd": 50,
+    }
+
+    # This inactive instrument has no orders but remains reportable by ID.
+    quiet_filters = DashboardFilters(
+        date_from=date(2026, 7, 3),
+        date_to=date(2026, 9, 30),
+        instrument_id=3,
+    )
+    assert repository.get_instrument_metadata(3) == {
+        "instrument_id": 3,
+        "symbol": "QUIET",
+        "name": "No Recent Orders",
+        "instrument_type": "STOCK",
+        "market_name": "NASDAQ",
+        "is_active": False,
+    }
+    assert repository.get_total_orders(quiet_filters) == 0
+    assert repository.get_trading_volume(quiet_filters) == 0
+    assert repository.get_active_clients(quiet_filters) == 0
+    assert repository.get_fill_rate_counts(quiet_filters) == {
+        "total_orders": 0,
+        "filled_orders": 0,
+    }

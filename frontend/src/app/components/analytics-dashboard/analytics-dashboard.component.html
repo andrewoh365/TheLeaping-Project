@@ -69,6 +69,55 @@
         </mat-select>
       </mat-form-field>
 
+      <!-- INSTRUMENT -->
+      <mat-form-field
+        appearance="outline"
+        class="instrument-filter-field">
+        <mat-label>Instrument</mat-label>
+
+        <input
+          matInput
+          placeholder="All Instruments"
+          [(ngModel)]="instrumentSearch"
+          (ngModelChange)="onInstrumentSearchChange($event)"
+          [matAutocomplete]="instrumentAutocomplete">
+
+        <button
+          *ngIf="instrumentSearch || selectedInstrumentId !== null"
+          mat-icon-button
+          matSuffix
+          type="button"
+          aria-label="Clear instrument selection"
+          (click)="clearInstrumentSelection()">
+          <mat-icon>close</mat-icon>
+        </button>
+
+        <mat-autocomplete
+          #instrumentAutocomplete="matAutocomplete"
+          (optionSelected)="onInstrumentSelected($event.option.value)">
+          <mat-option [value]="''">All Instruments</mat-option>
+
+          <mat-option
+            *ngFor="let instrument of filteredInstruments"
+            [value]="instrument.instrumentId">
+            <span class="instrument-option">
+              <strong>{{ instrument.symbol }}</strong>
+              <span>{{ instrument.name }}</span>
+              <small>
+                ID {{ instrument.instrumentId }} -
+                {{ instrument.isActive ? 'Active' : 'Inactive' }}
+              </small>
+            </span>
+          </mat-option>
+
+          <mat-option
+            *ngIf="filteredInstruments.length === 0"
+            disabled>
+            No instruments match this search.
+          </mat-option>
+        </mat-autocomplete>
+      </mat-form-field>
+
       <!-- ORDER STATUS -->
       <mat-form-field appearance="outline">
         <mat-label>Order Status</mat-label>
@@ -143,6 +192,39 @@
   <!-- DASHBOARD CONTENT -->
   <ng-container *ngIf="dashboard && !loading">
 
+    <!-- SELECTED INSTRUMENT -->
+    <mat-card
+      class="selected-instrument-card"
+      *ngIf="dashboard.selected_instrument as selectedInstrument">
+      <div class="selected-instrument-heading">
+        <span class="selected-instrument-label">Selected Instrument</span>
+        <strong>{{ selectedInstrument.symbol }}</strong>
+      </div>
+
+      <div class="selected-instrument-details">
+        <div>
+          <span>Instrument</span>
+          <strong>{{ selectedInstrument.name }}</strong>
+        </div>
+        <div>
+          <span>Market</span>
+          <strong>{{ selectedInstrument.market_name }}</strong>
+        </div>
+        <div>
+          <span>Asset Type</span>
+          <strong>{{ selectedInstrument.instrument_type }}</strong>
+        </div>
+        <div>
+          <span>Status</span>
+          <strong
+            [class.status-active]="selectedInstrument.is_active"
+            [class.status-inactive]="!selectedInstrument.is_active">
+            {{ selectedInstrument.is_active ? 'Active' : 'Inactive' }}
+          </strong>
+        </div>
+      </div>
+    </mat-card>
+
     <!-- SUMMARY CARDS -->
     <section class="summary-grid">
 
@@ -207,45 +289,74 @@
       <mat-card class="chart-card chart-wide">
         <h2>Trading Volume Over Time</h2>
 
-        <div class="chart-container">
+        <div
+          class="chart-container"
+          *ngIf="hasTradingVolumeActivity(); else volumeEmpty">
           <canvas #volumeChart></canvas>
         </div>
+        <ng-template #volumeEmpty>
+          <div class="chart-empty-state">No activity for this period.</div>
+        </ng-template>
       </mat-card>
 
       <!-- ORDER OUTCOMES -->
       <mat-card class="chart-card">
         <h2>Order Outcomes</h2>
 
-        <div class="chart-container">
+        <div
+          class="chart-container"
+          *ngIf="hasOrderOutcomeActivity(); else outcomesEmpty">
           <canvas #outcomesChart></canvas>
         </div>
+        <ng-template #outcomesEmpty>
+          <div class="chart-empty-state">No activity for this period.</div>
+        </ng-template>
       </mat-card>
 
       <!-- ACTIVE INSTRUMENTS -->
       <mat-card class="chart-card">
-        <h2>Most Active Instruments</h2>
+        <h2>
+          {{ dashboard.selected_instrument
+            ? 'Selected Instrument Activity'
+            : 'Most Active Instruments' }}
+        </h2>
 
-        <div class="chart-container">
+        <div
+          class="chart-container"
+          *ngIf="hasInstrumentActivity(); else instrumentsEmpty">
           <canvas #instrumentsChart></canvas>
         </div>
+        <ng-template #instrumentsEmpty>
+          <div class="chart-empty-state">No activity for this period.</div>
+        </ng-template>
       </mat-card>
 
       <!-- CLIENT ACTIVITY -->
       <mat-card class="chart-card chart-wide">
         <h2>Client Activity Trend</h2>
 
-        <div class="chart-container">
+        <div
+          class="chart-container"
+          *ngIf="hasClientActivity(); else clientsEmpty">
           <canvas #clientsChart></canvas>
         </div>
+        <ng-template #clientsEmpty>
+          <div class="chart-empty-state">No activity for this period.</div>
+        </ng-template>
       </mat-card>
 
       <!-- REJECTION REASONS -->
       <mat-card class="chart-card chart-wide">
         <h2>Top Rejection Reasons</h2>
 
-        <div class="chart-container">
+        <div
+          class="chart-container"
+          *ngIf="hasRejectionActivity(); else rejectionsEmpty">
           <canvas #rejectionsChart></canvas>
         </div>
+        <ng-template #rejectionsEmpty>
+          <div class="chart-empty-state">No activity for this period.</div>
+        </ng-template>
       </mat-card>
 
       <!-- CLIENT SEGMENT BREAKDOWN -->
@@ -260,9 +371,17 @@
         <ng-container
           *ngIf="dashboard.client_segment_breakdown.length > 0;
           else segmentBreakdownEmpty">
-          <div class="chart-container segment-chart-container">
+          <div
+            class="chart-container segment-chart-container"
+            *ngIf="hasSegmentActivity(); else segmentChartEmpty">
             <canvas #segmentsChart></canvas>
           </div>
+
+          <ng-template #segmentChartEmpty>
+            <div class="chart-empty-state segment-chart-empty-state">
+              No activity for this period.
+            </div>
+          </ng-template>
 
           <div class="segment-table-wrapper">
             <table class="segment-table">

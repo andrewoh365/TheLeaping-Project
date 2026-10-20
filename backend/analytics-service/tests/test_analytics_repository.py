@@ -2,7 +2,12 @@ from datetime import date
 
 import app.repositories.analytics_repository as repository
 from app.schemas.dashboard import TimeGrouping
-from app.schemas.filters import ClientSegment, DashboardFilters
+from app.schemas.filters import (
+    AssetType,
+    ClientSegment,
+    DashboardFilters,
+    OrderStatus,
+)
 
 
 class _Result:
@@ -14,6 +19,12 @@ class _Result:
 
     def all(self):
         return self.rows
+
+    def one_or_none(self):
+        if len(self.rows) > 1:
+            raise AssertionError("Expected at most one row")
+
+        return self.rows[0] if self.rows else None
 
 
 class _Connection:
@@ -47,6 +58,99 @@ def _filters():
         date_from=date(2026, 9, 1),
         date_to=date(2026, 9, 30),
     )
+
+
+def test_instrument_metadata_lookup_includes_inactive_instruments(
+    monkeypatch,
+):
+    engine = _Engine(
+        [
+            {
+                "instrument_id": 15,
+                "symbol": "AAPL",
+                "name": "Apple Inc.",
+                "instrument_type": "STOCK",
+                "market_name": "NASDAQ",
+                "is_active": False,
+            }
+        ]
+    )
+    monkeypatch.setattr(repository, "engine", engine)
+
+    metadata = repository.get_instrument_metadata(15)
+
+    assert metadata == engine.connection.rows[0]
+    assert "FROM instruments i" in engine.connection.query
+    assert "JOIN markets m" in engine.connection.query
+    assert "WHERE i.instrument_id = :instrument_id" in (
+        engine.connection.query
+    )
+    assert "trade_orders" not in engine.connection.query
+    assert "trades" not in engine.connection.query
+    assert engine.connection.params == {"instrument_id": 15}
+
+
+def test_instrument_metadata_lookup_returns_none_for_unknown_id(
+    monkeypatch,
+):
+    engine = _Engine([])
+    monkeypatch.setattr(repository, "engine", engine)
+
+    assert repository.get_instrument_metadata(999) is None
+
+
+def test_instrument_filter_is_parameterized_and_uses_id(monkeypatch):
+    engine = _Engine([])
+    monkeypatch.setattr(repository, "engine", engine)
+
+    repository.get_order_outcomes(
+        DashboardFilters(instrument_id=15),
+    )
+
+    assert "o.instrument_id = :instrument_id" in engine.connection.query
+    assert "i.symbol = :instrument_id" not in engine.connection.query
+    assert engine.connection.params["instrument_id"] == 15
+
+
+def test_multiple_filters_are_combined(monkeypatch):
+    engine = _Engine([])
+    monkeypatch.setattr(repository, "engine", engine)
+
+    filters = DashboardFilters(
+        date_from=date(2026, 9, 1),
+        date_to=date(2026, 9, 30),
+        asset_type=AssetType.STOCK,
+        market="NASDAQ",
+        instrument_id=15,
+        order_status=OrderStatus.FILLED,
+        client_segment=ClientSegment.REGULAR,
+    )
+
+    repository.get_most_active_instruments(filters, limit=5)
+
+    query = engine.connection.query
+    params = engine.connection.params
+
+    assert "o.instrument_id = :instrument_id" in query
+    assert "i.instrument_type = :asset_type" in query
+    assert "m.market_name = :market" in query
+    assert "o.order_status = :order_status" in query
+    assert "o.portfolio_id IN (" in query
+    assert params["instrument_id"] == 15
+    assert params["asset_type"] == "STOCK"
+    assert params["market"] == "NASDAQ"
+    assert params["order_status"] == "FILLED"
+    assert params["client_segment"] == "REGULAR"
+
+
+def test_missing_instrument_id_preserves_existing_filters(monkeypatch):
+    engine = _Engine([])
+    monkeypatch.setattr(repository, "engine", engine)
+
+    repository.get_order_outcomes(_filters())
+
+    assert "o.instrument_id = :instrument_id" not in engine.connection.query
+    assert "instrument_id" not in engine.connection.params
 
 
 def test_trading_volume_is_grouped_in_database(monkeypatch):
@@ -101,6 +205,7 @@ def test_client_segment_breakdown_uses_unfiltered_segments_and_report_filters(
     filters = DashboardFilters(
         date_from=date(2026, 9, 1),
         date_to=date(2026, 9, 30),
+        instrument_id=15,
         client_segment=ClientSegment.REGULAR,
     )
 
@@ -122,11 +227,26 @@ def test_client_segment_breakdown_uses_unfiltered_segments_and_report_filters(
     assert "COALESCE(segment_populations.total_clients, 0)" in query
     assert "COALESCE(order_metrics.order_count, 0)" in query
     assert "COALESCE(volume_metrics.trading_volume_usd, 0)" in query
+    assert "o.instrument_id = :instrument_id" in query
+    assert "segment_orders.instrument_id" not in query
     assert "client_segments.client_segment = :client_segment" not in query
     assert "segment_values.segment = :client_segment" in query
 
+    classification_sql = query.split(
+        "WITH client_segments AS",
+        1,
+    )[1].split("segment_values(segment)", 1)[0]
+    population_sql = query.split(
+        "segment_populations AS",
+        1,
+    )[1].split("order_metrics AS", 1)[0]
+
+    assert "instrument_id" not in classification_sql
+    assert "instrument_id" not in population_sql
+
     assert params["segment_start"] == date(2026, 7, 3)
     assert params["segment_end"] == date(2026, 9, 30)
+    assert params["instrument_id"] == 15
     assert params["client_segment"] == "REGULAR"
 
 

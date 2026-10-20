@@ -1,6 +1,7 @@
 package com.leaping.portfolio_app.analytics.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -8,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -17,9 +19,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class AnalyticsServiceTest {
@@ -55,6 +61,7 @@ class AnalyticsServiceTest {
                 LocalDate.of(2026, 9, 30),
                 "STOCK",
                 "NASDAQ",
+                15L,
                 "FILLED",
                 "FREQUENT"
         );
@@ -73,6 +80,10 @@ class AnalyticsServiceTest {
         assertEquals(List.of("STOCK"), query.get("asset_type"));
         assertEquals(List.of("NASDAQ"), query.get("market"));
         assertEquals(
+                List.of("15"),
+                query.get("instrument_id")
+        );
+        assertEquals(
                 List.of("FILLED"),
                 query.get("order_status")
         );
@@ -90,12 +101,87 @@ class AnalyticsServiceTest {
                 null,
                 null,
                 null,
+                null,
                 ""
         );
 
         MultiValueMap<String, String> query = capturedQuery();
 
+        assertTrue(query.get("instrument_id") == null);
         assertTrue(query.get("client_segment") == null);
+    }
+
+    @Test
+    void getDashboard_preservesUpstreamNotFoundStatus() {
+        HttpClientErrorException notFound =
+                HttpClientErrorException.create(
+                        HttpStatus.NOT_FOUND,
+                        "Not Found",
+                        HttpHeaders.EMPTY,
+                        "{\"detail\":\"Instrument 999 was not found\"}"
+                                .getBytes(StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8
+                );
+
+        when(response.body(String.class)).thenThrow(notFound);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.getDashboard(
+                        null,
+                        null,
+                        null,
+                        null,
+                        999L,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+        assertTrue(
+                exception.getReason().contains(
+                        "Instrument 999 was not found"
+                )
+        );
+    }
+
+    @Test
+    void getDashboard_preservesUpstreamValidationStatus() {
+        HttpClientErrorException validationError =
+                HttpClientErrorException.create(
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Unprocessable Entity",
+                        HttpHeaders.EMPTY,
+                        "{\"detail\":\"Invalid dashboard filter\"}"
+                                .getBytes(StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8
+                );
+
+        when(response.body(String.class)).thenThrow(validationError);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.getDashboard(
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                exception.getStatusCode()
+        );
+        assertTrue(
+                exception.getReason().contains(
+                        "Invalid dashboard filter"
+                )
+        );
     }
 
     private MultiValueMap<String, String> capturedQuery() {

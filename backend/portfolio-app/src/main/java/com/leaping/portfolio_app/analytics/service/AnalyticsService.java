@@ -4,7 +4,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 
@@ -35,6 +37,7 @@ public class AnalyticsService {
             LocalDate dateTo,
             String assetType,
             String market,
+            Long instrumentId,
             String orderStatus,
             String clientSegment
     ) {
@@ -58,6 +61,10 @@ public class AnalyticsService {
             uriBuilder.queryParam("market", market);
         }
 
+        if (instrumentId != null) {
+            uriBuilder.queryParam("instrument_id", instrumentId);
+        }
+
         if (orderStatus != null && !orderStatus.isBlank()) {
             uriBuilder.queryParam("order_status", orderStatus);
         }
@@ -66,10 +73,23 @@ public class AnalyticsService {
             uriBuilder.queryParam("client_segment", clientSegment);
         }
 
-        return restClient
+        try {
+            return restClient
                 .get()
                 .uri(uriBuilder.build().toUri())
                 .retrieve()
                 .body(String.class);
+        } catch (RestClientResponseException exception) {
+            String responseBody = exception.getResponseBodyAsString();
+            String reason = responseBody == null || responseBody.isBlank()
+                ? exception.getStatusText()
+                : responseBody;
+
+            throw new ResponseStatusException(
+                exception.getStatusCode(),
+                reason,
+                exception
+            );
+        }
     }
 }

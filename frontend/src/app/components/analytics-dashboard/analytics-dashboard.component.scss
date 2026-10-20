@@ -62,12 +62,38 @@
 
 .filter-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(135px, 1fr)) auto;
+  grid-template-columns: repeat(7, minmax(135px, 1fr)) auto;
   gap: 14px;
   align-items: center;
 
   mat-form-field {
     width: 100%;
+  }
+}
+
+.instrument-filter-field {
+  min-width: 0;
+}
+
+:host ::ng-deep .instrument-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+
+  strong {
+    color: #fafafa;
+    font-size: 14px;
+  }
+
+  span {
+    color: #d5d9e0;
+    font-size: 13px;
+  }
+
+  small {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 11px;
   }
 }
 
@@ -160,6 +186,66 @@
   padding: 0 20px;
 }
 
+.selected-instrument-card {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin: 0 20px 24px;
+  padding: 16px 20px;
+  background: var(--secondary-background-color);
+  color: var(--text-color);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.selected-instrument-heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+
+  strong {
+    margin-top: 4px;
+    font-size: 22px;
+  }
+}
+
+.selected-instrument-label,
+.selected-instrument-details span {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.selected-instrument-details {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 24px;
+  flex: 1;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  strong {
+    overflow: hidden;
+    color: var(--text-color);
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.status-active {
+  color: #76d39b !important;
+}
+
+.status-inactive {
+  color: #ffb36b !important;
+}
+
 .summary-card {
   padding: 20px;
   background: var(--secondary-background-color);
@@ -212,6 +298,18 @@
   height: 320px;
 }
 
+.chart-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  padding: 24px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.65);
+  text-align: center;
+}
+
 .segment-breakdown-card {
   overflow: hidden;
 }
@@ -225,6 +323,11 @@
 
 .segment-chart-container {
   height: 280px;
+  margin-bottom: 20px;
+}
+
+.segment-chart-empty-state {
+  min-height: 280px;
   margin-bottom: 20px;
 }
 
@@ -316,6 +419,18 @@
 
   .filter-card {
     margin: 16px 16px;
+  }
+
+  .selected-instrument-card {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0 16px 24px;
+  }
+
+  .selected-instrument-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
   }
 
   .filter-grid,

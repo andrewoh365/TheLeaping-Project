@@ -281,3 +281,119 @@ def test_build_dashboard(monkeypatch):
     assert occasional.active_clients == 2
     assert occasional.order_count == 5
     assert occasional.trading_volume_usd == 100.26
+
+
+def test_selected_instrument_with_no_activity_returns_zero_metrics(
+    monkeypatch,
+):
+    metadata_calls = []
+
+    def fake_get_instrument_metadata(instrument_id):
+        metadata_calls.append(instrument_id)
+        return {
+            "instrument_id": instrument_id,
+            "symbol": "DELISTED",
+            "name": "Historical Instrument",
+            "instrument_type": "STOCK",
+            "market_name": "NYSE",
+            "is_active": False,
+        }
+
+    monkeypatch.setattr(
+        service,
+        "get_instrument_metadata",
+        fake_get_instrument_metadata,
+    )
+    monkeypatch.setattr(service, "get_total_orders", lambda filters: 0)
+    monkeypatch.setattr(
+        service,
+        "get_trading_volume",
+        lambda filters: Decimal("0"),
+    )
+    monkeypatch.setattr(service, "get_active_clients", lambda filters: 0)
+    monkeypatch.setattr(
+        service,
+        "get_fill_rate_counts",
+        lambda filters: {
+            "total_orders": 0,
+            "filled_orders": 0,
+        },
+    )
+    monkeypatch.setattr(
+        service,
+        "get_trading_volume_rows",
+        lambda filters, grouping: [],
+    )
+    monkeypatch.setattr(service, "get_order_outcomes", lambda filters: [])
+    monkeypatch.setattr(
+        service,
+        "get_most_active_instruments",
+        lambda filters, limit: [],
+    )
+    monkeypatch.setattr(
+        service,
+        "get_client_activity_rows",
+        lambda filters, grouping: [],
+    )
+    monkeypatch.setattr(
+        service,
+        "get_rejection_reasons",
+        lambda filters, limit: [],
+    )
+    monkeypatch.setattr(
+        service,
+        "get_client_segment_breakdown",
+        lambda filters: [],
+    )
+
+    dashboard = service.build_dashboard(
+        DashboardFilters(
+            date_from=date(2026, 9, 1),
+            date_to=date(2026, 9, 30),
+            instrument_id=15,
+        )
+    )
+
+    assert metadata_calls == [15]
+    assert dashboard.selected_instrument.model_dump() == {
+        "instrument_id": 15,
+        "symbol": "DELISTED",
+        "name": "Historical Instrument",
+        "instrument_type": "STOCK",
+        "market_name": "NYSE",
+        "is_active": False,
+    }
+    assert dashboard.summary.model_dump() == {
+        "trading_volume_usd": 0.0,
+        "total_orders": 0,
+        "active_clients": 0,
+        "filled_orders_percentage": 0.0,
+    }
+    assert dashboard.trading_volume_over_time.points == []
+    assert all(
+        outcome.count == 0 and outcome.percentage == 0.0
+        for outcome in dashboard.order_outcomes
+    )
+    assert dashboard.client_activity_trend.points == []
+    assert dashboard.most_active_instruments == []
+    assert dashboard.top_rejection_reasons == []
+    assert dashboard.client_segment_breakdown == []
+
+
+def test_unknown_selected_instrument_is_rejected_before_metrics(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        service,
+        "get_instrument_metadata",
+        lambda instrument_id: None,
+    )
+
+    with pytest.raises(service.InstrumentNotFoundError):
+        service.build_dashboard(
+            DashboardFilters(
+                date_from=date(2026, 9, 1),
+                date_to=date(2026, 9, 30),
+                instrument_id=999,
+            )
+        )

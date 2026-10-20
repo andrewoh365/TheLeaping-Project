@@ -10,7 +10,10 @@ from app.schemas.filters import (
     DashboardFilters,
     OrderStatus,
 )
-from app.services.dashboard_service import build_dashboard
+from app.services.dashboard_service import (
+    InstrumentNotFoundError,
+    build_dashboard,
+)
 
 
 router = APIRouter(
@@ -32,6 +35,7 @@ def get_dashboard(
         min_length=1,
         max_length=100,
     ),
+    instrument_id: Optional[int] = Query(default=None, gt=0),
     order_status: Optional[OrderStatus] = Query(default=None),
     client_segment: Optional[ClientSegment] = Query(default=None),
 ) -> DashboardResponse:
@@ -50,8 +54,15 @@ def get_dashboard(
         date_to=date_to,
         asset_type=asset_type,
         market=market,
+        instrument_id=instrument_id,
         order_status=order_status,
         client_segment=client_segment,
     )
 
-    return build_dashboard(filters)
+    try:
+        return build_dashboard(filters)
+    except InstrumentNotFoundError as error:
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        ) from error

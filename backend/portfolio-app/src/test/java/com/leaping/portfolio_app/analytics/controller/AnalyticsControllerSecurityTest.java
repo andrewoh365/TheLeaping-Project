@@ -62,6 +62,7 @@ class AnalyticsControllerSecurityTest {
                 isNull(LocalDate.class),
                 isNull(String.class),
                 isNull(String.class),
+                isNull(Long.class),
                 isNull(String.class),
                 eq("FREQUENT")
         )).thenReturn("{}");
@@ -91,6 +92,7 @@ class AnalyticsControllerSecurityTest {
                 isNull(LocalDate.class),
                 isNull(String.class),
                 isNull(String.class),
+                isNull(Long.class),
                 isNull(String.class),
                 eq("FREQUENT")
             )).thenReturn("{}");

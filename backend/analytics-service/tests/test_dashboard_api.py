@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from fastapi.testclient import TestClient
 
 import app.api.dashboard as dashboard_api
@@ -15,6 +16,7 @@ from app.schemas.dashboard import (
     InstrumentActivity,
     OrderOutcome,
     RejectionReason,
+    SelectedInstrument,
     TimeGrouping,
     TradingVolumePoint,
     TradingVolumeTrend,
@@ -182,6 +184,22 @@ def test_dashboard_endpoint(monkeypatch):
 
     body = response.json()
 
+    assert set(body) == {
+        "summary",
+        "trading_volume_over_time",
+        "order_outcomes",
+        "most_active_instruments",
+        "client_activity_trend",
+        "top_rejection_reasons",
+        "client_segment_breakdown",
+        "selected_instrument",
+    }
+    assert set(body["summary"]) == {
+        "trading_volume_usd",
+        "total_orders",
+        "active_clients",
+        "filled_orders_percentage",
+    }
     assert body["summary"]["total_orders"] == 120
     assert body["summary"]["active_clients"] == 18
     assert body["summary"]["filled_orders_percentage"] == 75.0
@@ -217,6 +235,39 @@ def test_dashboard_endpoint(monkeypatch):
         "order_count": 0,
         "trading_volume_usd": 0.0,
     }
+    assert body["selected_instrument"] is None
+
+
+def test_dashboard_returns_selected_instrument_metadata(monkeypatch):
+    response = _mock_dashboard_response()
+    response.selected_instrument = SelectedInstrument(
+        instrument_id=15,
+        symbol="AAPL",
+        name="Apple Inc.",
+        instrument_type="STOCK",
+        market_name="NASDAQ",
+        is_active=True,
+    )
+    monkeypatch.setattr(
+        dashboard_api,
+        "build_dashboard",
+        lambda filters: response,
+    )
+
+    result = client.get(
+        "/analytics/dashboard",
+        params={"instrument_id": 15},
+    )
+
+    assert result.status_code == 200
+    assert result.json()["selected_instrument"] == {
+        "instrument_id": 15,
+        "symbol": "AAPL",
+        "name": "Apple Inc.",
+        "instrument_type": "STOCK",
+        "market_name": "NASDAQ",
+        "is_active": True,
+    }
 
 
 def test_dashboard_accepts_valid_filters(monkeypatch):
@@ -240,6 +291,7 @@ def test_dashboard_accepts_valid_filters(monkeypatch):
             "date_to": "2026-09-30",
             "asset_type": "STOCK",
             "market": "NASDAQ",
+            "instrument_id": 15,
             "order_status": "FILLED",
             "client_segment": "REGULAR",
         },
@@ -253,6 +305,7 @@ def test_dashboard_accepts_valid_filters(monkeypatch):
     assert filters.date_to == date(2026, 9, 30)
     assert filters.asset_type.value == "STOCK"
     assert filters.market == "NASDAQ"
+    assert filters.instrument_id == 15
     assert filters.order_status.value == "FILLED"
     assert filters.client_segment.value == "REGULAR"
 
@@ -285,6 +338,37 @@ def test_dashboard_rejects_invalid_client_segment():
         params={
             "client_segment": "VERY_ACTIVE",
         },
+    )
+
+    assert response.status_code == 422
+
+
+def test_dashboard_returns_404_for_unknown_instrument(monkeypatch):
+    def raise_not_found(filters):
+        raise dashboard_api.InstrumentNotFoundError(999)
+
+    monkeypatch.setattr(
+        dashboard_api,
+        "build_dashboard",
+        raise_not_found,
+    )
+
+    response = client.get(
+        "/analytics/dashboard",
+        params={"instrument_id": 999},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Instrument 999 was not found"
+    }
+
+
+@pytest.mark.parametrize("instrument_id", ["not-an-id", 0, -1])
+def test_dashboard_rejects_invalid_instrument_id(instrument_id):
+    response = client.get(
+        "/analytics/dashboard",
+        params={"instrument_id": instrument_id},
     )
 
     assert response.status_code == 422

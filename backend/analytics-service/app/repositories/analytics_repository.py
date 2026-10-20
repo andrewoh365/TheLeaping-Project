@@ -1,6 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import text
 
@@ -84,6 +84,10 @@ def _build_filters(
         clauses.append("i.instrument_type = :asset_type")
         params["asset_type"] = filters.asset_type.value
 
+    if filters.instrument_id is not None:
+        clauses.append("o.instrument_id = :instrument_id")
+        params["instrument_id"] = filters.instrument_id
+
     if filters.market is not None:
         clauses.append("m.market_name = :market")
         params["market"] = filters.market
@@ -104,6 +108,32 @@ def _build_filters(
         params["client_segment"] = filters.client_segment.value
 
     return " AND ".join(clauses), params
+
+
+def get_instrument_metadata(
+    instrument_id: int,
+) -> Optional[Dict[str, object]]:
+    query = """
+        SELECT
+            i.instrument_id,
+            i.symbol,
+            i.name,
+            i.instrument_type,
+            m.market_name,
+            i.is_active
+        FROM instruments i
+        JOIN markets m
+            ON m.market_id = i.market_id
+        WHERE i.instrument_id = :instrument_id
+    """
+
+    with engine.connect() as connection:
+        row = connection.execute(
+            text(query),
+            {"instrument_id": instrument_id},
+        ).mappings().one_or_none()
+
+        return None if row is None else dict(row)
 
 
 def get_total_orders(filters: DashboardFilters) -> int:

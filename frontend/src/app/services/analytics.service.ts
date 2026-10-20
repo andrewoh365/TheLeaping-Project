@@ -27,6 +27,7 @@ export interface DashboardFilters {
   dateTo?: string;
   assetType?: AssetType;
   market?: string;
+  instrumentId?: number | string;
   orderStatus?: OrderStatus;
   clientSegment?: ClientSegment;
 }
@@ -82,6 +83,15 @@ export interface ClientSegmentBreakdown {
   trading_volume_usd: number;
 }
 
+export interface SelectedInstrument {
+  instrument_id: number;
+  symbol: string;
+  name: string;
+  instrument_type: string;
+  market_name: string;
+  is_active: boolean;
+}
+
 export interface DashboardResponse {
   summary: DashboardSummary;
   trading_volume_over_time: TradingVolumeTrend;
@@ -90,6 +100,7 @@ export interface DashboardResponse {
   client_activity_trend: ClientActivityTrend;
   top_rejection_reasons: RejectionReason[];
   client_segment_breakdown: ClientSegmentBreakdown[];
+  selected_instrument: SelectedInstrument | null;
 }
 
 @Injectable({
@@ -133,6 +144,17 @@ export class AnalyticsService {
       params = params.set(
         'market',
         filters.market
+      );
+    }
+
+    if (
+      filters.instrumentId !== undefined
+      && filters.instrumentId !== null
+      && filters.instrumentId !== ''
+    ) {
+      params = params.set(
+        'instrument_id',
+        String(filters.instrumentId)
       );
     }
 

@@ -27,6 +27,21 @@ A full-stack online trading platform application for portfolio management and ma
 - Database schema with Flyway migrations
 - CORS configuration for development and production
 
+### 📊 BR-16 Analytics
+- The protected analytics dashboard supports date, market, asset type, order
+	status, client segment, and instrument-specific reporting filters.
+- Instrument selection uses the unique `instrument_id`, not the symbol. The
+	dashboard shows the selected instrument's symbol, name, market, type, and
+	active status, including inactive instruments with historical data.
+- Instrument filters compose with the existing filters. Client segments remain
+	classified from each client's complete 90-day order history; only report
+	activity metrics are narrowed by the selected instrument.
+- Verify the feature with `./scripts/test.sh`. For PostgreSQL analytics
+	integration coverage, run the analytics tests with
+	`ANALYTICS_TEST_DATABASE_URL` pointing to an isolated test database.
+- The instrument list is loaded once by Angular and searched client-side; it
+	does not currently use a paginated or debounced remote search.
+
 ## 🚀 Quick Start
 
 ### Prerequisites

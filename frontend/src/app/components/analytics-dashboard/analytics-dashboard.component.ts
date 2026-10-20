@@ -12,8 +12,10 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
 import { MatButtonModule } from '@angular/material/button';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
@@ -28,6 +30,10 @@ import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 
 import { AuthService } from '../../services/auth.service';
+import {
+    Instrument,
+    InstrumentService
+} from '../../services/instrumentService';
 
 import {
     AnalyticsService,
@@ -50,8 +56,10 @@ Chart.register(...registerables);
         CommonModule,
         FormsModule,
         MatButtonModule,
+        MatAutocompleteModule,
         MatCardModule,
         MatFormFieldModule,
+        MatIconModule,
         MatInputModule,
         MatProgressSpinnerModule,
         MatSelectModule,
@@ -94,8 +102,14 @@ export class AnalyticsDashboardComponent
 
     assetType: AssetType | '' = '';
     market = '';
+    instrumentSearch = '';
+    selectedInstrumentId: number | null = null;
+    selectedInstrument: Instrument | null = null;
     orderStatus: OrderStatus | '' = '';
     clientSegment: ClientSegment | '' = '';
+
+    allInstruments: Instrument[] = [];
+    filteredInstruments: Instrument[] = [];
 
     readonly markets = [
         'NASDAQ',
@@ -117,6 +131,7 @@ export class AnalyticsDashboardComponent
 
     constructor(
         private analyticsService: AnalyticsService,
+        private instrumentService: InstrumentService,
         private authService: AuthService,
         private router: Router,
         private changeDetectorRef: ChangeDetectorRef
@@ -124,6 +139,7 @@ export class AnalyticsDashboardComponent
 
     ngOnInit(): void {
         this.isAdmin = this.authService.hasRole('ADMIN');
+        this.loadInstruments();
         this.loadDashboard();
     }
 
@@ -136,10 +152,66 @@ export class AnalyticsDashboardComponent
         this.dateTo = '';
         this.assetType = '';
         this.market = '';
+        this.instrumentSearch = '';
+        this.selectedInstrumentId = null;
+        this.selectedInstrument = null;
+        this.filteredInstruments = this.allInstruments;
         this.orderStatus = '';
         this.clientSegment = '';
 
         this.loadDashboard();
+    }
+
+    onInstrumentSearchChange(value: string): void {
+        this.instrumentSearch = value || '';
+
+        const selectedLabel = this.selectedInstrument
+            ? this.instrumentLabel(this.selectedInstrument)
+            : '';
+
+        if (
+            this.selectedInstrumentId !== null
+            && this.instrumentSearch !== selectedLabel
+        ) {
+            this.selectedInstrumentId = null;
+            this.selectedInstrument = null;
+        }
+
+        this.filteredInstruments = this.filterInstruments(
+            this.instrumentSearch
+        );
+    }
+
+    onInstrumentSelected(instrumentId: string | number): void {
+        if (instrumentId === '') {
+            this.clearInstrumentSelection();
+            return;
+        }
+
+        const instrument = this.allInstruments.find(
+            candidate => String(candidate.instrumentId) === String(instrumentId)
+        );
+
+        if (!instrument) {
+            return;
+        }
+
+        const normalizedId = Number(instrument.instrumentId);
+        if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
+            return;
+        }
+
+        this.selectedInstrumentId = normalizedId;
+        this.selectedInstrument = instrument;
+        this.instrumentSearch = this.instrumentLabel(instrument);
+        this.filteredInstruments = [instrument];
+    }
+
+    clearInstrumentSelection(): void {
+        this.instrumentSearch = '';
+        this.selectedInstrumentId = null;
+        this.selectedInstrument = null;
+        this.filteredInstruments = this.allInstruments;
     }
 
     logout(): void {
@@ -150,6 +222,8 @@ export class AnalyticsDashboardComponent
     private loadDashboard(): void {
         this.loading = true;
         this.errorMessage = '';
+        this.dashboard = null;
+        this.destroyCharts();
 
         const filters: DashboardFilters = {};
 
@@ -167,6 +241,10 @@ export class AnalyticsDashboardComponent
 
         if (this.market.trim()) {
             filters.market = this.market.trim();
+        }
+
+        if (this.selectedInstrumentId !== null) {
+            filters.instrumentId = this.selectedInstrumentId;
         }
 
         if (this.orderStatus) {
@@ -208,6 +286,83 @@ export class AnalyticsDashboardComponent
                         (backendMessage ? ` - ${backendMessage}` : '');
                 }
             });
+    }
+
+    private loadInstruments(): void {
+        this.instrumentService
+            .getAllInstruments()
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+                next: instruments => {
+                    this.allInstruments = instruments;
+                    this.filteredInstruments = instruments;
+                },
+                error: error => {
+                    console.error(
+                        'Failed to load instruments for analytics:',
+                        error
+                    );
+                    this.allInstruments = [];
+                    this.filteredInstruments = [];
+                }
+            });
+    }
+
+    private filterInstruments(query: string): Instrument[] {
+        const normalizedQuery = query.trim().toLowerCase();
+
+        if (!normalizedQuery) {
+            return this.allInstruments;
+        }
+
+        return this.allInstruments.filter(instrument =>
+            instrument.symbol.toLowerCase().includes(normalizedQuery)
+            || instrument.name.toLowerCase().includes(normalizedQuery)
+        );
+    }
+
+    private instrumentLabel(instrument: Instrument): string {
+        return `${instrument.symbol} - ${instrument.name} `
+            + `(ID ${instrument.instrumentId})`;
+    }
+
+    hasTradingVolumeActivity(): boolean {
+        return this.dashboard?.trading_volume_over_time.points.some(
+            point => point.volume_usd > 0
+        ) ?? false;
+    }
+
+    hasOrderOutcomeActivity(): boolean {
+        return this.dashboard?.order_outcomes.some(
+            outcome => outcome.count > 0
+        ) ?? false;
+    }
+
+    hasInstrumentActivity(): boolean {
+        return this.dashboard?.most_active_instruments.some(
+            instrument => instrument.order_count > 0
+        ) ?? false;
+    }
+
+    hasClientActivity(): boolean {
+        return this.dashboard?.client_activity_trend.points.some(
+            point => point.active_clients > 0
+        ) ?? false;
+    }
+
+    hasRejectionActivity(): boolean {
+        return this.dashboard?.top_rejection_reasons.some(
+            reason => reason.count > 0
+        ) ?? false;
+    }
+
+    hasSegmentActivity(): boolean {
+        return this.dashboard?.client_segment_breakdown.some(
+            segment =>
+                segment.active_clients > 0
+                || segment.order_count > 0
+                || segment.trading_volume_usd > 0
+        ) ?? false;
     }
 
     private renderCharts(): void {

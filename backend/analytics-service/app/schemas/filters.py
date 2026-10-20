@@ -38,6 +38,8 @@ class DashboardFilters(BaseModel):
         max_length=100,
     )
 
+    instrument_id: Optional[int] = Field(default=None, gt=0)
+
     order_status: Optional[OrderStatus] = None
 
     client_segment: Optional[ClientSegment] = None
