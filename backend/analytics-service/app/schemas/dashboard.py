@@ -1,5 +1,6 @@
+from datetime import date
 from enum import Enum
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -63,6 +64,12 @@ class RejectionReason(BaseModel):
     count: int
 
 
+class ReportingPeriod(BaseModel):
+    date_from: date
+    date_to: date
+    timezone: Literal["UTC"] = "UTC"
+
+
 class SelectedInstrument(BaseModel):
     instrument_id: int
     symbol: str
@@ -81,3 +88,4 @@ class DashboardResponse(BaseModel):
     top_rejection_reasons: List[RejectionReason]
     client_segment_breakdown: List[ClientSegmentBreakdown]
     selected_instrument: Optional[SelectedInstrument] = None
+    reporting_period: ReportingPeriod

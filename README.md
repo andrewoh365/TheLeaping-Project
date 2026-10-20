@@ -27,20 +27,32 @@ A full-stack online trading platform application for portfolio management and ma
 - Database schema with Flyway migrations
 - CORS configuration for development and production
 
-### 📊 BR-16 Analytics
-- The protected analytics dashboard supports date, market, asset type, order
-	status, client segment, and instrument-specific reporting filters.
-- Instrument selection uses the unique `instrument_id`, not the symbol. The
-	dashboard shows the selected instrument's symbol, name, market, type, and
-	active status, including inactive instruments with historical data.
-- Instrument filters compose with the existing filters. Client segments remain
-	classified from each client's complete 90-day order history; only report
-	activity metrics are narrowed by the selected instrument.
-- Verify the feature with `./scripts/test.sh`. For PostgreSQL analytics
-	integration coverage, run the analytics tests with
-	`ANALYTICS_TEST_DATABASE_URL` pointing to an isolated test database.
-- The instrument list is loaded once by Angular and searched client-side; it
-	does not currently use a paginated or debounced remote search.
+### Analytics Reporting and Filter Semantics
+- Filters are composable: dates, asset type, market, current order status,
+	client segment, and the unique `instrument_id` constrain the applicable
+	activity metrics. Instrument selection never uses symbol alone.
+- Dates are inclusive UTC calendar dates. The effective period is returned by
+	the API, including the default last 90 UTC calendar days when dates are
+	omitted.
+- Order counts and client activity use `trade_orders.submitted_at`. Trading
+	volume uses `trades.executed_at`, so submitted-order counts and executed
+	trade totals can legitimately represent different event populations.
+- `order_status` means the order's current stored status, not an as-of
+	historical status. Rejection reasons are only applicable to rejected
+	orders.
+- Client segments are classified from each client's complete 90-day order
+	window ending on the report end date. Activity filters narrow segment
+	metrics, but do not change classification or `total_clients`.
+- Verify KPI and chart relationships with the isolated PostgreSQL analytics
+	tests: outcome counts reconcile to Total Orders, volume buckets reconcile
+	to Trading Volume, and segment activity reconciles under equivalent filters.
+- Run `./scripts/test.sh` for the standard Spring, analytics, and Angular
+	checks. To enable analytics PostgreSQL integration tests directly, set
+	`ANALYTICS_TEST_DATABASE_URL` to a disposable isolated database.
+- Top-five instrument charts intentionally exclude instruments outside the
+	top five; distinct-client counts across time buckets can also repeat a
+	customer and should not be summed as a global distinct-client total.
+- The protected dashboard remains available only to ADMIN and ANALYST users.
 
 ## 🚀 Quick Start
 

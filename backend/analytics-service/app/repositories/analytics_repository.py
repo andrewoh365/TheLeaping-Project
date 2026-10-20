@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 
@@ -39,9 +39,21 @@ def _segment_window_params(
         )
 
     return {
-        "segment_start": filters.date_to - timedelta(days=89),
-        "segment_end": filters.date_to,
+        "segment_start": _utc_midnight(
+            filters.date_to - timedelta(days=89)
+        ),
+        "segment_end": _utc_midnight(
+            filters.date_to + timedelta(days=1)
+        ),
     }
+
+
+def _utc_midnight(day: date) -> datetime:
+    return datetime.combine(
+        day,
+        time.min,
+        tzinfo=timezone.utc,
+    )
 
 
 def _period_expression(
@@ -54,9 +66,11 @@ def _period_expression(
         TimeGrouping.MONTHLY: "month",
     }[grouping]
 
+    utc_timestamp = f"{timestamp_column} AT TIME ZONE 'UTC'"
+
     return (
         "TO_CHAR("
-        f"DATE_TRUNC('{truncation}', {timestamp_column}), "
+        f"DATE_TRUNC('{truncation}', {utc_timestamp}), "
         "'YYYY-MM-DD')"
     )
 
@@ -64,7 +78,6 @@ def _period_expression(
 def _build_filters(
     filters: DashboardFilters,
     timestamp_column: str,
-    include_order_status: bool = True,
     include_client_segment: bool = True,
 ) -> Tuple[str, Dict[str, object]]:
     clauses = ["1 = 1"]
@@ -72,13 +85,15 @@ def _build_filters(
 
     if filters.date_from is not None:
         clauses.append(f"{timestamp_column} >= :date_from")
-        params["date_from"] = filters.date_from
+        params["date_from"] = _utc_midnight(filters.date_from)
 
     if filters.date_to is not None:
         clauses.append(
-            f"{timestamp_column} < (:date_to + INTERVAL '1 day')"
+            f"{timestamp_column} < :date_to"
         )
-        params["date_to"] = filters.date_to
+        params["date_to"] = _utc_midnight(
+            filters.date_to + timedelta(days=1)
+        )
 
     if filters.asset_type is not None:
         clauses.append("i.instrument_type = :asset_type")
@@ -92,7 +107,7 @@ def _build_filters(
         clauses.append("m.market_name = :market")
         params["market"] = filters.market
 
-    if include_order_status and filters.order_status is not None:
+    if filters.order_status is not None:
         clauses.append("o.order_status = :order_status")
         params["order_status"] = filters.order_status.value
 
@@ -140,7 +155,6 @@ def get_total_orders(filters: DashboardFilters) -> int:
     where_clause, params = _build_filters(
         filters,
         timestamp_column="o.submitted_at",
-        include_order_status=True,
     )
 
     query = f"""
@@ -164,7 +178,6 @@ def get_trading_volume(filters: DashboardFilters) -> Decimal:
     where_clause, params = _build_filters(
         filters,
         timestamp_column="t.executed_at",
-        include_order_status=False,
     )
 
     query = f"""
@@ -192,7 +205,6 @@ def get_active_clients(filters: DashboardFilters) -> int:
     where_clause, params = _build_filters(
         filters,
         timestamp_column="o.submitted_at",
-        include_order_status=True,
     )
 
     query = f"""
@@ -220,7 +232,6 @@ def get_fill_rate_counts(
     where_clause, params = _build_filters(
         filters,
         timestamp_column="o.submitted_at",
-        include_order_status=False,
     )
 
     query = f"""
@@ -256,7 +267,6 @@ def get_trading_volume_rows(
     where_clause, params = _build_filters(
         filters,
         timestamp_column="t.executed_at",
-        include_order_status=False,
     )
 
     period_expression = _period_expression(
@@ -295,13 +305,11 @@ def get_client_segment_breakdown(
     order_where_clause, order_params = _build_filters(
         filters,
         timestamp_column="o.submitted_at",
-        include_order_status=True,
         include_client_segment=False,
     )
     volume_where_clause, volume_params = _build_filters(
         filters,
         timestamp_column="t.executed_at",
-        include_order_status=False,
         include_client_segment=False,
     )
 
@@ -413,7 +421,6 @@ def get_order_outcomes(
     where_clause, params = _build_filters(
         filters,
         timestamp_column="o.submitted_at",
-        include_order_status=False,
     )
 
     query = f"""
@@ -446,7 +453,6 @@ def get_most_active_instruments(
     where_clause, params = _build_filters(
         filters,
         timestamp_column="o.submitted_at",
-        include_order_status=True,
     )
 
     query = f"""
@@ -482,7 +488,6 @@ def get_client_activity_rows(
     where_clause, params = _build_filters(
         filters,
         timestamp_column="o.submitted_at",
-        include_order_status=True,
     )
 
     period_expression = _period_expression(
@@ -522,7 +527,6 @@ def get_rejection_reasons(
     where_clause, params = _build_filters(
         filters,
         timestamp_column="o.submitted_at",
-        include_order_status=False,
     )
 
     query = f"""

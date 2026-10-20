@@ -92,6 +92,12 @@ export interface SelectedInstrument {
   is_active: boolean;
 }
 
+export interface ReportingPeriod {
+  date_from: string;
+  date_to: string;
+  timezone: 'UTC';
+}
+
 export interface DashboardResponse {
   summary: DashboardSummary;
   trading_volume_over_time: TradingVolumeTrend;
@@ -101,6 +107,7 @@ export interface DashboardResponse {
   top_rejection_reasons: RejectionReason[];
   client_segment_breakdown: ClientSegmentBreakdown[];
   selected_instrument: SelectedInstrument | null;
+  reporting_period: ReportingPeriod;
 }
 
 @Injectable({

@@ -160,6 +160,7 @@
           mat-flat-button
           color="primary"
           type="button"
+          [disabled]="dateRangeInvalid"
           (click)="applyFilters()">
           Apply
         </button>
@@ -171,6 +172,13 @@
           Reset
         </button>
 
+      </div>
+
+      <div
+        class="filter-validation-message"
+        role="alert"
+        *ngIf="dateRangeInvalid">
+        The From date cannot be after the To date.
       </div>
     </div>
   </mat-card>
@@ -191,6 +199,28 @@
 
   <!-- DASHBOARD CONTENT -->
   <ng-container *ngIf="dashboard && !loading">
+
+    <!-- REPORTING CONTEXT -->
+    <section class="report-context">
+      <div class="report-period-row">
+        <strong>Reporting period:</strong>
+        <span>{{ formatReportingPeriod() }}</span>
+        <button
+          mat-icon-button
+          type="button"
+          aria-label="Explain analytics reporting rules"
+          matTooltip="Dates are inclusive UTC calendar dates. Orders and client activity use submission dates; trading volume uses execution dates. Order status is the current recorded status. Client segments use the 90 calendar days ending on the report end date."
+          matTooltipPosition="above">
+          <mat-icon>info</mat-icon>
+        </button>
+      </div>
+
+      <p class="report-notes">
+        Orders and client activity use submission dates. Trading volume uses
+        trade execution dates. Segments are classified over the 90 calendar
+        days ending on the report end date.
+      </p>
+    </section>
 
     <!-- SELECTED INSTRUMENT -->
     <mat-card
@@ -295,7 +325,9 @@
           <canvas #volumeChart></canvas>
         </div>
         <ng-template #volumeEmpty>
-          <div class="chart-empty-state">No activity for this period.</div>
+          <div class="chart-empty-state">
+            No matching activity for these filters.
+          </div>
         </ng-template>
       </mat-card>
 
@@ -309,7 +341,9 @@
           <canvas #outcomesChart></canvas>
         </div>
         <ng-template #outcomesEmpty>
-          <div class="chart-empty-state">No activity for this period.</div>
+          <div class="chart-empty-state">
+            No matching activity for these filters.
+          </div>
         </ng-template>
       </mat-card>
 
@@ -327,7 +361,9 @@
           <canvas #instrumentsChart></canvas>
         </div>
         <ng-template #instrumentsEmpty>
-          <div class="chart-empty-state">No activity for this period.</div>
+          <div class="chart-empty-state">
+            No matching activity for these filters.
+          </div>
         </ng-template>
       </mat-card>
 
@@ -341,7 +377,9 @@
           <canvas #clientsChart></canvas>
         </div>
         <ng-template #clientsEmpty>
-          <div class="chart-empty-state">No activity for this period.</div>
+          <div class="chart-empty-state">
+            No matching activity for these filters.
+          </div>
         </ng-template>
       </mat-card>
 
@@ -355,7 +393,9 @@
           <canvas #rejectionsChart></canvas>
         </div>
         <ng-template #rejectionsEmpty>
-          <div class="chart-empty-state">No activity for this period.</div>
+          <div class="chart-empty-state">
+            {{ rejectionEmptyMessage() }}
+          </div>
         </ng-template>
       </mat-card>
 
@@ -379,7 +419,7 @@
 
           <ng-template #segmentChartEmpty>
             <div class="chart-empty-state segment-chart-empty-state">
-              No activity for this period.
+              No matching activity for these filters.
             </div>
           </ng-template>
 
@@ -416,7 +456,7 @@
 
         <ng-template #segmentBreakdownEmpty>
           <div class="segment-empty-state">
-            No client segment data is available for the selected filters.
+            No matching activity for these filters.
           </div>
         </ng-template>
       </mat-card>

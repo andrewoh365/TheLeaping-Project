@@ -155,4 +155,14 @@ class AnalyticsControllerTest {
 
         verifyNoInteractions(analyticsService);
     }
+
+        @Test
+        void getDashboard_rejectsReversedDateRange() throws Exception {
+                mockMvc.perform(get("/api/analytics/dashboard")
+                                                .param("date_from", "2026-10-10")
+                                                .param("date_to", "2026-10-01"))
+                                .andExpect(status().isUnprocessableEntity());
+
+                verifyNoInteractions(analyticsService);
+        }
 }

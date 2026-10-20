@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 import app.repositories.analytics_repository as repository
 from app.schemas.dashboard import TimeGrouping
@@ -8,6 +8,9 @@ from app.schemas.filters import (
     DashboardFilters,
     OrderStatus,
 )
+
+
+UTC = timezone.utc
 
 
 class _Result:
@@ -162,7 +165,10 @@ def test_trading_volume_is_grouped_in_database(monkeypatch):
         TimeGrouping.WEEKLY,
     )
 
-    assert "DATE_TRUNC('week', t.executed_at)" in engine.connection.query
+    assert (
+        "DATE_TRUNC('week', t.executed_at AT TIME ZONE 'UTC')"
+        in engine.connection.query
+    )
     assert "SUM(t.total_usd_value)" in engine.connection.query
     assert "GROUP BY 1" in engine.connection.query
 
@@ -176,7 +182,10 @@ def test_client_activity_is_grouped_and_distinct_in_database(monkeypatch):
         TimeGrouping.MONTHLY,
     )
 
-    assert "DATE_TRUNC('month', o.submitted_at)" in engine.connection.query
+    assert (
+        "DATE_TRUNC('month', o.submitted_at AT TIME ZONE 'UTC')"
+        in engine.connection.query
+    )
     assert "COUNT(DISTINCT p.customer_id)" in engine.connection.query
     assert "GROUP BY 1" in engine.connection.query
 
@@ -219,9 +228,9 @@ def test_client_segment_breakdown_uses_unfiltered_segments_and_report_filters(
     assert "COUNT(o.order_id) AS order_count" in query
     assert "SUM(t.total_usd_value)" in query
     assert "o.submitted_at >= :date_from" in query
-    assert "o.submitted_at < (:date_to + INTERVAL '1 day')" in query
+    assert "o.submitted_at < :date_to" in query
     assert "t.executed_at >= :date_from" in query
-    assert "t.executed_at < (:date_to + INTERVAL '1 day')" in query
+    assert "t.executed_at < :date_to" in query
     assert "('INACTIVE')" in query
     assert "('FREQUENT')" in query
     assert "COALESCE(segment_populations.total_clients, 0)" in query
@@ -244,8 +253,30 @@ def test_client_segment_breakdown_uses_unfiltered_segments_and_report_filters(
     assert "instrument_id" not in classification_sql
     assert "instrument_id" not in population_sql
 
-    assert params["segment_start"] == date(2026, 7, 3)
-    assert params["segment_end"] == date(2026, 9, 30)
+    assert params["segment_start"] == datetime(
+        2026,
+        7,
+        3,
+        tzinfo=UTC,
+    )
+    assert params["segment_end"] == datetime(
+        2026,
+        10,
+        1,
+        tzinfo=UTC,
+    )
+    assert params["date_from"] == datetime(
+        2026,
+        9,
+        1,
+        tzinfo=UTC,
+    )
+    assert params["date_to"] == datetime(
+        2026,
+        10,
+        1,
+        tzinfo=UTC,
+    )
     assert params["instrument_id"] == 15
     assert params["client_segment"] == "REGULAR"
 

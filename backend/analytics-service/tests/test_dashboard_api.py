@@ -16,6 +16,7 @@ from app.schemas.dashboard import (
     InstrumentActivity,
     OrderOutcome,
     RejectionReason,
+    ReportingPeriod,
     SelectedInstrument,
     TimeGrouping,
     TradingVolumePoint,
@@ -122,6 +123,10 @@ def _mock_dashboard_response() -> DashboardResponse:
                 trading_volume_usd=1000.75,
             ),
         ],
+        reporting_period=ReportingPeriod(
+            date_from=date(2026, 9, 1),
+            date_to=date(2026, 9, 30),
+        ),
     )
 
 
@@ -193,6 +198,7 @@ def test_dashboard_endpoint(monkeypatch):
         "top_rejection_reasons",
         "client_segment_breakdown",
         "selected_instrument",
+        "reporting_period",
     }
     assert set(body["summary"]) == {
         "trading_volume_usd",
@@ -236,6 +242,11 @@ def test_dashboard_endpoint(monkeypatch):
         "trading_volume_usd": 0.0,
     }
     assert body["selected_instrument"] is None
+    assert body["reporting_period"] == {
+        "date_from": "2026-09-01",
+        "date_to": "2026-09-30",
+        "timezone": "UTC",
+    }
 
 
 def test_dashboard_returns_selected_instrument_metadata(monkeypatch):
@@ -387,6 +398,23 @@ def test_dashboard_rejects_invalid_date_range(monkeypatch):
             "date_from": "2026-10-01",
             "date_to": "2026-09-01",
         },
+    )
+
+    assert response.status_code == 422
+
+
+def test_dashboard_rejects_invalid_effective_date_range(monkeypatch):
+    monkeypatch.setattr(
+        dashboard_api,
+        "build_dashboard",
+        lambda filters: (_ for _ in ()).throw(
+            dashboard_api.InvalidDateRangeError()
+        ),
+    )
+
+    response = client.get(
+        "/analytics/dashboard",
+        params={"date_from": "2026-10-21"},
     )
 
     assert response.status_code == 422

@@ -19,6 +19,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import {
     Chart,
@@ -26,8 +27,12 @@ import {
     registerables
 } from 'chart.js';
 
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { EMPTY, Subject } from 'rxjs';
+import {
+    catchError,
+    switchMap,
+    takeUntil
+} from 'rxjs/operators';
 
 import { AuthService } from '../../services/auth.service';
 import {
@@ -63,6 +68,7 @@ Chart.register(...registerables);
         MatInputModule,
         MatProgressSpinnerModule,
         MatSelectModule,
+        MatTooltipModule,
         InternalNavComponent
     ],
     templateUrl: './analytics-dashboard.component.html',
@@ -121,6 +127,8 @@ export class AnalyticsDashboardComponent
     ];
 
     private readonly destroy$ = new Subject<void>();
+    private readonly dashboardRequests$ =
+        new Subject<DashboardFilters | null>();
 
     private volumeChart?: Chart;
     private outcomesChart?: Chart;
@@ -139,12 +147,19 @@ export class AnalyticsDashboardComponent
 
     ngOnInit(): void {
         this.isAdmin = this.authService.hasRole('ADMIN');
+        this.setupDashboardRequests();
         this.loadInstruments();
         this.loadDashboard();
     }
 
     applyFilters(): void {
         this.loadDashboard();
+    }
+
+    get dateRangeInvalid(): boolean {
+        return !!this.dateFrom
+            && !!this.dateTo
+            && this.dateFrom > this.dateTo;
     }
 
     resetFilters(): void {
@@ -220,12 +235,15 @@ export class AnalyticsDashboardComponent
     }
 
     private loadDashboard(): void {
-        this.loading = true;
-        this.errorMessage = '';
-        this.dashboard = null;
-        this.destroyCharts();
-
         const filters: DashboardFilters = {};
+
+        if (this.dateRangeInvalid) {
+            this.dashboardRequests$.next(null);
+            this.clearDashboardState();
+            this.errorMessage =
+                'The From date cannot be after the To date.';
+            return;
+        }
 
         if (this.dateFrom) {
             filters.dateFrom = this.dateFrom;
@@ -255,37 +273,65 @@ export class AnalyticsDashboardComponent
             filters.clientSegment = this.clientSegment;
         }
 
-        this.analyticsService
-            .getDashboard(filters)
+        this.dashboardRequests$.next(filters);
+    }
+
+    private setupDashboardRequests(): void {
+        this.dashboardRequests$
             .pipe(takeUntil(this.destroy$))
-            .subscribe({
-                next: response => {
-                    this.dashboard = response;
-                    this.loading = false;
+            .pipe(
+                switchMap(filters => {
+                    if (filters === null) {
+                        return EMPTY;
+                    }
 
-                    this.changeDetectorRef.detectChanges();
-                    this.renderCharts();
-                },
+                    this.loading = true;
+                    this.errorMessage = '';
+                    this.dashboard = null;
+                    this.destroyCharts();
 
-                error: error => {
-                    console.error(
-                        'Failed to load analytics dashboard:',
-                        error
-                    );
+                    return this.analyticsService
+                        .getDashboard(filters)
+                        .pipe(
+                            catchError(error => {
+                                this.handleDashboardError(error);
+                                return EMPTY;
+                            })
+                        );
+                })
+            )
+            .subscribe(response => {
+                this.dashboard = response;
+                this.loading = false;
 
-                    this.loading = false;
-
-                    const backendMessage =
-                        typeof error.error === 'string'
-                            ? error.error
-                            : error.error?.message;
-
-                    this.errorMessage =
-                        `Unable to load analytics data. ` +
-                        `HTTP ${error.status || 0}` +
-                        (backendMessage ? ` - ${backendMessage}` : '');
-                }
+                this.changeDetectorRef.detectChanges();
+                this.renderCharts();
             });
+    }
+
+    private handleDashboardError(error: any): void {
+        console.error(
+            'Failed to load analytics dashboard:',
+            error
+        );
+
+        this.loading = false;
+
+        const backendMessage =
+            typeof error.error === 'string'
+                ? error.error
+                : error.error?.message;
+
+        this.errorMessage =
+            `Unable to load analytics data. ` +
+            `HTTP ${error.status || 0}` +
+            (backendMessage ? ` - ${backendMessage}` : '');
+    }
+
+    private clearDashboardState(): void {
+        this.loading = false;
+        this.dashboard = null;
+        this.destroyCharts();
     }
 
     private loadInstruments(): void {
@@ -324,6 +370,40 @@ export class AnalyticsDashboardComponent
     private instrumentLabel(instrument: Instrument): string {
         return `${instrument.symbol} - ${instrument.name} `
             + `(ID ${instrument.instrumentId})`;
+    }
+
+    formatReportingPeriod(): string {
+        const period = this.dashboard?.reporting_period;
+        if (!period) {
+            return '';
+        }
+
+        const dateFrom = this.formatCalendarDate(period.date_from);
+        const dateTo = this.formatCalendarDate(period.date_to);
+
+        return `${dateFrom} - ${dateTo} (${period.timezone})`;
+    }
+
+    rejectionEmptyMessage(): string {
+        if (this.orderStatus && this.orderStatus !== 'REJECTED') {
+            return 'Rejection reasons are not applicable to the selected '
+                + 'order status.';
+        }
+
+        return 'No matching activity for these filters.';
+    }
+
+    private formatCalendarDate(value: string): string {
+        const [year, month, day] = value
+            .split('-')
+            .map(Number);
+
+        return new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            timeZone: 'UTC'
+        }).format(new Date(Date.UTC(year, month - 1, day)));
     }
 
     hasTradingVolumeActivity(): boolean {
@@ -601,6 +681,7 @@ export class AnalyticsDashboardComponent
     ngOnDestroy(): void {
         this.destroyCharts();
 
+        this.dashboardRequests$.complete();
         this.destroy$.next();
         this.destroy$.complete();
     }

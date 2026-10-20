@@ -57,6 +57,14 @@ public class AnalyticsController {
             @RequestParam(name = "client_segment", required = false)
             ClientSegment clientSegment
     ) {
+        if (dateFrom != null && dateTo != null
+                && dateFrom.isAfter(dateTo)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "date_from cannot be after date_to"
+            );
+        }
+
         if (instrumentId != null && instrumentId <= 0) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,

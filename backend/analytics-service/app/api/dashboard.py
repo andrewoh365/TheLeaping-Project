@@ -11,6 +11,7 @@ from app.schemas.filters import (
     OrderStatus,
 )
 from app.services.dashboard_service import (
+    InvalidDateRangeError,
     InstrumentNotFoundError,
     build_dashboard,
 )
@@ -61,6 +62,11 @@ def get_dashboard(
 
     try:
         return build_dashboard(filters)
+    except InvalidDateRangeError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=str(error),
+        ) from error
     except InstrumentNotFoundError as error:
         raise HTTPException(
             status_code=404,

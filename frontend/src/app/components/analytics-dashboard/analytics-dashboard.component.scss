@@ -107,6 +107,12 @@
   }
 }
 
+.filter-validation-message {
+  grid-column: 1 / -1;
+  color: #ff9b9b;
+  font-size: 12px;
+}
+
 /* Dark mode styling for form fields in analytics page */
 :host ::ng-deep .analytics-page {
   .mat-mdc-form-field {
@@ -184,6 +190,43 @@
   gap: 16px;
   margin-bottom: 24px;
   padding: 0 20px;
+}
+
+.report-context {
+  margin: 0 20px 16px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid var(--primary-accent-color);
+  color: var(--text-color);
+}
+
+.report-period-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+
+  strong {
+    font-weight: 700;
+  }
+
+  button {
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+  }
+
+  mat-icon {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 18px;
+  }
+}
+
+.report-notes {
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .selected-instrument-card {
@@ -426,6 +469,15 @@
     flex-direction: column;
     gap: 16px;
     margin: 0 16px 24px;
+  }
+
+  .report-context {
+    margin: 0 16px 16px;
+  }
+
+  .report-period-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
   }
 
   .selected-instrument-details {

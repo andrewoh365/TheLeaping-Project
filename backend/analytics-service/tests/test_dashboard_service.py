@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -18,6 +18,56 @@ def test_default_date_range_is_90_days():
     ).days + 1
 
     assert number_of_days == 90
+
+
+def test_effective_date_defaults_use_utc_today(monkeypatch):
+    class FixedDateTime:
+        @classmethod
+        def now(cls, requested_timezone):
+            return datetime(
+                2026,
+                10,
+                20,
+                0,
+                30,
+                tzinfo=requested_timezone,
+            )
+
+    monkeypatch.setattr(service, "datetime", FixedDateTime)
+
+    both_omitted = service._apply_default_date_range(
+        DashboardFilters()
+    )
+    assert both_omitted.date_from == date(2026, 7, 23)
+    assert both_omitted.date_to == date(2026, 10, 20)
+
+    only_end = service._apply_default_date_range(
+        DashboardFilters(date_to=date(2026, 10, 10))
+    )
+    assert only_end.date_from == date(2026, 7, 13)
+    assert only_end.date_to == date(2026, 10, 10)
+
+    only_start = service._apply_default_date_range(
+        DashboardFilters(date_from=date(2026, 10, 1))
+    )
+    assert only_start.date_from == date(2026, 10, 1)
+    assert only_start.date_to == date(2026, 10, 20)
+
+    explicit = service._apply_default_date_range(
+        DashboardFilters(
+            date_from=date(2028, 2, 28),
+            date_to=date(2028, 2, 29),
+        )
+    )
+    assert explicit.date_from == date(2028, 2, 28)
+    assert explicit.date_to == date(2028, 2, 29)
+
+
+def test_effective_reversed_range_is_rejected():
+    with pytest.raises(service.InvalidDateRangeError):
+        service._apply_default_date_range(
+            DashboardFilters(date_from=date(2026, 10, 21))
+        )
 
 
 @pytest.mark.parametrize(
@@ -281,6 +331,11 @@ def test_build_dashboard(monkeypatch):
     assert occasional.active_clients == 2
     assert occasional.order_count == 5
     assert occasional.trading_volume_usd == 100.26
+    assert dashboard.reporting_period.model_dump() == {
+        "date_from": date(2026, 9, 1),
+        "date_to": date(2026, 9, 30),
+        "timezone": "UTC",
+    }
 
 
 def test_selected_instrument_with_no_activity_returns_zero_metrics(

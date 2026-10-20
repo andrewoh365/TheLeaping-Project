@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 
 from app.repositories.analytics_repository import (
@@ -23,6 +23,7 @@ from app.schemas.dashboard import (
     InstrumentActivity,
     OrderOutcome,
     RejectionReason,
+    ReportingPeriod,
     SelectedInstrument,
     TimeGrouping,
     TradingVolumePoint,
@@ -43,6 +44,13 @@ class InstrumentNotFoundError(Exception):
         )
 
 
+class InvalidDateRangeError(ValueError):
+    def __init__(self):
+        super().__init__(
+            "date_from cannot be after date_to"
+        )
+
+
 def _apply_default_date_range(
     filters: DashboardFilters,
 ) -> DashboardFilters:
@@ -50,9 +58,10 @@ def _apply_default_date_range(
 
     date_from = filters.date_from
     date_to = filters.date_to
+    today_utc = datetime.now(timezone.utc).date()
 
     if date_from is None and date_to is None:
-        date_to = date.today()
+        date_to = today_utc
         date_from = date_to - timedelta(
             days=DEFAULT_DATE_RANGE_DAYS - 1
         )
@@ -63,7 +72,11 @@ def _apply_default_date_range(
         )
 
     elif date_to is None:
-        date_to = date.today()
+        date_to = today_utc
+
+    if date_from is not None and date_to is not None:
+        if date_from > date_to:
+            raise InvalidDateRangeError()
 
     values["date_from"] = date_from
     values["date_to"] = date_to
@@ -338,4 +351,8 @@ def build_dashboard(
             )
         ),
         selected_instrument=selected_instrument,
+        reporting_period=ReportingPeriod(
+            date_from=effective_filters.date_from,
+            date_to=effective_filters.date_to,
+        ),
     )

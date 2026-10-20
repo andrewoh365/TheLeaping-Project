@@ -2,10 +2,12 @@ from datetime import date, datetime, timedelta, timezone
 import os
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 
 import app.repositories.analytics_repository as repository
+from app.main import app
 from app.schemas.dashboard import TimeGrouping
 from app.schemas.filters import (
     AssetType,
@@ -170,6 +172,11 @@ def _seed_boundary_data(test_engine):
                     "portfolio_id": portfolio_id,
                     "instrument_id": instrument_id,
                     "order_status": order_status,
+                    "rejection_reason": (
+                        "INSUFFICIENT_CASH"
+                        if order_status == "REJECTED"
+                        else None
+                    ),
                     "submitted_at": submitted_at,
                 }
             )
@@ -216,6 +223,7 @@ def _seed_boundary_data(test_engine):
                     portfolio_id,
                     instrument_id,
                     order_status,
+                    rejection_reason,
                     submitted_at
                 )
                 VALUES (
@@ -223,6 +231,7 @@ def _seed_boundary_data(test_engine):
                     :portfolio_id,
                     :instrument_id,
                     :order_status,
+                    :rejection_reason,
                     :submitted_at
                 )
                 """
@@ -504,3 +513,506 @@ def test_instrument_filter_uses_id_and_preserves_historical_metadata(
         "total_orders": 0,
         "filled_orders": 0,
     }
+
+
+def test_instrument_outside_top_five_is_reportable_without_double_counting(
+    postgres_engine,
+):
+    _seed_boundary_data(postgres_engine)
+
+    with postgres_engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO instruments (
+                    instrument_id,
+                    market_id,
+                    symbol,
+                    name,
+                    instrument_type,
+                    is_active
+                )
+                VALUES
+                    (4, 1, 'AAA', 'Instrument AAA', 'STOCK', TRUE),
+                    (5, 1, 'AAB', 'Instrument AAB', 'STOCK', TRUE),
+                    (6, 1, 'AAC', 'Instrument AAC', 'STOCK', TRUE),
+                    (7, 1, 'AAD', 'Instrument AAD', 'STOCK', TRUE),
+                    (8, 1, 'ZZZ', 'Instrument ZZZ', 'STOCK', TRUE)
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO trade_orders (
+                    order_id,
+                    portfolio_id,
+                    instrument_id,
+                    order_status,
+                    submitted_at
+                )
+                VALUES
+                    (100, 1, 4, 'FILLED', '2026-09-15 12:00:00+00'),
+                    (101, 1, 5, 'FILLED', '2026-09-15 12:00:00+00'),
+                    (102, 1, 6, 'FILLED', '2026-09-15 12:00:00+00'),
+                    (103, 1, 7, 'FILLED', '2026-09-15 12:00:00+00'),
+                    (104, 1, 8, 'FILLED', '2026-09-15 12:00:00+00')
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO trades (
+                    trade_id,
+                    order_id,
+                    total_usd_value,
+                    executed_at
+                )
+                VALUES
+                    (100, 104, 10, '2026-09-15 12:00:00+00'),
+                    (101, 104, 20, '2026-09-15 13:00:00+00')
+                """
+            )
+        )
+
+    base_filters = DashboardFilters(
+        date_from=date(2026, 7, 3),
+        date_to=date(2026, 9, 30),
+    )
+    top_five_symbols = {
+        row["symbol"]
+        for row in repository.get_most_active_instruments(
+            base_filters,
+            limit=5,
+        )
+    }
+    assert "ZZZ" not in top_five_symbols
+
+    selected_filters = DashboardFilters(
+        date_from=date(2026, 7, 3),
+        date_to=date(2026, 9, 30),
+        instrument_id=8,
+    )
+    assert repository.get_total_orders(selected_filters) == 1
+    assert repository.get_trading_volume(selected_filters) == 30
+    assert repository.get_active_clients(selected_filters) == 1
+    assert repository.get_fill_rate_counts(selected_filters) == {
+        "total_orders": 1,
+        "filled_orders": 1,
+    }
+    assert repository.get_most_active_instruments(
+        selected_filters,
+        limit=5,
+    ) == [
+        {
+            "symbol": "ZZZ",
+            "order_count": 1,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "order_status, expected_orders, expected_volume, expected_clients, "
+    "expected_filled_orders, expected_rejection_count",
+    [
+        (None, 59, 150, 5, 20, 10),
+        (OrderStatus.FILLED, 20, 50, 2, 20, 0),
+        (OrderStatus.REJECTED, 10, 30, 1, 0, 10),
+        (OrderStatus.CANCELLED, 20, 50, 1, 0, 0),
+        (OrderStatus.ACCEPTED, 9, 20, 1, 0, 0),
+        (OrderStatus.SUBMITTED, 0, 0, 0, 0, 0),
+    ],
+)
+def test_order_status_filters_all_reporting_activity(
+    postgres_engine,
+    order_status,
+    expected_orders,
+    expected_volume,
+    expected_clients,
+    expected_filled_orders,
+    expected_rejection_count,
+):
+    _seed_boundary_data(postgres_engine)
+
+    filters = DashboardFilters(
+        date_from=date(2026, 7, 3),
+        date_to=date(2026, 9, 30),
+        order_status=order_status,
+    )
+
+    assert repository.get_total_orders(filters) == expected_orders
+    assert repository.get_active_clients(filters) == expected_clients
+
+    client_activity_rows = repository.get_client_activity_rows(
+        filters,
+        TimeGrouping.MONTHLY,
+    )
+    if expected_clients:
+        assert client_activity_rows == [
+            {
+                "period": "2026-07-01",
+                "active_clients": expected_clients,
+            }
+        ]
+    else:
+        assert client_activity_rows == []
+
+    assert repository.get_fill_rate_counts(filters) == {
+        "total_orders": expected_orders,
+        "filled_orders": expected_filled_orders,
+    }
+
+    outcome_rows = repository.get_order_outcomes(filters)
+    assert sum(row["order_count"] for row in outcome_rows) == (
+        expected_orders
+    )
+    if order_status is None:
+        assert {
+            row["order_status"]: row["order_count"]
+            for row in outcome_rows
+        } == {
+            "FILLED": 20,
+            "REJECTED": 10,
+            "CANCELLED": 20,
+            "ACCEPTED": 9,
+        }
+    elif expected_orders:
+        assert outcome_rows == [
+            {
+                "order_status": order_status.value,
+                "order_count": expected_orders,
+            }
+        ]
+    else:
+        assert outcome_rows == []
+
+    volume_rows = repository.get_trading_volume_rows(
+        filters,
+        TimeGrouping.DAILY,
+    )
+    assert sum(row["total_usd_value"] for row in volume_rows) == (
+        expected_volume
+    )
+    assert repository.get_trading_volume(filters) == expected_volume
+
+    top_instruments = repository.get_most_active_instruments(
+        filters,
+        limit=5,
+    )
+    assert sum(row["order_count"] for row in top_instruments) == (
+        expected_orders
+    )
+
+    rejection_rows = repository.get_rejection_reasons(filters, limit=5)
+    if expected_rejection_count:
+        assert rejection_rows == [
+            {
+                "rejection_reason": "INSUFFICIENT_CASH",
+                "rejection_count": expected_rejection_count,
+            }
+        ]
+    else:
+        assert rejection_rows == []
+
+    segment_rows = repository.get_client_segment_breakdown(filters)
+    assert sum(row["order_count"] for row in segment_rows) == (
+        expected_orders
+    )
+    assert sum(row["trading_volume_usd"] for row in segment_rows) == (
+        expected_volume
+    )
+
+
+def test_order_status_combines_with_instrument_and_client_segment(
+    postgres_engine,
+):
+    _seed_boundary_data(postgres_engine)
+
+    instrument_status = DashboardFilters(
+        date_from=date(2026, 7, 3),
+        date_to=date(2026, 9, 30),
+        instrument_id=2,
+        order_status=OrderStatus.REJECTED,
+    )
+    assert repository.get_total_orders(instrument_status) == 10
+    assert repository.get_trading_volume(instrument_status) == 30
+    assert repository.get_rejection_reasons(
+        instrument_status,
+        limit=5,
+    ) == [
+        {
+            "rejection_reason": "INSUFFICIENT_CASH",
+            "rejection_count": 10,
+        }
+    ]
+
+    segment_status = DashboardFilters(
+        date_from=date(2026, 7, 3),
+        date_to=date(2026, 9, 30),
+        client_segment=ClientSegment.REGULAR,
+        order_status=OrderStatus.REJECTED,
+    )
+    segment_rows = repository.get_client_segment_breakdown(segment_status)
+    assert segment_rows == [
+        {
+            "segment": "REGULAR",
+            "total_clients": 2,
+            "active_clients": 1,
+            "order_count": 10,
+            "trading_volume_usd": 30,
+        }
+    ]
+
+    all_filters = DashboardFilters(
+        date_from=date(2026, 7, 3),
+        date_to=date(2026, 9, 30),
+        instrument_id=2,
+        client_segment=ClientSegment.FREQUENT,
+        order_status=OrderStatus.CANCELLED,
+    )
+    assert repository.get_total_orders(all_filters) == 20
+    assert repository.get_trading_volume(all_filters) == 50
+    assert repository.get_client_segment_breakdown(all_filters) == [
+        {
+            "segment": "FREQUENT",
+            "total_clients": 1,
+            "active_clients": 1,
+            "order_count": 20,
+            "trading_volume_usd": 50,
+        }
+    ]
+
+    # There are no rejected orders for instrument 1, so status filtering
+    # must exclude all activity and volume rather than leaking instrument 2.
+    no_matching_status = DashboardFilters(
+        date_from=date(2026, 7, 3),
+        date_to=date(2026, 9, 30),
+        instrument_id=1,
+        order_status=OrderStatus.REJECTED,
+    )
+    assert repository.get_total_orders(no_matching_status) == 0
+    assert repository.get_trading_volume(no_matching_status) == 0
+
+
+def test_utc_boundaries_grouping_and_non_utc_session_timezone(
+    postgres_engine,
+):
+    with postgres_engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO portfolios (portfolio_id, customer_id)
+                VALUES (10, 1010)
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO markets (market_id, market_name)
+                VALUES (10, 'UTC-TEST')
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO instruments (
+                    instrument_id,
+                    market_id,
+                    symbol,
+                    name,
+                    instrument_type,
+                    is_active
+                )
+                VALUES
+                    (10, 10, 'UTC', 'UTC Boundary Instrument',
+                     'STOCK', TRUE)
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO trade_orders (
+                    order_id,
+                    portfolio_id,
+                    instrument_id,
+                    order_status,
+                    submitted_at
+                )
+                VALUES
+                    (100, 10, 10, 'FILLED',
+                     '2028-02-28 23:59:59.999999+00'),
+                    (101, 10, 10, 'FILLED',
+                     '2028-02-29 00:00:00+00'),
+                    (102, 10, 10, 'FILLED',
+                     '2028-02-29 23:59:59.999999+00'),
+                    (103, 10, 10, 'FILLED',
+                     '2028-03-01 00:00:00+00'),
+                    (104, 10, 10, 'FILLED',
+                     '2025-12-31 23:59:59.999999+00'),
+                    (105, 10, 10, 'FILLED',
+                     '2026-01-01 00:00:00+00'),
+                    (106, 10, 10, 'FILLED',
+                     '2026-03-01 00:00:00+00'),
+                    (107, 10, 10, 'FILLED',
+                     '2026-03-02 00:00:00+00'),
+                    (108, 10, 10, 'FILLED',
+                     '2028-02-29 12:00:00+00')
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO trades (
+                    trade_id,
+                    order_id,
+                    total_usd_value,
+                    executed_at
+                )
+                VALUES
+                    (100, 101, 10, '2028-02-29 00:00:00+00'),
+                    (101, 102, 20, '2028-02-29 23:59:59.999999+00'),
+                    (102, 103, 30, '2028-03-01 00:00:00+00'),
+                    (103, 104, 40, '2025-12-31 23:59:59.999999+00'),
+                    (104, 105, 50, '2026-01-01 00:00:00+00'),
+                    (105, 106, 60, '2026-03-01 00:00:00+00'),
+                    (106, 107, 70, '2026-03-02 00:00:00+00'),
+                    (107, 108, 80, '2028-03-01 00:00:00+00')
+                """
+            )
+        )
+
+        role = connection.execute(
+            text("SELECT CURRENT_USER")
+        ).scalar_one()
+        quoted_role = '"' + role.replace('"', '""') + '"'
+        connection.exec_driver_sql(
+            f"ALTER ROLE {quoted_role} SET TIME ZONE "
+            "'America/Los_Angeles'"
+        )
+
+    try:
+        leap_day = DashboardFilters(
+            date_from=date(2028, 2, 29),
+            date_to=date(2028, 2, 29),
+            instrument_id=10,
+            order_status=OrderStatus.FILLED,
+        )
+
+        # Start and fractional-second end events are included. The event at
+        # the exclusive next-midnight boundary is excluded.
+        assert repository.get_total_orders(leap_day) == 3
+        assert repository.get_trading_volume(leap_day) == 30
+        assert repository.get_trading_volume_rows(
+            leap_day,
+            TimeGrouping.DAILY,
+        ) == [
+            {
+                "period": "2028-02-29",
+                "total_usd_value": 30,
+            }
+        ]
+
+        month_boundary = DashboardFilters(
+            date_from=date(2025, 12, 31),
+            date_to=date(2026, 1, 1),
+            instrument_id=10,
+            order_status=OrderStatus.FILLED,
+        )
+        assert repository.get_trading_volume_rows(
+            month_boundary,
+            TimeGrouping.MONTHLY,
+        ) == [
+            {
+                "period": "2025-12-01",
+                "total_usd_value": 40,
+            },
+            {
+                "period": "2026-01-01",
+                "total_usd_value": 50,
+            },
+        ]
+
+        week_boundary = DashboardFilters(
+            date_from=date(2026, 3, 1),
+            date_to=date(2026, 3, 2),
+            instrument_id=10,
+            order_status=OrderStatus.FILLED,
+        )
+        assert repository.get_trading_volume_rows(
+            week_boundary,
+            TimeGrouping.WEEKLY,
+        ) == [
+            {
+                "period": "2026-02-23",
+                "total_usd_value": 60,
+            },
+            {
+                "period": "2026-03-02",
+                "total_usd_value": 70,
+            }
+        ]
+
+        # Order 108 is submitted inside the leap-day range but executes on
+        # March 1, so it contributes to orders but not executed volume.
+        assert repository.get_total_orders(leap_day) == 3
+        assert repository.get_trading_volume(leap_day) == 30
+    finally:
+        with postgres_engine.begin() as connection:
+            role = connection.execute(
+                text("SELECT CURRENT_USER")
+            ).scalar_one()
+            quoted_role = '"' + role.replace('"', '""') + '"'
+            connection.exec_driver_sql(
+                f"ALTER ROLE {quoted_role} RESET TIME ZONE"
+            )
+
+
+def test_dashboard_http_endpoint_uses_real_postgresql_fixture(
+    postgres_engine,
+):
+    _seed_boundary_data(postgres_engine)
+
+    response = TestClient(app).get(
+        "/analytics/dashboard",
+        params={
+            "date_from": "2026-07-03",
+            "date_to": "2026-09-30",
+            "instrument_id": "2",
+            "order_status": "REJECTED",
+            "client_segment": "REGULAR",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["total_orders"] == 10
+    assert body["summary"]["trading_volume_usd"] == 30.0
+    assert body["summary"]["active_clients"] == 1
+    assert body["summary"]["filled_orders_percentage"] == 0.0
+    assert body["selected_instrument"] == {
+        "instrument_id": 2,
+        "symbol": "DUPL",
+        "name": "Second Duplicate",
+        "instrument_type": "CRYPTO",
+        "market_name": "NYSE",
+        "is_active": False,
+    }
+    assert body["reporting_period"] == {
+        "date_from": "2026-07-03",
+        "date_to": "2026-09-30",
+        "timezone": "UTC",
+    }
+    assert body["client_segment_breakdown"] == [
+        {
+            "segment": "REGULAR",
+            "total_clients": 2,
+            "active_clients": 1,
+            "order_count": 10,
+            "trading_volume_usd": 30.0,
+        }
+    ]
