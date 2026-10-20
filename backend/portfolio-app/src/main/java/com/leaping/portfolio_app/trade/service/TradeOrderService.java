@@ -141,6 +141,7 @@ public class TradeOrderService {
             request.getQuantity(),
             request.getLimitPrice()
         );
+        order.setReferencePriceUsd(captureReferencePrice(order, instrument));
 
         TradeOrder savedOrder = tradeOrderRepository.save(order);
 
@@ -224,6 +225,15 @@ public class TradeOrderService {
         if (issue != null) {
             throw new IllegalArgumentException(issue);
         }
+    }
+
+    private BigDecimal captureReferencePrice(TradeOrder order, Instrument instrument) {
+        // Keep this additive and non-invasive: LIMIT orders already carry the client's
+        // explicit price; for MARKET orders we persist the current reference quote.
+        if (OrderType.LIMIT.equals(order.getOrderType())) {
+            return null;
+        }
+        return priceService.getCurrentPrice(instrument.getSymbol());
     }
 
     /**
@@ -527,6 +537,7 @@ public class TradeOrderService {
         details.put("orderType", order.getOrderType().name());
         details.put("timeInForce", order.getTimeInForce().name());
         details.put("quantity", order.getQuantity());
+        details.put("referencePriceUsd", order.getReferencePriceUsd());
         details.put("submittedAt", order.getSubmittedAt());
 
         if (order.getLimitPriceUsd() != null) {

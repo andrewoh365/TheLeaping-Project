@@ -72,6 +72,13 @@ public class TradeOrder {
     )
     private BigDecimal limitPriceUsd;
 
+    @Column(
+        name = "reference_price_usd",
+        precision = 20,
+        scale = 8
+    )
+    private BigDecimal referencePriceUsd;
+
     @Column(name = "submitted_at", nullable = false)
     private OffsetDateTime submittedAt;
 
@@ -212,6 +219,14 @@ public class TradeOrder {
 
     public void setLimitPriceUsd(BigDecimal limitPriceUsd) {
         this.limitPriceUsd = limitPriceUsd;
+    }
+
+    public BigDecimal getReferencePriceUsd() {
+        return referencePriceUsd;
+    }
+
+    public void setReferencePriceUsd(BigDecimal referencePriceUsd) {
+        this.referencePriceUsd = referencePriceUsd;
     }
 
     public OffsetDateTime getSubmittedAt() {
