@@ -233,13 +233,36 @@ export class AuthService {
    */
   logout(): void {
 
-    this.clearToken();
+    const token =
+      this.getToken();
 
-    this.currentUserSubject
-      .next(null);
+    const refreshToken =
+      localStorage.getItem(
+        this.REFRESH_TOKEN_KEY
+      );
 
-    this.isAuthenticatedSubject
-      .next(false);
+    if (token || refreshToken) {
+
+      const headers:
+        Record<string, string> = {};
+
+      if (token) {
+        headers['Authorization'] =
+          `Bearer ${token}`;
+      }
+
+      this.http
+        .post(
+          `${this.API_URL}/auth/logout`,
+          { refreshToken },
+          { headers }
+        )
+        .subscribe({
+          error: () => undefined
+        });
+    }
+
+    this.clearLocalSession();
   }
 
   /**
@@ -396,6 +419,21 @@ export class AuthService {
         refreshToken
       );
     }
+  }
+
+  /**
+   * Drop the signed-in session in the browser.
+   * The server revoke is requested separately.
+   */
+  private clearLocalSession(): void {
+
+    this.clearToken();
+
+    this.currentUserSubject
+      .next(null);
+
+    this.isAuthenticatedSubject
+      .next(false);
   }
 
   /**

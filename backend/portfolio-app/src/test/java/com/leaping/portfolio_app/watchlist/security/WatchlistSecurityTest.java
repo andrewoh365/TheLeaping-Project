@@ -1,6 +1,7 @@
 package com.leaping.portfolio_app.watchlist.security;
 
 import com.leaping.portfolio_app.auth.security.SecurityConfig;
+import com.leaping.portfolio_app.auth.service.SessionService;
 import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
 
 import com.leaping.portfolio_app.watchlist.controller.WatchlistController;
@@ -47,6 +48,9 @@ class WatchlistSecurityTest {
     @MockitoBean
     private UserDetailsService userDetailsService;
 
+        @MockitoBean
+        private SessionService sessionService;
+
     // TEST 1: REQUEST WITHOUT AUTHENTICATION
     @Test
     void getWatchlists_shouldRejectRequestWithoutToken() throws Exception {
@@ -64,8 +68,8 @@ class WatchlistSecurityTest {
     @Test
     void getWatchlists_shouldRejectInvalidToken() throws Exception {
 
-        // Arrange: Simulate failed token validation
-        when(jwtTokenProvider.validateToken("invalid-token"))
+        // Arrange: Simulate an inactive access token
+        when(sessionService.isAccessTokenActive("invalid-token"))
                 .thenReturn(false);
 
         // Act: Send request with invalid token
@@ -77,8 +81,8 @@ class WatchlistSecurityTest {
                 // Assert: Request is rejected
                 .andExpect(status().is4xxClientError());
 
-        // Verify the token was checked
-        verify(jwtTokenProvider).validateToken("invalid-token");
+        // Verify the session was checked
+        verify(sessionService).isAccessTokenActive("invalid-token");
 
         // Verify the service was never accessed
         verifyNoInteractions(watchlistService);
@@ -92,7 +96,7 @@ class WatchlistSecurityTest {
         String token = "valid-token";
         String email = "customer@example.com";
 
-        when(jwtTokenProvider.validateToken(token))
+        when(sessionService.isAccessTokenActive(token))
                 .thenReturn(true);
 
         when(jwtTokenProvider.getEmailFromToken(token))
@@ -115,8 +119,8 @@ class WatchlistSecurityTest {
                 .header("Authorization", "Bearer " + token));
 
         // DIAGNOSTIC: Verify each authentication step happened
-        // Step 1: Was the token validated?
-        verify(jwtTokenProvider).validateToken(token);
+        // Step 1: Was the access session active?
+        verify(sessionService).isAccessTokenActive(token);
 
         // Step 2: Was the email extracted?
         verify(jwtTokenProvider).getEmailFromToken(token);
@@ -140,7 +144,7 @@ class WatchlistSecurityTest {
         String token = "valid-token";
         String email = "customer@example.com";
 
-        when(jwtTokenProvider.validateToken(token))
+        when(sessionService.isAccessTokenActive(token))
                 .thenReturn(true);
 
         when(jwtTokenProvider.getEmailFromToken(token))
@@ -194,7 +198,7 @@ class WatchlistSecurityTest {
         String token = "valid-token";
         String email = "deleted@example.com";
 
-        when(jwtTokenProvider.validateToken(token))
+        when(sessionService.isAccessTokenActive(token))
                 .thenReturn(true);
 
         when(jwtTokenProvider.getEmailFromToken(token))
@@ -207,7 +211,7 @@ class WatchlistSecurityTest {
                 .header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
 
-        verify(jwtTokenProvider).validateToken(token);
+        verify(sessionService).isAccessTokenActive(token);
         verify(userDetailsService).loadUserByUsername(email);
         verifyNoInteractions(watchlistService);
     }
