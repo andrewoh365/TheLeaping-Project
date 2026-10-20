@@ -5,6 +5,7 @@ import com.leaping.portfolio_app.admin.controller.AdminTradeLookupController;
 import com.leaping.portfolio_app.admin.service.AdminClientService;
 import com.leaping.portfolio_app.admin.service.AdminTradeLookupService;
 import com.leaping.portfolio_app.auth.security.SecurityConfig;
+import com.leaping.portfolio_app.auth.service.SessionService;
 import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +45,9 @@ class AdminAuditSecurityTest {
 
     @MockitoBean
     private UserDetailsService userDetailsService;
+
+        @MockitoBean
+        private SessionService sessionService;
 
     @Test
     void adminCanAccessBothAuditEndpoints() throws Exception {
@@ -92,7 +96,7 @@ class AdminAuditSecurityTest {
     private void authenticateAs(String role) {
         String token = role.toLowerCase() + "-token";
         String email = role.toLowerCase() + "@example.com";
-        when(jwtTokenProvider.validateToken(token)).thenReturn(true);
+                when(sessionService.isAccessTokenActive(token)).thenReturn(true);
         when(jwtTokenProvider.getEmailFromToken(token)).thenReturn(email);
         UserDetails user = User.withUsername(email)
                 .password("unused")

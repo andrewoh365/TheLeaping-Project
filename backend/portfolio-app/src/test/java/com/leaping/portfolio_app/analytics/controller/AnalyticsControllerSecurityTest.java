@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.leaping.portfolio_app.PortfolioAppApplication;
 import com.leaping.portfolio_app.analytics.service.AnalyticsService;
 import com.leaping.portfolio_app.auth.security.SecurityConfig;
+import com.leaping.portfolio_app.auth.service.SessionService;
 import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -39,12 +40,15 @@ class AnalyticsControllerSecurityTest {
     @MockitoBean
     private UserDetailsService userDetailsService;
 
+    @MockitoBean
+    private SessionService sessionService;
+
     @Test
     void analystCanAccessDashboardWithClientSegment() throws Exception {
         String token = "analyst-token";
         String email = "analyst@example.com";
 
-        when(jwtTokenProvider.validateToken(token)).thenReturn(true);
+        when(sessionService.isAccessTokenActive(token)).thenReturn(true);
         when(jwtTokenProvider.getEmailFromToken(token)).thenReturn(email);
         when(userDetailsService.loadUserByUsername(email)).thenReturn(
             User.withUsername(email)
@@ -73,7 +77,7 @@ class AnalyticsControllerSecurityTest {
             String token = "admin-token";
             String email = "admin@example.com";
 
-            when(jwtTokenProvider.validateToken(token)).thenReturn(true);
+            when(sessionService.isAccessTokenActive(token)).thenReturn(true);
             when(jwtTokenProvider.getEmailFromToken(token)).thenReturn(email);
             when(userDetailsService.loadUserByUsername(email)).thenReturn(
                 User.withUsername(email)
@@ -102,7 +106,7 @@ class AnalyticsControllerSecurityTest {
             String token = "customer-token";
             String email = "customer@example.com";
 
-            when(jwtTokenProvider.validateToken(token)).thenReturn(true);
+            when(sessionService.isAccessTokenActive(token)).thenReturn(true);
             when(jwtTokenProvider.getEmailFromToken(token)).thenReturn(email);
             when(userDetailsService.loadUserByUsername(email)).thenReturn(
                 User.withUsername(email)
