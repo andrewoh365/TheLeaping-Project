@@ -235,4 +235,54 @@ body {
   .logout-button .mat-mdc-menu-item-text {
     color: #ff7882;
   }
+
+  /* After-hours testing switch */
+  .market-override-toggle .mat-mdc-menu-item-text {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+  }
+
+  .market-override-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+
+    small {
+      font-size: 11px;
+      color: #9e9e9e;
+    }
+  }
+
+  .market-override-switch {
+    position: relative;
+    flex: 0 0 auto;
+    width: 32px;
+    height: 18px;
+    border-radius: 9px;
+    background-color: #4c4c4c;
+    transition: background-color 150ms ease;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background-color: #fafafa;
+      transition: transform 150ms ease;
+    }
+
+    &.on {
+      background-color: #00ab68;
+
+      &::after {
+        transform: translateX(14px);
+      }
+    }
+  }
 }

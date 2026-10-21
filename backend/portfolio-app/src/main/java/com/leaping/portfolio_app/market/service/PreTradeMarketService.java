@@ -148,6 +148,20 @@ public class PreTradeMarketService {
             );
         }
 
+        // A price that can't be converted to USD (no rate for its currency) can't be traded either
+        if (marketPriceService.toUsd(latestPriceOpt.get()) == null) {
+            return new TradabilityDto(
+                    instrument.getSymbol(),
+                    false,
+                    TradabilityReason.PRICE_UNAVAILABLE,
+                    marketStatus.isOpen(),
+                    marketStatus.isAlwaysOpen(),
+                    false,
+                    false,
+                    "No USD conversion rate for the quote's currency"
+            );
+        }
+
         boolean stale = isPriceStale(instrument, latestPriceOpt.get());
         if (stale) {
             return new TradabilityDto(

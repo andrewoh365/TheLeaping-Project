@@ -1,283 +1,140 @@
 <app-internal-nav></app-internal-nav>
-
 <div class="client-detail-page">
-
   <!-- BACK / BREADCRUMB -->
-  <button
-    mat-button
-    type="button"
-    class="back-button"
-    (click)="goBack()">
+  <button mat-button type="button" class="back-button" (click)="goBack()">
     ← Clients
   </button>
-
-
   <!-- LOADING -->
-  <div
-    class="loading-container"
-    *ngIf="loading">
-
+  <div class="loading-container" *ngIf="loading">
     <mat-spinner diameter="42"></mat-spinner>
-
   </div>
-
-
   <!-- ERROR -->
-  <mat-card
-    class="error-card"
-    *ngIf="errorMessage">
-
+  <mat-card class="error-card" *ngIf="errorMessage">
     {{ errorMessage }}
-
   </mat-card>
-
-
   <!-- CLIENT DETAILS -->
-  <ng-container
-    *ngIf="client && !loading">
-
-
+  <ng-container *ngIf="client && !loading">
     <!-- CLIENT HEADER -->
     <header class="client-header">
-
       <div>
-
         <div class="client-title-row">
-
           <h1>
-            {{ client.firstName || '' }}
-            {{ client.lastName || '' }}
+            {{ client.firstName || "" }}
+            {{ client.lastName || "" }}
           </h1>
-
           <span
             class="status-badge"
             [class.status-active]="client.status === 'ACTIVE'"
-            [class.status-inactive]="client.status === 'INACTIVE'">
-
-            {{ client.status || 'UNKNOWN' }}
-
+            [class.status-inactive]="client.status === 'INACTIVE'"
+          >
+            {{ client.status || "UNKNOWN" }}
           </span>
-
         </div>
-
-        <p>
-          Client ID: {{ client.clientId }}
-        </p>
-
+        <p>Client ID: {{ client.clientId }}</p>
       </div>
-
     </header>
-
-
     <!-- SUMMARY CARDS -->
     <section class="summary-grid">
-
       <mat-card class="summary-card">
-
-        <span class="summary-label">
-          Cash Balance
-        </span>
-
+        <span class="summary-label"> Cash Balance </span>
         <strong class="summary-value">
-          {{
-            client.cashBalanceUsd
-              | currency:'USD':'symbol':'1.2-2'
-          }}
+          {{ client.cashBalanceUsd | currency: "USD" : "symbol" : "1.2-2" }}
         </strong>
-
       </mat-card>
-
-
       <mat-card class="summary-card">
-
-        <span class="summary-label">
-          Portfolio ID
-        </span>
-
+        <span class="summary-label"> Portfolio ID </span>
         <strong class="summary-value">
-          {{ client.portfolioId || '—' }}
+          {{ client.portfolioId || "—" }}
         </strong>
-
       </mat-card>
-
     </section>
-
-
     <!-- CLIENT TABS -->
     <mat-card class="details-card">
-
       <mat-tab-group>
-
-
         <!-- OVERVIEW -->
         <mat-tab label="Overview">
-
           <div class="tab-content">
-
-            <h2>
-              Client Information
-            </h2>
-
+            <h2>Client Information</h2>
             <div class="details-grid">
-
-
               <div class="detail-item">
-
-                <span class="detail-label">
-                  Client ID
-                </span>
-
+                <span class="detail-label"> Client ID </span>
                 <span class="detail-value">
                   {{ client.clientId }}
                 </span>
-
               </div>
-
-
               <div class="detail-item">
-
-                <span class="detail-label">
-                  Name
-                </span>
-
+                <span class="detail-label"> Name </span>
                 <span class="detail-value">
-                  {{ client.firstName || '' }}
-                  {{ client.lastName || '' }}
+                  {{ client.firstName || "" }}
+                  {{ client.lastName || "" }}
                 </span>
-
               </div>
-
-
               <div class="detail-item">
-
-                <span class="detail-label">
-                  Email
-                </span>
-
+                <span class="detail-label"> Email </span>
                 <span class="detail-value">
-                  {{ client.email || '—' }}
+                  {{ client.email || "—" }}
                 </span>
-
               </div>
-
-
               <div class="detail-item">
-
-                <span class="detail-label">
-                  Account Status
-                </span>
-
+                <span class="detail-label"> Account Status </span>
                 <span class="detail-value">
-                  {{ client.status || '—' }}
+                  {{ client.status || "—" }}
                 </span>
-
               </div>
-
-
               <div class="detail-item">
-
-                <span class="detail-label">
-                  Member Since
-                </span>
-
+                <span class="detail-label"> Member Since </span>
                 <span class="detail-value">
                   {{
                     client.createdAt
-                      ? (client.createdAt | date:'mediumDate')
-                      : '—'
+                      ? (client.createdAt | date: "mediumDate")
+                      : "—"
                   }}
                 </span>
-
               </div>
-
-
               <div class="detail-item">
-
-                <span class="detail-label">
-                  Last Login
-                </span>
-
+                <span class="detail-label"> Last Login </span>
                 <span class="detail-value">
                   {{
                     client.lastLogin
-                      ? (client.lastLogin | date:'medium')
-                      : 'No recorded login'
+                      ? (client.lastLogin | date: "medium")
+                      : "No recorded login"
                   }}
                 </span>
-
               </div>
-
-
               <div class="detail-item">
-
-                <span class="detail-label">
-                  Portfolio ID
-                </span>
-
+                <span class="detail-label"> Portfolio ID </span>
                 <span class="detail-value">
-                  {{ client.portfolioId || '—' }}
+                  {{ client.portfolioId || "—" }}
                 </span>
-
               </div>
-
-
               <div class="detail-item">
-
-                <span class="detail-label">
-                  Cash Balance
-                </span>
-
+                <span class="detail-label"> Cash Balance </span>
                 <span class="detail-value">
                   {{
-                    client.cashBalanceUsd
-                      | currency:'USD':'symbol':'1.2-2'
+                    client.cashBalanceUsd | currency: "USD" : "symbol" : "1.2-2"
                   }}
                 </span>
-
               </div>
-
-
             </div>
-
           </div>
-
         </mat-tab>
-
-
         <!-- HOLDINGS -->
         <mat-tab label="Holdings & Cash">
-
           <div class="tab-content holdings-tab">
-
             <div class="holdings-header">
-
               <div>
-                <h2>
-                  Holdings & Cash
-                </h2>
-
-                <p>
-                  Current portfolio positions and market values.
-                </p>
+                <h2>Holdings & Cash</h2>
+                <p>Current portfolio positions and market values.</p>
               </div>
-
               <div class="cash-summary">
-
-                <span>
-                  Cash Balance
-                </span>
-
+                <span> Cash Balance </span>
                 <strong>
                   {{
-                    client.cashBalanceUsd
-                      | currency:'USD':'symbol':'1.2-2'
+                    client.cashBalanceUsd | currency: "USD" : "symbol" : "1.2-2"
                   }}
                 </strong>
-
               </div>
-
             </div>
-
             <mat-paginator
               *ngIf="!holdingsLoading && totalHoldings > 0"
               class="detail-table-paginator detail-table-paginator-top"
@@ -287,168 +144,97 @@
               [pageSize]="holdingsPageSize"
               [pageSizeOptions]="[25, 50, 100]"
               [showFirstLastButtons]="true"
-              (page)="changeHoldingsPage($event)">
+              (page)="changeHoldingsPage($event)"
+            >
             </mat-paginator>
-
             <!-- HOLDINGS LOADING -->
-            <div
-              class="holdings-loading"
-              *ngIf="holdingsLoading">
-
+            <div class="holdings-loading" *ngIf="holdingsLoading">
               <mat-spinner diameter="36"></mat-spinner>
-
             </div>
-
             <!-- HOLDINGS ERROR -->
-            <div
-              class="holdings-error"
-              *ngIf="holdingsErrorMessage">
-
+            <div class="holdings-error" *ngIf="holdingsErrorMessage">
               {{ holdingsErrorMessage }}
-
             </div>
-
             <!-- HOLDINGS TABLE -->
             <div
               class="holdings-table-wrapper"
               *ngIf="
-                !holdingsLoading &&
-                !holdingsErrorMessage &&
-                holdings.length > 0
-              ">
-
+                !holdingsLoading && !holdingsErrorMessage && holdings.length > 0
+              "
+            >
               <table class="holdings-table">
-
                 <thead>
-
                   <tr>
-
-                    <th>
-                      Asset
-                    </th>
-
-                    <th>
-                      Quantity
-                    </th>
-
-                    <th>
-                      Avg Cost
-                    </th>
-
-                    <th>
-                      Market Price
-                    </th>
-
-                    <th>
-                      Gain / Loss
-                    </th>
-
-                    <th>
-                      Total Value
-                    </th>
-
+                    <th>Asset</th>
+                    <th>Quantity</th>
+                    <th>Avg Cost</th>
+                    <th>Market Price</th>
+                    <th>Gain / Loss</th>
+                    <th>Total Value</th>
                   </tr>
-
                 </thead>
-
                 <tbody>
-
-                  <tr
-                    *ngFor="let holding of holdings">
-
+                  <tr *ngFor="let holding of holdings">
                     <!-- ASSET -->
                     <td>
-
                       <div class="asset-cell">
-
                         <strong>
                           {{ holding.symbol }}
                         </strong>
-
                         <span>
                           {{ holding.instrument_name }}
                         </span>
-
                       </div>
-
                     </td>
-
                     <!-- QUANTITY -->
                     <td>
-
-                      {{
-                        holding.quantity
-                          | number:'1.0-8'
-                      }}
-
+                      {{ holding.quantity | number: "1.0-8" }}
                     </td>
-
                     <!-- AVG COST -->
                     <td>
-
                       {{
                         holding.average_cost_usd
-                          | currency:'USD':'symbol':'1.2-2'
+                          | currency: "USD" : "symbol" : "1.2-2"
                       }}
-
                     </td>
-
                     <!-- MARKET PRICE -->
                     <td>
-
                       {{
                         holding.current_price
-                          | currency:'USD':'symbol':'1.2-2'
+                          | currency: "USD" : "symbol" : "1.2-2"
                       }}
-
                     </td>
-
                     <!-- GAIN / LOSS -->
                     <td>
-
                       <div
                         class="gain-loss-cell"
                         [class.positive-value]="holding.gain_loss_usd >= 0"
-                        [class.negative-value]="holding.gain_loss_usd < 0">
-
+                        [class.negative-value]="holding.gain_loss_usd < 0"
+                      >
                         <strong>
                           {{
                             holding.gain_loss_usd
-                              | currency:'USD':'symbol':'1.2-2'
+                              | currency: "USD" : "symbol" : "1.2-2"
                           }}
                         </strong>
-
                         <span>
-                          {{
-                            holding.gain_loss_percent
-                              | number:'1.2-2'
-                          }}%
+                          {{ holding.gain_loss_percent | number: "1.2-2" }}%
                         </span>
-
                       </div>
-
                     </td>
-
                     <!-- TOTAL VALUE -->
                     <td>
-
                       <strong>
                         {{
                           holding.current_value_usd
-                            | currency:'USD':'symbol':'1.2-2'
+                            | currency: "USD" : "symbol" : "1.2-2"
                         }}
                       </strong>
-
                     </td>
-
                   </tr>
-
                 </tbody>
-
               </table>
-
             </div>
-
             <mat-paginator
               *ngIf="!holdingsLoading && totalHoldings > 0"
               class="detail-table-paginator detail-table-paginator-bottom"
@@ -458,9 +244,9 @@
               [pageSize]="holdingsPageSize"
               [pageSizeOptions]="[25, 50, 100]"
               [showFirstLastButtons]="true"
-              (page)="changeHoldingsPage($event)">
+              (page)="changeHoldingsPage($event)"
+            >
             </mat-paginator>
-
             <!-- EMPTY STATE -->
             <div
               class="holdings-empty"
@@ -468,47 +254,26 @@
                 !holdingsLoading &&
                 !holdingsErrorMessage &&
                 holdings.length === 0
-              ">
-
-              <h3>
-                No Holdings
-              </h3>
-
-              <p>
-                This client currently has no portfolio positions.
-              </p>
-
+              "
+            >
+              <h3>No Holdings</h3>
+              <p>This client currently has no portfolio positions.</p>
             </div>
-
           </div>
-
         </mat-tab>
-
-
         <!-- ORDERS & TRADES -->
         <mat-tab label="Orders & Trades">
-
           <div class="tab-content orders-tab">
-
             <div class="orders-header">
-
               <div>
-                <h2>
-                  Orders & Trades
-                </h2>
-
-                <p>
-                  Order history for this client.
-                </p>
+                <h2>Orders & Trades</h2>
+                <p>Order history for this client.</p>
               </div>
-
               <span class="orders-count">
                 {{ totalOrders | number }}
-                {{ totalOrders === 1 ? 'order' : 'orders' }}
+                {{ totalOrders === 1 ? "order" : "orders" }}
               </span>
-
             </div>
-
             <mat-paginator
               *ngIf="!ordersLoading && totalOrders > 0"
               class="detail-table-paginator detail-table-paginator-top"
@@ -518,175 +283,102 @@
               [pageSize]="ordersPageSize"
               [pageSizeOptions]="[25, 50, 100]"
               [showFirstLastButtons]="true"
-              (page)="changeOrdersPage($event)">
+              (page)="changeOrdersPage($event)"
+            >
             </mat-paginator>
-
             <!-- LOADING -->
-            <div
-              class="orders-loading"
-              *ngIf="ordersLoading">
-
+            <div class="orders-loading" *ngIf="ordersLoading">
               <mat-spinner diameter="36"></mat-spinner>
-
             </div>
-
             <!-- ERROR -->
-            <div
-              class="orders-error"
-              *ngIf="ordersErrorMessage">
-
+            <div class="orders-error" *ngIf="ordersErrorMessage">
               {{ ordersErrorMessage }}
-
             </div>
-
             <!-- TABLE -->
             <div
               class="orders-table-wrapper"
-              *ngIf="
-                !ordersLoading &&
-                !ordersErrorMessage &&
-                orders.length > 0
-              ">
-
+              *ngIf="!ordersLoading && !ordersErrorMessage && orders.length > 0"
+            >
               <table class="client-orders-table">
-
                 <thead>
-
                   <tr>
-
-                    <th>
-                      Order
-                    </th>
-
-                    <th>
-                      Trade
-                    </th>
-
-                    <th>
-                      Instrument
-                    </th>
-
-                    <th>
-                      Side
-                    </th>
-
-                    <th>
-                      Quantity
-                    </th>
-
-                    <th>
-                      Status
-                    </th>
-
-                    <th>
-                      Submitted
-                    </th>
-
+                    <th>Order</th>
+                    <th>Trade</th>
+                    <th>Instrument</th>
+                    <th>Side</th>
+                    <th>Quantity</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
                   </tr>
-
                 </thead>
-
                 <tbody>
-
                   <tr
                     *ngFor="let order of orders"
                     class="client-order-row"
-                    (click)="openOrder(order)">
-
+                    (click)="openOrder(order)"
+                  >
                     <!-- ORDER -->
                     <td>
-                      <strong>
-                        #{{ order.orderId }}
-                      </strong>
+                      <strong> #{{ order.orderId }} </strong>
                     </td>
-
                     <!-- TRADE -->
                     <td>
-                      {{
-                        order.tradeId !== null
-                          ? '#' + order.tradeId
-                          : '—'
-                      }}
+                      {{ order.tradeId !== null ? "#" + order.tradeId : "—" }}
                     </td>
-
                     <!-- INSTRUMENT -->
                     <td>
-
                       <div class="order-instrument-cell">
-
                         <strong>
-                          {{ order.symbol || '—' }}
+                          {{ order.symbol || "—" }}
                         </strong>
-
                         <span>
-                          {{ order.instrumentName || '—' }}
+                          {{ order.instrumentName || "—" }}
                         </span>
-
                       </div>
-
                     </td>
-
                     <!-- SIDE -->
                     <td>
-
                       <span
                         class="side-badge"
                         [class.side-buy]="order.side === 'BUY'"
-                        [class.side-sell]="order.side === 'SELL'">
-
-                        {{ order.side || '—' }}
-
+                        [class.side-sell]="order.side === 'SELL'"
+                      >
+                        {{ order.side || "—" }}
                       </span>
-
                     </td>
-
                     <!-- QUANTITY -->
                     <td>
-
                       {{
                         order.quantity !== null
-                          ? (order.quantity | number:'1.0-8')
-                          : '—'
+                          ? (order.quantity | number: "1.0-8")
+                          : "—"
                       }}
-
                     </td>
-
                     <!-- STATUS -->
                     <td>
-
                       <span
                         class="status-badge"
                         [class.status-filled]="order.status === 'FILLED'"
                         [class.status-rejected]="order.status === 'REJECTED'"
                         [class.status-cancelled]="order.status === 'CANCELLED'"
                         [class.status-accepted]="order.status === 'ACCEPTED'"
-                        [class.status-submitted]="order.status === 'SUBMITTED'">
-
-                        {{ order.status || 'UNKNOWN' }}
-
+                        [class.status-submitted]="order.status === 'SUBMITTED'"
+                      >
+                        {{ order.status || "UNKNOWN" }}
                       </span>
-
                     </td>
-
                     <!-- SUBMITTED -->
                     <td>
-
                       {{
                         order.submittedAt
-                          ? (order.submittedAt | date:'medium')
-                          : '—'
+                          ? (order.submittedAt | date: "medium")
+                          : "—"
                       }}
-
                     </td>
-
                   </tr>
-
                 </tbody>
-
               </table>
-
             </div>
-
             <mat-paginator
               *ngIf="!ordersLoading && totalOrders > 0"
               class="detail-table-paginator detail-table-paginator-bottom"
@@ -696,55 +388,127 @@
               [pageSize]="ordersPageSize"
               [pageSizeOptions]="[25, 50, 100]"
               [showFirstLastButtons]="true"
-              (page)="changeOrdersPage($event)">
+              (page)="changeOrdersPage($event)"
+            >
             </mat-paginator>
-
             <!-- EMPTY STATE -->
             <div
               class="orders-empty"
               *ngIf="
-                !ordersLoading &&
-                !ordersErrorMessage &&
-                orders.length === 0
-              ">
-
-              <h3>
-                No Orders
-              </h3>
-
-              <p>
-                This client does not have any order history.
-              </p>
-
+                !ordersLoading && !ordersErrorMessage && orders.length === 0
+              "
+            >
+              <h3>No Orders</h3>
+              <p>This client does not have any order history.</p>
             </div>
-
           </div>
-
         </mat-tab>
-
-
         <!-- ACTIVITY -->
         <mat-tab label="Activity">
-
-          <div class="placeholder-tab">
-
-            <h2>
-              Activity
-            </h2>
-
-            <p>
-              Client trading and audit activity will appear here.
-            </p>
-
+          <div class="tab-content activity-tab">
+            <div class="activity-header">
+              <div>
+                <h2>Activity</h2>
+                <p>
+                  {{ activityTotalElements }}
+                  {{ activityTotalElements === 1 ? "record" : "records" }}
+                  · newest first
+                </p>
+              </div>
+            </div>
+            <div
+              class="activity-loading"
+              *ngIf="activityLoading && activity.length === 0"
+            >
+              <mat-spinner diameter="36"></mat-spinner>
+            </div>
+            <div class="activity-error" *ngIf="activityErrorMessage">
+              {{ activityErrorMessage }}
+            </div>
+            <div
+              class="activity-empty"
+              *ngIf="
+                !activityLoading &&
+                !activityErrorMessage &&
+                activity.length === 0
+              "
+            >
+              <h3>No activity recorded</h3>
+              <p>There are no audit events available for this client.</p>
+            </div>
+            <div class="activity-list" *ngIf="activity.length > 0">
+              <article class="activity-event" *ngFor="let event of activity">
+                <div class="activity-marker"></div>
+                <div class="activity-event-body">
+                  <div class="activity-event-topline">
+                    <div>
+                      <strong>{{ activityLabel(event.eventType) }}</strong>
+                      <span class="activity-instrument">
+                        {{ activityInstrument(event) }}
+                      </span>
+                    </div>
+                    <time [attr.datetime]="event.occurredAt || null">
+                      {{
+                        event.occurredAt
+                          ? (event.occurredAt | date: "medium")
+                          : "Time unavailable"
+                      }}
+                    </time>
+                  </div>
+                  <div class="activity-links">
+                    <button
+                      mat-button
+                      type="button"
+                      *ngIf="event.orderId !== null"
+                      (click)="openActivityOrder(event.orderId)"
+                    >
+                      View order #{{ event.orderId }}
+                    </button>
+                    <span *ngIf="event.executionAttemptId !== null">
+                      Attempt #{{ event.executionAttemptId }}
+                    </span>
+                    <span *ngIf="event.tradeId !== null">
+                      Trade #{{ event.tradeId }}
+                    </span>
+                    <span *ngIf="event.cashTransactionId !== null">
+                      Cash #{{ event.cashTransactionId }}
+                    </span>
+                  </div>
+                  <div
+                    class="activity-details"
+                    *ngIf="activityDetailEntries(event).length > 0"
+                  >
+                    <span
+                      class="activity-detail"
+                      *ngFor="let detail of activityDetailEntries(event)"
+                    >
+                      <b>{{ detail.label }}</b>
+                      {{ detail.value }}
+                    </span>
+                  </div>
+                </div>
+              </article>
+            </div>
+            <div
+              class="activity-load-more"
+              *ngIf="activityHasMore && !activityErrorMessage"
+            >
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="activityLoading"
+                (click)="loadMoreActivity()"
+              >
+                <mat-spinner
+                  *ngIf="activityLoading"
+                  diameter="18"
+                ></mat-spinner>
+                <span *ngIf="!activityLoading">Load more activity</span>
+              </button>
+            </div>
           </div>
-
         </mat-tab>
-
-
       </mat-tab-group>
-
     </mat-card>
-
   </ng-container>
-
 </div>

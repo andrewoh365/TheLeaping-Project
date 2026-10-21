@@ -1,26 +1,41 @@
+
 package com.leaping.portfolio_app.admin.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import com.leaping.portfolio_app.admin.dto.AdminOrderPageResponse;
+import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
+import com.leaping.portfolio_app.audit.entity.AuditEvent;
+import com.leaping.portfolio_app.audit.repository.AuditEventRepository;
+import com.leaping.portfolio_app.trade.entity.Trade;
+import com.leaping.portfolio_app.trade.entity.TradeOrder;
+import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
+import com.leaping.portfolio_app.trade.repository.TradeRepository;
 
-import java.util.List;
-
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.server.ResponseStatusException;
 
-import com.leaping.portfolio_app.admin.dto.AdminOrderPageResponse;
-import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
-import com.leaping.portfolio_app.trade.repository.TradeRepository;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AdminTradeLookupServiceTest {
@@ -31,9 +46,21 @@ class AdminTradeLookupServiceTest {
     @Mock
     private TradeRepository tradeRepository;
 
-    @InjectMocks
+    @Mock
+    private AuditEventRepository auditEventRepository;
+
     private AdminTradeLookupService adminTradeLookupService;
 
+    @BeforeEach
+    void setUp() {
+        adminTradeLookupService = new AdminTradeLookupService(
+                tradeOrderRepository,
+                tradeRepository,
+                auditEventRepository
+        );
+    }
+
+    // DEV: Preserve database pagination and metadata test.
     @Test
     void getOrdersUsesDatabasePageAndReturnsMetadata() {
         when(tradeOrderRepository.findAdminPage(
@@ -56,6 +83,7 @@ class AdminTradeLookupServiceTest {
 
         ArgumentCaptor<Pageable> pageable =
                 ArgumentCaptor.forClass(Pageable.class);
+
         verify(tradeOrderRepository).findAdminPage(
                 eq("ava"),
                 eq("filled"),
@@ -69,4 +97,230 @@ class AdminTradeLookupServiceTest {
         assertEquals(250, response.getTotalElements());
         assertEquals(3, response.getTotalPages());
     }
+
+    @Test
+    void getOrdersLoadsTradesForPageInOneBatchAndMapsMissingTrades() {
+        TradeOrder filledOrder = order(101L);
+        TradeOrder openOrder = order(102L);
+        Trade filledTrade = trade(201L, filledOrder);
+
+        when(tradeOrderRepository.findAdminPage(
+                eq(""),
+                eq(""),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(
+                List.of(filledOrder, openOrder),
+                PageRequest.of(0, 2),
+                2
+        ));
+        when(tradeRepository.findByOrderOrderIdIn(
+                eq(List.of(101L, 102L))
+        )).thenReturn(List.of(filledTrade));
+
+        AdminOrderPageResponse response =
+                adminTradeLookupService.getOrders(null, null, 0, 2);
+
+        assertEquals(2, response.getOrders().size());
+        assertEquals(201L, response.getOrders().get(0).getTradeId());
+        assertNull(response.getOrders().get(1).getTradeId());
+        assertEquals(2, response.getTotalElements());
+        assertEquals(1, response.getTotalPages());
+        verify(tradeRepository, times(1))
+                .findByOrderOrderIdIn(eq(List.of(101L, 102L)));
+        verify(tradeRepository, never()).findByOrderOrderId(any());
+    }
+
+    @Test
+    void getOrdersByClientCapsPageSizeAndUsesOneTradeBatch() {
+        TradeOrder firstOrder = order(301L);
+        TradeOrder secondOrder = order(302L);
+        Trade firstTrade = trade(401L, firstOrder);
+
+        when(tradeOrderRepository
+                .findByPortfolio_Customer_UserIdOrderBySubmittedAtDescOrderIdDesc(
+                        eq(77L),
+                        any(Pageable.class)
+                )).thenReturn(new PageImpl<>(
+                        List.of(firstOrder, secondOrder),
+                        PageRequest.of(1, 100),
+                        102
+                ));
+        when(tradeRepository.findByOrderOrderIdIn(
+                eq(List.of(301L, 302L))
+        )).thenReturn(List.of(firstTrade));
+
+        AdminOrderPageResponse response =
+                adminTradeLookupService.getOrdersByClient(77L, 1, 500);
+
+        ArgumentCaptor<Pageable> pageable =
+                ArgumentCaptor.forClass(Pageable.class);
+        verify(tradeOrderRepository)
+                .findByPortfolio_Customer_UserIdOrderBySubmittedAtDescOrderIdDesc(
+                        eq(77L),
+                        pageable.capture()
+                );
+        assertEquals(1, pageable.getValue().getPageNumber());
+        assertEquals(100, pageable.getValue().getPageSize());
+        assertEquals(2, response.getOrders().size());
+        assertEquals(401L, response.getOrders().get(0).getTradeId());
+        assertNull(response.getOrders().get(1).getTradeId());
+        assertEquals(102, response.getTotalElements());
+        assertEquals(2, response.getTotalPages());
+        verify(tradeRepository, times(1))
+                .findByOrderOrderIdIn(eq(List.of(301L, 302L)));
+        verify(tradeRepository, never()).findByOrderOrderId(any());
+    }
+
+    // AUDIT: Verify chronological order and structured event details.
+    @Test
+    void getOrderAuditReturnsRepositoryOrderAndStructuredDetails() {
+        TradeOrder order = new TradeOrder();
+        order.setOrderId(42L);
+
+        AuditEvent older = event(
+                1L,
+                "ORDER_SUBMITTED",
+                "2026-10-14T09:00:00Z"
+        );
+
+        AuditEvent newer = event(
+                2L,
+                "TRADE_FILLED",
+                "2026-10-14T09:00:01Z"
+        );
+
+        when(tradeOrderRepository.findById(42L))
+                .thenReturn(Optional.of(order));
+
+        when(auditEventRepository
+                .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
+                        eq(42L),
+                        eq(PageRequest.of(0, 100))
+                ))
+                .thenReturn(new PageImpl<>(List.of(older, newer)));
+
+        List<AuditEventResponse> result =
+                adminTradeLookupService.getOrderAudit(42L, 0, 100)
+                        .getContent();
+
+        assertEquals(
+                List.of("ORDER_SUBMITTED", "TRADE_FILLED"),
+                result.stream()
+                        .map(AuditEventResponse::getEventType)
+                        .toList()
+        );
+
+        assertEquals(1L, result.get(0).getAuditEventId());
+        assertEquals(42L, result.get(0).getOrderId());
+        assertEquals(
+                "42",
+                result.get(0).getEventDetails().get("orderId")
+        );
+    }
+
+    // AUDIT: Existing orders may have no audit events.
+    @Test
+    void getOrderAuditReturnsEmptyTimelineForExistingOrder() {
+        TradeOrder order = new TradeOrder();
+        order.setOrderId(42L);
+
+        when(tradeOrderRepository.findById(42L))
+                .thenReturn(Optional.of(order));
+
+        when(auditEventRepository
+                .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
+                        eq(42L),
+                        eq(PageRequest.of(0, 100))
+                ))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        assertEquals(
+                0,
+                adminTradeLookupService.getOrderAudit(42L, 0, 100)
+                        .getContent()
+                        .size()
+        );
+    }
+
+            @Test
+            void getOrderAuditCapsPageSizeAtOneHundredEvents() {
+                TradeOrder order = new TradeOrder();
+                order.setOrderId(42L);
+
+                when(tradeOrderRepository.findById(42L))
+                        .thenReturn(Optional.of(order));
+                when(auditEventRepository
+                        .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
+                                eq(42L),
+                                any(Pageable.class)
+                        ))
+                        .thenReturn(new PageImpl<>(List.of()));
+
+                adminTradeLookupService.getOrderAudit(42L, 0, 500);
+
+                ArgumentCaptor<Pageable> pageable =
+                        ArgumentCaptor.forClass(Pageable.class);
+                verify(auditEventRepository)
+                        .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
+                                eq(42L),
+                                pageable.capture()
+                        );
+                assertEquals(100, pageable.getValue().getPageSize());
+            }
+
+    // AUDIT: Missing orders should return 404.
+    @Test
+    void getOrderAuditRejectsMissingOrder() {
+        when(tradeOrderRepository.findById(404L))
+                .thenReturn(Optional.empty());
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> adminTradeLookupService.getOrderAudit(404L, 0, 100)
+        );
+
+        assertEquals(404, exception.getStatusCode().value());
+
+        verify(auditEventRepository, never())
+                .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
+                        eq(404L),
+                        eq(PageRequest.of(0, 100))
+                );
+    }
+
+    // Helper used by the Audit tests.
+    private AuditEvent event(
+            Long id,
+            String type,
+            String occurredAt
+    ) {
+        AuditEvent event = mock(AuditEvent.class);
+
+        when(event.getAuditEventId()).thenReturn(id);
+        when(event.getEventType()).thenReturn(type);
+        when(event.getEventDetails())
+                .thenReturn(Map.of("orderId", "42"));
+
+        TradeOrder order = new TradeOrder();
+        order.setOrderId(42L);
+
+        when(event.getOrder()).thenReturn(order);
+        when(event.getOccurredAt())
+                .thenReturn(OffsetDateTime.parse(occurredAt));
+
+        return event;
+    }
+
+        private TradeOrder order(Long orderId) {
+                TradeOrder order = new TradeOrder();
+                order.setOrderId(orderId);
+                return order;
+        }
+
+        private Trade trade(Long tradeId, TradeOrder order) {
+                Trade trade = new Trade();
+                trade.setTradeId(tradeId);
+                trade.setOrder(order);
+                return trade;
+        }
 }

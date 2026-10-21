@@ -17,6 +17,14 @@ class OrderStatus(str, Enum):
     FILLED = "FILLED"
     REJECTED = "REJECTED"
     CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
+
+
+class ClientSegment(str, Enum):
+    INACTIVE = "INACTIVE"
+    OCCASIONAL = "OCCASIONAL"
+    REGULAR = "REGULAR"
+    FREQUENT = "FREQUENT"
 
 
 class DashboardFilters(BaseModel):
@@ -32,6 +40,8 @@ class DashboardFilters(BaseModel):
     )
 
     order_status: Optional[OrderStatus] = None
+
+    client_segment: Optional[ClientSegment] = None
 
     @model_validator(mode="after")
     def validate_date_range(self):

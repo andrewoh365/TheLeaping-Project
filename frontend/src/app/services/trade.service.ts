@@ -23,8 +23,10 @@ export interface OrderResponse {
   quantity: number;
   limit_price?: number;
   submitted_at?: string;
+  accepted_at?: string;
   filled_at?: string;
   rejected_at?: string;
+  expired_at?: string;
   rejection_reason?: string;
   instrument_name?: string;
   execution_price?: number | null;

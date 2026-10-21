@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.schemas.dashboard import DashboardResponse
 from app.schemas.filters import (
     AssetType,
+    ClientSegment,
     DashboardFilters,
     OrderStatus,
 )
@@ -32,6 +33,7 @@ def get_dashboard(
         max_length=100,
     ),
     order_status: Optional[OrderStatus] = Query(default=None),
+    client_segment: Optional[ClientSegment] = Query(default=None),
 ) -> DashboardResponse:
     if (
         date_from is not None
@@ -49,6 +51,7 @@ def get_dashboard(
         asset_type=asset_type,
         market=market,
         order_status=order_status,
+        client_segment=client_segment,
     )
 
     return build_dashboard(filters)

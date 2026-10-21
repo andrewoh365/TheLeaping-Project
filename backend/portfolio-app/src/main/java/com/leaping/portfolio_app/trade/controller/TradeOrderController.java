@@ -59,8 +59,8 @@ public class TradeOrderController {
     /**
      * Place a new buy or sell order.
      * 
-     * For MARKET orders: Executes immediately with current market price
-     * For LIMIT orders: Waits for price to reach limit (future implementation)
+    * For MARKET orders: Executes asynchronously after acceptance commits
+    * For LIMIT orders: Remains accepted until limit-price execution is implemented
      * 
      * @param request Order details (instrument, quantity, type, price)
      * @param authentication Spring Security authentication (contains user info)
@@ -74,36 +74,11 @@ public class TradeOrderController {
         try {
             Long userId = resolveCurrentUserId(authentication);
 
-            // 1. Create order in SUBMITTED status
+            // 1. Persist the intent, then accept it after validation
             TradeOrder order = tradeOrderService.placeOrder(userId, request);
 
-            // 2. For MARKET orders, execute immediately
-            if ("MARKET".equalsIgnoreCase(request.getOrderType())) {
-                try {
-                    TradeConfirmationResponse tradeConfirmation = tradeService.executeTrade(order.getOrderId());
-                    OrderResponse updatedOrder = tradeOrderService.getOrder(order.getOrderId(), userId);
-                    
-                    // Return both order and trade confirmation
-                    return ResponseEntity.status(HttpStatus.CREATED)
-                        .body(new OrderExecutedResponse(updatedOrder, tradeConfirmation));
-                        
-                } catch (TradeRejectedException e) {
-                    // Rejection is already recorded on the order; its reason is client-readable
-                    OrderResponse updatedOrder = tradeOrderService.getOrder(order.getOrderId(), userId);
-                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(new ErrorResponse(e.getMessage(), updatedOrder));
-                } catch (Exception e) {
-                    // Execution rolled back: the order stays SUBMITTED and no cash or holdings moved
-                    log.error("Execution failed for order {}", order.getOrderId(), e);
-                    OrderResponse updatedOrder = tradeOrderService.getOrder(order.getOrderId(), userId);
-                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(new ErrorResponse(
-                            "We received your order but couldn't complete it right now. No money has been taken.",
-                            updatedOrder));
-                }
-            }
-
-            // For LIMIT orders, return order waiting for execution (future implementation)
+            // Execution begins after the acceptance transaction commits. The client
+            // observes the eventual FILLED or REJECTED state through order history.
             return ResponseEntity.status(HttpStatus.CREATED).body(mapToOrderResponse(order));
 
         } catch (IllegalArgumentException e) {
@@ -191,7 +166,7 @@ public class TradeOrderController {
     /**
      * Cancel a pending order.
      * 
-     * Only cancels orders in SUBMITTED status.
+    * Only cancels orders in ACCEPTED status.
      * Once an order is FILLED, it cannot be cancelled.
      * 
      * @param orderId The ID of the order to cancel
@@ -232,7 +207,9 @@ public class TradeOrderController {
         response.setQuantity(order.getQuantity());
         response.setLimitPrice(order.getLimitPriceUsd());
         response.setSubmittedAt(order.getSubmittedAt());
+        response.setAcceptedAt(order.getAcceptedAt());
         response.setFilledAt(order.getFilledAt());
+        response.setExpiredAt(order.getExpiredAt());
         response.setRejectedAt(order.getRejectedAt());
         response.setRejectionReason(order.getRejectionReason());
         response.setTimeInForce(order.getTimeInForce().name());

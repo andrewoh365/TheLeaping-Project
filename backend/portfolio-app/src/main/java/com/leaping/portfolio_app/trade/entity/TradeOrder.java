@@ -72,6 +72,13 @@ public class TradeOrder {
     )
     private BigDecimal limitPriceUsd;
 
+    @Column(
+        name = "reference_price_usd",
+        precision = 20,
+        scale = 8
+    )
+    private BigDecimal referencePriceUsd;
+
     @Column(name = "submitted_at", nullable = false)
     private OffsetDateTime submittedAt;
 
@@ -86,6 +93,9 @@ public class TradeOrder {
 
     @Column(name = "cancelled_at")
     private OffsetDateTime cancelledAt;
+
+    @Column(name = "expired_at")
+    private OffsetDateTime expiredAt;
 
     @Column(name = "filled_at")
     private OffsetDateTime filledAt;
@@ -211,6 +221,14 @@ public class TradeOrder {
         this.limitPriceUsd = limitPriceUsd;
     }
 
+    public BigDecimal getReferencePriceUsd() {
+        return referencePriceUsd;
+    }
+
+    public void setReferencePriceUsd(BigDecimal referencePriceUsd) {
+        this.referencePriceUsd = referencePriceUsd;
+    }
+
     public OffsetDateTime getSubmittedAt() {
         return submittedAt;
     }
@@ -253,6 +271,14 @@ public class TradeOrder {
 
     public OffsetDateTime getFilledAt() {
         return filledAt;
+    }
+
+    public OffsetDateTime getExpiredAt() {
+        return expiredAt;
+    }
+
+    public void setExpiredAt(OffsetDateTime expiredAt) {
+        this.expiredAt = expiredAt;
     }
 
     public void setFilledAt(OffsetDateTime filledAt) {

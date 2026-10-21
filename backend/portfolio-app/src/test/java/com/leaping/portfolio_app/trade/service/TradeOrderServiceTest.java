@@ -4,12 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -24,18 +26,23 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
+import com.leaping.portfolio_app.audit.enums.AuditEventType;
+import com.leaping.portfolio_app.audit.service.AuditService;
 import com.leaping.portfolio_app.auth.model.Customer;
+import com.leaping.portfolio_app.auth.model.User;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.enums.InstrumentType;
 import com.leaping.portfolio_app.market.dto.TradabilityDto;
 import com.leaping.portfolio_app.market.entity.Market;
 import com.leaping.portfolio_app.market.enums.TradabilityReason;
 import com.leaping.portfolio_app.market.service.PreTradeMarketService;
+import com.leaping.portfolio_app.market.service.MarketHoursService;
 import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.service.MarketPriceService;
@@ -55,6 +62,14 @@ import com.leaping.portfolio_app.trade.enums.OrderType;
 import com.leaping.portfolio_app.trade.enums.TimeInForce;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
 import com.leaping.portfolio_app.trade.repository.TradeRepository;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+
+import java.time.OffsetDateTime;
+import java.util.Map;
+
+import static org.mockito.ArgumentMatchers.isNull;
 
 @ExtendWith(MockitoExtension.class)
 class TradeOrderServiceTest {
@@ -80,6 +95,18 @@ class TradeOrderServiceTest {
     @Mock
     private TradeRepository tradeRepository;
 
+    @Mock
+    private AuditService auditService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private MarketHoursService marketHoursService;
+
+    @Mock
+    private EntityManager entityManager;
+
     @InjectMocks
     private TradeOrderService tradeOrderService;
 
@@ -95,6 +122,9 @@ class TradeOrderServiceTest {
 
         Customer customer = new Customer();
         customer.setUserId(1L);
+        User user = new User();
+        user.setId(1L);
+        customer.setUser(user);
         portfolio.setCustomer(customer);
 
         Currency usd = new Currency();
@@ -124,6 +154,35 @@ class TradeOrderServiceTest {
     }
 
     @Test
+    void expireDayOrderAfterMarketCloseAuditsExpiredStatus() {
+        TradeOrder order = new TradeOrder();
+        order.setOrderId(700L);
+        order.setPortfolio(portfolio);
+        order.setInstrument(instrument);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
+        order.setOrderType(OrderType.LIMIT);
+        order.setTimeInForce(TimeInForce.DAY);
+        order.setOrderAction(OrderAction.BUY);
+        order.setQuantity(BigDecimal.ONE);
+        order.setAcceptedAt(OffsetDateTime.now().minusHours(3));
+
+        when(tradeOrderRepository.findById(700L)).thenReturn(Optional.of(order));
+        // Its session closed an hour ago
+        when(marketHoursService.firstCloseAfter(market, order.getAcceptedAt()))
+            .thenReturn(OffsetDateTime.now().minusHours(1));
+        when(tradeOrderRepository.save(order)).thenReturn(order);
+
+        assertTrue(tradeOrderService.expireDayOrder(700L));
+        assertEquals(OrderStatus.EXPIRED, order.getOrderStatus());
+        assertNotNull(order.getExpiredAt());
+        verify(auditService).recordEvent(
+            eq(AuditEventType.ORDER_EXPIRED),
+            eq(portfolio.getCustomer().getUser()),
+            eq(order), isNull(), isNull(), isNull(), any(Map.class)
+        );
+    }
+
+    @Test
     void placeOrderBuyMarketShouldPersistWhenCashIsSufficient() {
         PlaceOrderRequest request = new PlaceOrderRequest();
         request.setInstrumentId(100L);
@@ -139,6 +198,7 @@ class TradeOrderServiceTest {
         when(tradeOrderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> {
             TradeOrder order = invocation.getArgument(0);
             order.setOrderId(900L);
+            order.setSubmittedAt(OffsetDateTime.parse("2026-10-14T10:15:30Z"));
             return order;
         });
 
@@ -148,8 +208,70 @@ class TradeOrderServiceTest {
         assertEquals(900L, saved.getOrderId());
         assertEquals(OrderAction.BUY, saved.getOrderAction());
         assertEquals(OrderType.MARKET, saved.getOrderType());
-        assertEquals(OrderStatus.SUBMITTED, saved.getOrderStatus());
-        verify(tradeOrderRepository).save(any(TradeOrder.class));
+        assertEquals(OrderStatus.ACCEPTED, saved.getOrderStatus());
+        assertNotNull(saved.getAcceptedAt());
+        verify(tradeOrderRepository, org.mockito.Mockito.times(2)).save(any(TradeOrder.class));
+
+        ArgumentCaptor<TradeOrder> orderCaptor =
+            ArgumentCaptor.forClass(TradeOrder.class);
+        ArgumentCaptor<Map<String, Object>> detailsCaptor =
+            ArgumentCaptor.forClass(Map.class);
+        verify(auditService).recordEvent(
+            eq(AuditEventType.ORDER_SUBMITTED),
+            eq(portfolio.getCustomer().getUser()),
+            orderCaptor.capture(),
+            isNull(),
+            isNull(),
+            isNull(),
+            detailsCaptor.capture()
+        );
+
+        assertSame(saved, orderCaptor.getValue());
+        assertEquals(1L, detailsCaptor.getValue().get("customerId"));
+        assertEquals(900L, detailsCaptor.getValue().get("orderId"));
+        assertEquals(100L, detailsCaptor.getValue().get("instrumentId"));
+        assertEquals("AAPL", detailsCaptor.getValue().get("symbol"));
+        assertEquals("BUY", detailsCaptor.getValue().get("action"));
+        assertEquals(new BigDecimal("10"), detailsCaptor.getValue().get("quantity"));
+        assertEquals(saved.getSubmittedAt(), detailsCaptor.getValue().get("submittedAt"));
+
+        ArgumentCaptor<Map<String, Object>> acceptanceDetailsCaptor =
+            ArgumentCaptor.forClass(Map.class);
+        verify(auditService).recordEvent(
+            eq(AuditEventType.ORDER_ACCEPTED),
+            eq(portfolio.getCustomer().getUser()),
+            eq(saved),
+            isNull(),
+            isNull(),
+            isNull(),
+            acceptanceDetailsCaptor.capture()
+        );
+        assertEquals("SUBMITTED", acceptanceDetailsCaptor.getValue().get("previousStatus"));
+        assertEquals("ACCEPTED", acceptanceDetailsCaptor.getValue().get("newStatus"));
+        assertEquals(saved.getAcceptedAt(), acceptanceDetailsCaptor.getValue().get("acceptedAt"));
+        verify(eventPublisher).publishEvent(any(OrderAcceptedEvent.class));
+    }
+
+    @Test
+    void placeOrderBuyShouldUseRoundedSettlementForCashCheck() {
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setInstrumentId(100L);
+        request.setOrderAction("BUY");
+        request.setOrderType("MARKET");
+        request.setQuantity(new BigDecimal("1"));
+
+        portfolio.setCashBalanceUsd(new BigDecimal("100.00"));
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
+        when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
+        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.004"));
+        when(preTradeMarketService.getTradability("AAPL")).thenReturn(tradable());
+        when(tradeOrderRepository.save(any(TradeOrder.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        TradeOrder saved = tradeOrderService.placeOrder(1L, request);
+
+        assertEquals(OrderStatus.ACCEPTED, saved.getOrderStatus());
+        verify(tradeOrderRepository, org.mockito.Mockito.times(2)).save(saved);
     }
 
     @Test
@@ -171,6 +293,30 @@ class TradeOrderServiceTest {
         );
 
         assertEquals("Not enough cash. This order costs about $20,000.00 and you have $10,000.00 available.", ex.getMessage());
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void placeOrderShouldNotAuditWhenOrderPersistenceFails() {
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setInstrumentId(100L);
+        request.setOrderAction("BUY");
+        request.setOrderType("MARKET");
+        request.setQuantity(new BigDecimal("1"));
+
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
+        when(instrumentRepository.findById(100L)).thenReturn(Optional.of(instrument));
+        when(marketPriceService.getCurrentPrice("AAPL")).thenReturn(new BigDecimal("100.00"));
+        when(preTradeMarketService.getTradability("AAPL")).thenReturn(tradable());
+        when(tradeOrderRepository.save(any(TradeOrder.class)))
+                .thenThrow(new RuntimeException("order persistence failed"));
+
+        assertThrows(
+                RuntimeException.class,
+                () -> tradeOrderService.placeOrder(1L, request)
+        );
+
+        verifyNoInteractions(auditService);
     }
 
     @Test
@@ -192,15 +338,16 @@ class TradeOrderServiceTest {
         );
 
         assertEquals("You don't own any AAPL to sell.", ex.getMessage());
+        verifyNoInteractions(auditService);
     }
 
     @Test
-    void cancelOrderShouldSetCancelledStatusForSubmittedOrder() {
+    void cancelOrderShouldSetCancelledStatusForAcceptedOrder() {
         TradeOrder order = new TradeOrder();
         order.setOrderId(500L);
         order.setPortfolio(portfolio);
         order.setInstrument(instrument);
-        order.setOrderStatus(OrderStatus.SUBMITTED);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
         order.setOrderAction(OrderAction.BUY);
         order.setOrderType(OrderType.MARKET);
         order.setTimeInForce(TimeInForce.DAY);
@@ -215,6 +362,88 @@ class TradeOrderServiceTest {
         assertEquals("DAY", response.getTimeInForce());
         assertEquals(OrderStatus.CANCELLED, order.getOrderStatus());
         assertNotNull(order.getCancelledAt());
+
+        ArgumentCaptor<Map<String, Object>> detailsCaptor =
+            ArgumentCaptor.forClass(Map.class);
+        verify(auditService).recordEvent(
+            eq(AuditEventType.ORDER_CANCELLED),
+            eq(portfolio.getCustomer().getUser()),
+            eq(order),
+            isNull(),
+            isNull(),
+            isNull(),
+            detailsCaptor.capture()
+        );
+
+        assertEquals(1L, detailsCaptor.getValue().get("customerId"));
+        assertEquals(500L, detailsCaptor.getValue().get("orderId"));
+        assertEquals("ACCEPTED", detailsCaptor.getValue().get("previousStatus"));
+        assertEquals("CANCELLED", detailsCaptor.getValue().get("newStatus"));
+        assertEquals(order.getCancelledAt(), detailsCaptor.getValue().get("cancelledAt"));
+        verify(entityManager).refresh(order, LockModeType.PESSIMISTIC_WRITE);
+    }
+
+        @Test
+        void cancelOrderShouldNotCreateDuplicateAuditWhenAlreadyCancelled() {
+        TradeOrder order = new TradeOrder();
+        order.setOrderId(501L);
+        order.setPortfolio(portfolio);
+        order.setInstrument(instrument);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
+        order.setOrderAction(OrderAction.BUY);
+        order.setOrderType(OrderType.MARKET);
+        order.setTimeInForce(TimeInForce.DAY);
+        order.setQuantity(new BigDecimal("1"));
+
+        when(tradeOrderRepository.findById(501L)).thenReturn(Optional.of(order));
+        when(tradeOrderRepository.save(any(TradeOrder.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        tradeOrderService.cancelOrder(501L, 1L);
+
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> tradeOrderService.cancelOrder(501L, 1L)
+        );
+
+        assertEquals("Cannot cancel order in CANCELLED status", exception.getMessage());
+        verify(tradeOrderRepository, org.mockito.Mockito.times(1))
+            .save(any(TradeOrder.class));
+        verify(auditService, org.mockito.Mockito.times(1)).recordEvent(
+            eq(AuditEventType.ORDER_CANCELLED),
+            eq(portfolio.getCustomer().getUser()),
+            eq(order),
+            isNull(),
+            isNull(),
+            isNull(),
+            any(Map.class)
+        );
+        verify(entityManager, org.mockito.Mockito.times(2))
+            .refresh(order, LockModeType.PESSIMISTIC_WRITE);
+        }
+
+    @Test
+    void cancelOrderShouldNotAuditWhenOrderPersistenceFails() {
+        TradeOrder order = new TradeOrder();
+        order.setOrderId(500L);
+        order.setPortfolio(portfolio);
+        order.setInstrument(instrument);
+        order.setOrderStatus(OrderStatus.ACCEPTED);
+        order.setOrderAction(OrderAction.BUY);
+        order.setOrderType(OrderType.MARKET);
+        order.setTimeInForce(TimeInForce.DAY);
+        order.setQuantity(new BigDecimal("1"));
+
+        when(tradeOrderRepository.findById(500L)).thenReturn(Optional.of(order));
+        when(tradeOrderRepository.save(any(TradeOrder.class)))
+                .thenThrow(new RuntimeException("cancellation persistence failed"));
+
+        assertThrows(
+                RuntimeException.class,
+                () -> tradeOrderService.cancelOrder(500L, 1L)
+        );
+
+        verifyNoInteractions(auditService);
     }
 
     @Test
@@ -236,6 +465,7 @@ class TradeOrderServiceTest {
 
         assertEquals("NASDAQ is closed right now. It trades 09:30\u201316:00 (America/New_York).", ex.getMessage());
         verify(tradeOrderRepository, never()).save(any(TradeOrder.class));
+        verifyNoInteractions(auditService);
     }
 
     @Test

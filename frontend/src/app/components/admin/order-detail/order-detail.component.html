@@ -1,60 +1,48 @@
 <app-internal-nav></app-internal-nav>
 
 <div class="order-detail-page">
-
   <button
     mat-stroked-button
     type="button"
     class="back-button"
-    (click)="goBack()">
+    (click)="goBack()"
+  >
     ← Back to Trade Lookup
   </button>
 
-
   <!-- LOADING -->
-  <div
-    class="loading-container"
-    *ngIf="loading">
 
+  <div class="loading-container" *ngIf="loading">
     <mat-spinner diameter="42"></mat-spinner>
-
   </div>
 
-
   <!-- ERROR -->
-  <mat-card
-    class="error-card"
-    *ngIf="errorMessage">
 
+  <mat-card class="error-card" *ngIf="errorMessage">
     {{ errorMessage }}
-
   </mat-card>
 
-
   <!-- ORDER DETAIL -->
-  <ng-container
-    *ngIf="!loading && !errorMessage && order">
 
+  <ng-container *ngIf="!loading && !errorMessage && order">
     <div class="order-header">
-
       <div>
-        <p class="eyebrow">
-          Order Detail
-        </p>
+        <p class="eyebrow">Order Detail</p>
 
-        <h1>
-          Order #{{ order.orderId }}
-        </h1>
+        <h1>Order #{{ order.orderId }}</h1>
 
         <p class="order-subtitle">
-          {{ order.symbol || 'Unknown instrument' }}
+          {{ order.symbol || "Unknown instrument" }}
+
           ·
-          {{ order.side || '—' }}
+
+          {{ order.side || "—" }}
+
           ·
-          {{ order.quantity ?? '—' }}
+
+          {{ order.quantity ?? "—" }}
         </p>
       </div>
-
 
       <span
         class="status-badge"
@@ -62,132 +50,104 @@
         [class.status-rejected]="order.status === 'REJECTED'"
         [class.status-cancelled]="order.status === 'CANCELLED'"
         [class.status-accepted]="order.status === 'ACCEPTED'"
-        [class.status-submitted]="order.status === 'SUBMITTED'">
-
-        {{ order.status || 'UNKNOWN' }}
-
+        [class.status-submitted]="order.status === 'SUBMITTED'"
+      >
+        {{ order.status || "UNKNOWN" }}
       </span>
-
     </div>
-
 
     <!-- SUMMARY CARDS -->
+
     <div class="summary-grid">
-
       <mat-card class="summary-card">
-
-        <span class="summary-label">
-          Client
-        </span>
+        <span class="summary-label"> Client </span>
 
         <strong>
-          {{ order.firstName || '' }}
-          {{ order.lastName || '' }}
+          {{ order.firstName || "" }}
+
+          {{ order.lastName || "" }}
         </strong>
 
         <span class="summary-subtext">
-          Client ID {{ order.clientId ?? '—' }}
+          Client ID {{ order.clientId ?? "—" }}
         </span>
-
       </mat-card>
 
-
       <mat-card class="summary-card">
-
-        <span class="summary-label">
-          Instrument
-        </span>
+        <span class="summary-label"> Instrument </span>
 
         <strong>
-          {{ order.symbol || '—' }}
+          {{ order.symbol || "—" }}
         </strong>
 
         <span class="summary-subtext">
-          {{ order.instrumentName || '—' }}
+          {{ order.instrumentName || "—" }}
         </span>
-
       </mat-card>
 
+      <mat-card class="summary-card">
+        <span class="summary-label"> Portfolio </span>
+
+        <strong> #{{ order.portfolioId ?? "—" }} </strong>
+
+        <span class="summary-subtext"> Portfolio ID </span>
+      </mat-card>
 
       <mat-card class="summary-card">
-
-        <span class="summary-label">
-          Portfolio
-        </span>
+        <span class="summary-label"> Trade </span>
 
         <strong>
-          #{{ order.portfolioId ?? '—' }}
+          {{ order.tradeId ?? "—" }}
         </strong>
 
         <span class="summary-subtext">
-          Portfolio ID
+          {{ order.tradeId ? "Trade created" : "No trade created" }}
         </span>
-
       </mat-card>
-
-
-      <mat-card class="summary-card">
-
-        <span class="summary-label">
-          Trade
-        </span>
-
-        <strong>
-          {{ order.tradeId ?? '—' }}
-        </strong>
-
-        <span class="summary-subtext">
-          {{
-            order.tradeId
-              ? 'Trade created'
-              : 'No trade created'
-          }}
-        </span>
-
-      </mat-card>
-
     </div>
 
-
     <!-- ORDER INFORMATION -->
-    <mat-card class="detail-card">
 
+    <mat-card class="detail-card">
       <div class="section-header">
-        <h2>
-          Order Information
-        </h2>
+        <h2>Order Information</h2>
       </div>
 
       <div class="detail-grid">
-
         <div class="detail-item">
           <span>Order ID</span>
+
           <strong>{{ order.orderId }}</strong>
         </div>
 
         <div class="detail-item">
           <span>Status</span>
-          <strong>{{ order.status || '—' }}</strong>
+
+          <strong>{{ order.status || "—" }}</strong>
         </div>
 
         <div class="detail-item">
           <span>Side</span>
-          <strong>{{ order.side || '—' }}</strong>
+
+          <strong>{{ order.side || "—" }}</strong>
         </div>
 
         <div class="detail-item">
           <span>Order Type</span>
-          <strong>{{ order.orderType || '—' }}</strong>
+
+          <strong>{{ order.orderType || "—" }}</strong>
         </div>
 
         <div class="detail-item">
           <span>Time in Force</span>
-          <strong>{{ order.timeInForce || '—' }}</strong>
+
+          <strong>{{ order.timeInForce || "—" }}</strong>
         </div>
 
         <div class="detail-item">
           <span>Quantity</span>
-          <strong>{{ order.quantity ?? '—' }}</strong>
+
+          <strong>{{ order.quantity ?? "—" }}</strong>
         </div>
 
         <div class="detail-item">
@@ -196,8 +156,8 @@
           <strong>
             {{
               order.limitPriceUsd !== null
-                ? (order.limitPriceUsd | currency:'USD')
-                : '—'
+                ? (order.limitPriceUsd | currency: "USD")
+                : "—"
             }}
           </strong>
         </div>
@@ -206,130 +166,105 @@
           <span>Submitted</span>
 
           <strong>
-            {{
-              order.submittedAt
-                ? (order.submittedAt | date:'medium')
-                : '—'
-            }}
+            {{ order.submittedAt ? (order.submittedAt | date: "medium") : "—" }}
           </strong>
         </div>
-
       </div>
-
     </mat-card>
 
-
     <!-- LIFECYCLE INFORMATION -->
-    <mat-card class="detail-card">
 
+    <mat-card class="detail-card">
       <div class="section-header">
-        <h2>
-          Order Lifecycle
-        </h2>
+        <h2>Order Lifecycle</h2>
       </div>
 
       <div class="detail-grid">
-
         <div class="detail-item">
           <span>Accepted At</span>
 
           <strong>
-            {{
-              order.acceptedAt
-                ? (order.acceptedAt | date:'medium')
-                : '—'
-            }}
+            {{ order.acceptedAt ? (order.acceptedAt | date: "medium") : "—" }}
           </strong>
         </div>
-
 
         <div class="detail-item">
           <span>Rejected At</span>
 
           <strong>
-            {{
-              order.rejectedAt
-                ? (order.rejectedAt | date:'medium')
-                : '—'
-            }}
+            {{ order.rejectedAt ? (order.rejectedAt | date: "medium") : "—" }}
           </strong>
         </div>
-
 
         <div class="detail-item">
           <span>Cancelled At</span>
 
           <strong>
-            {{
-              order.cancelledAt
-                ? (order.cancelledAt | date:'medium')
-                : '—'
-            }}
+            {{ order.cancelledAt ? (order.cancelledAt | date: "medium") : "—" }}
           </strong>
         </div>
-
 
         <div class="detail-item">
           <span>Filled At</span>
 
           <strong>
-            {{
-              order.filledAt
-                ? (order.filledAt | date:'medium')
-                : '—'
-            }}
+            {{ order.filledAt ? (order.filledAt | date: "medium") : "—" }}
           </strong>
         </div>
 
-
-        <div
-          class="detail-item full-width"
-          *ngIf="order.rejectionReason">
-
+        <div class="detail-item full-width" *ngIf="order.rejectionReason">
           <span>Rejection Reason</span>
 
           <strong>
             {{ order.rejectionReason }}
           </strong>
-
         </div>
-
       </div>
-
     </mat-card>
 
-
     <!-- TRADE INFORMATION -->
-    <mat-card
-      class="detail-card"
-      *ngIf="order.tradeId">
 
+    <mat-card class="detail-card" *ngIf="order.tradeId">
       <div class="section-header">
-        <h2>
-          Trade Information
-        </h2>
+        <h2>Trade Information</h2>
       </div>
 
       <div class="detail-grid">
-
         <div class="detail-item">
           <span>Trade ID</span>
+
           <strong>{{ order.tradeId }}</strong>
         </div>
-
 
         <div class="detail-item">
           <span>Execution Price</span>
 
           <strong>
-            {{
-              order.executionPriceUsd !== null
-                ? (order.executionPriceUsd | currency:'USD')
-                : '—'
-            }}
+            {{ order.executionPrice ?? "—" }}
+
+            {{ order.executionPriceCurrencyCode || "" }}
           </strong>
         </div>
 
+        <div class="detail-item">
+          <span>Exchange Rate to USD</span>
+
+          <strong>
+            {{ order.exchangeRateToUsdAtExecution ?? "—" }}
+          </strong>
+        </div>
+
+        <div class="detail-item">
+          <span>Execution Price (USD)</span>
+
+          <strong>
+            {{
+              order.executionPriceUsd !== null
+                ? (order.executionPriceUsd | currency: "USD")
+                : "—"
+            }}
+          </strong>
+        </div>
 
         <div class="detail-item">
           <span>Total USD Value</span>
@@ -337,45 +272,123 @@
           <strong>
             {{
               order.totalUsdValue !== null
-                ? (order.totalUsdValue | currency:'USD')
-                : '—'
+                ? (order.totalUsdValue | currency: "USD")
+                : "—"
             }}
           </strong>
         </div>
-
 
         <div class="detail-item">
           <span>Executed At</span>
 
           <strong>
-            {{
-              order.executedAt
-                ? (order.executedAt | date:'medium')
-                : '—'
-            }}
+            {{ order.executedAt ? (order.executedAt | date: "medium") : "—" }}
           </strong>
         </div>
-
       </div>
-
     </mat-card>
-
 
     <!-- NO TRADE -->
-    <mat-card
-      class="no-trade-card"
-      *ngIf="!order.tradeId">
 
-      <h2>
-        No Trade Created
-      </h2>
+    <mat-card class="no-trade-card" *ngIf="!order.tradeId">
+      <h2>No Trade Created</h2>
 
-      <p>
-        This order did not result in an executed trade.
-      </p>
-
+      <p>This order did not result in an executed trade.</p>
     </mat-card>
 
-  </ng-container>
+    <!-- AUDIT TRAIL -->
 
+    <mat-card class="detail-card audit-card">
+      <div class="section-header">
+        <div>
+          <h2>Audit Trail</h2>
+
+          <p class="section-subtitle">
+            Recorded events for this order, oldest first.
+          </p>
+        </div>
+      </div>
+
+      <div class="audit-loading" *ngIf="auditLoading">
+        <mat-spinner diameter="34"></mat-spinner>
+      </div>
+
+      <div class="audit-error" *ngIf="!auditLoading && auditErrorMessage">
+        {{ auditErrorMessage }}
+      </div>
+
+      <div
+        class="audit-empty"
+        *ngIf="!auditLoading && !auditErrorMessage && auditEvents.length === 0"
+      >
+        No audit events were recorded for this order.
+      </div>
+
+      <div
+        class="audit-list"
+        *ngIf="!auditLoading && !auditErrorMessage && auditEvents.length > 0"
+      >
+        <article class="audit-event" *ngFor="let event of auditEvents">
+          <div class="audit-marker"></div>
+
+          <div class="audit-event-content">
+            <div class="audit-event-heading">
+              <strong>{{ auditLabel(event.eventType) }}</strong>
+
+              <time [attr.datetime]="event.occurredAt || null">
+                {{
+                  event.occurredAt
+                    ? (event.occurredAt | date: "medium")
+                    : "Time unavailable"
+                }}
+              </time>
+            </div>
+
+            <div class="audit-event-links">
+              <span *ngIf="event.executionAttemptId !== null">
+                Attempt #{{ event.executionAttemptId }}
+              </span>
+
+              <span *ngIf="event.tradeId !== null">
+                Trade #{{ event.tradeId }}
+              </span>
+
+              <span *ngIf="event.cashTransactionId !== null">
+                Cash #{{ event.cashTransactionId }}
+              </span>
+            </div>
+
+            <div
+              class="audit-event-details"
+              *ngIf="auditDetailEntries(event).length > 0"
+            >
+              <span
+                class="audit-detail"
+                *ngFor="let detail of auditDetailEntries(event)"
+              >
+                <b>{{ detail.label }}</b>
+
+                {{ detail.value }}
+              </span>
+            </div>
+          </div>
+        </article>
+
+        <div class="audit-more" *ngIf="hasMoreAudit">
+          <span>
+            Showing {{ auditEvents.length }} of {{ auditTotal }} events
+            <span class="audit-more-error" *ngIf="auditMoreError">· {{ auditMoreError }}</span>
+          </span>
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="loadMoreAudit()"
+            [disabled]="auditLoadingMore"
+          >
+            {{ auditLoadingMore ? "Loading..." : "Show more events" }}
+          </button>
+        </div>
+      </div>
+    </mat-card>
+  </ng-container>
 </div>
