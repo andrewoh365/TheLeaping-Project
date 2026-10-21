@@ -318,22 +318,143 @@
         </div>
 
         <div *ngIf="selectedTab === 'watchlist'">
-          <div class="watchlist-view-figma">
-            <div class="watchlist-heading-figma">
-              <p class="text-181"><span class="text-rgb-250-250-250">{{ activeWatchlistName }}</span></p>
-              <p class="text-182"><span class="text-rgb-250-250-250">{{ watchlistCount }} instruments</span></p>
+          <div class="watchlist-workspace">
+            <div class="watchlist-workspace-header">
+              <div>
+                <p class="watchlist-eyebrow">YOUR SHORTLIST</p>
+                <h2>Watchlists</h2>
+                <p class="watchlist-description">Keep the markets you are tracking close at hand.</p>
+              </div>
+              <div class="watchlist-toolbar">
+                <label class="watchlist-select-label" for="watchlist-select">Active list</label>
+                <select
+                  id="watchlist-select"
+                  class="watchlist-select"
+                  [ngModel]="activeWatchlistId"
+                  (ngModelChange)="selectWatchlist($event)"
+                  [disabled]="watchlists.length === 0 || watchlistSaving">
+                  <option [ngValue]="null">Choose a watchlist</option>
+                  <option *ngFor="let watchlist of watchlists" [ngValue]="watchlist.watchlistId">{{ watchlist.watchlistName }}</option>
+                </select>
+                <button type="button" class="watchlist-icon-button" title="Create watchlist" aria-label="Create watchlist" (click)="toggleCreateWatchlist()">
+                  <mat-icon>add</mat-icon>
+                </button>
+                <button type="button" class="watchlist-icon-button" title="Rename watchlist" aria-label="Rename watchlist" *ngIf="activeWatchlist" (click)="startRenameWatchlist()">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button type="button" class="watchlist-icon-button danger" title="Delete watchlist" aria-label="Delete watchlist" *ngIf="activeWatchlist" [disabled]="watchlistSaving" (click)="deleteActiveWatchlist()">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </div>
             </div>
-            <div class="watchlist-list-figma" *ngIf="watchlistInstruments.length > 0; else emptyWatchlist">
-              <button type="button" class="watchlist-item-figma" *ngFor="let item of watchlistInstruments" (click)="selectInstrument({ instrumentId: item.instrumentId.toString(), symbol: item.symbol, name: item.name, instrumentType: item.instrumentType, priceCurrencyCode: 'USD', isTradeable: true, isActive: true })">
-                <div>
-                  <strong>{{ item.symbol }}</strong>
-                  <span>{{ item.name }}</span>
+
+            <div class="watchlist-inline-form" *ngIf="showCreateWatchlist">
+              <mat-icon aria-hidden="true">playlist_add</mat-icon>
+              <input type="text" maxlength="100" placeholder="Name your new watchlist" aria-label="New watchlist name" [(ngModel)]="newWatchlistName" (keyup.enter)="createWatchlist()" />
+              <button type="button" class="watchlist-primary-button" [disabled]="!newWatchlistName.trim() || watchlistSaving" (click)="createWatchlist()">Create</button>
+            </div>
+
+            <div class="watchlist-inline-form" *ngIf="showRenameWatchlist">
+              <mat-icon aria-hidden="true">drive_file_rename_outline</mat-icon>
+              <input type="text" maxlength="100" placeholder="Watchlist name" aria-label="Watchlist name" [(ngModel)]="renameWatchlistName" (keyup.enter)="renameWatchlist()" />
+              <button type="button" class="watchlist-primary-button" [disabled]="!renameWatchlistName.trim() || watchlistSaving" (click)="renameWatchlist()">Save</button>
+            </div>
+
+            <div class="watchlist-alert" *ngIf="watchlistError" role="alert">
+              <mat-icon aria-hidden="true">info</mat-icon>
+              <span>{{ watchlistError }}</span>
+            </div>
+
+            <ng-container *ngIf="activeWatchlist; else noWatchlistSelected">
+              <div class="watchlist-summary">
+                <div class="watchlist-summary-copy">
+                  <span class="watchlist-eyebrow">ACTIVE LIST</span>
+                  <strong>{{ activeWatchlistName }}</strong>
+                  <span>Prices update with the latest market data.</span>
                 </div>
-                <small>{{ item.instrumentType }}</small>
-              </button>
-            </div>
-            <ng-template #emptyWatchlist>
-              <div class="empty-state">No watchlist instruments are available for this account yet.</div>
+                <div class="watchlist-stat">
+                  <strong>{{ watchlistCount }}</strong>
+                  <span>{{ watchlistCount === 1 ? 'instrument' : 'instruments' }}</span>
+                </div>
+                <div class="watchlist-stat">
+                  <strong>{{ watchlistQuotesLoading ? '...' : (marketStatus?.open ? 'Open' : 'Closed') }}</strong>
+                  <span>NASDAQ</span>
+                </div>
+              </div>
+
+              <div class="watchlist-add-panel">
+                <div class="watchlist-add-heading">
+                  <div>
+                    <strong>Add an instrument</strong>
+                    <span>Search by symbol or company name.</span>
+                  </div>
+                  <mat-icon aria-hidden="true">star_border</mat-icon>
+                </div>
+                <div class="watchlist-search-field">
+                  <mat-icon aria-hidden="true">search</mat-icon>
+                  <input type="text" placeholder="Search stocks, crypto or currencies" aria-label="Search instruments to add" autocomplete="off" [(ngModel)]="watchlistSearchQuery" (input)="onWatchlistSearchInput()" />
+                  <button type="button" *ngIf="watchlistSearchQuery" title="Clear instrument search" aria-label="Clear instrument search" (click)="watchlistSearchQuery = ''; onWatchlistSearchInput()">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+                <div class="watchlist-search-results" *ngIf="watchlistSearchQuery.trim()">
+                  <div class="watchlist-search-loading" *ngIf="watchlistSearchLoading">Searching instruments...</div>
+                  <button type="button" class="watchlist-search-result" *ngFor="let result of watchlistSearchMatches" (click)="addWatchlistInstrument(result)" [disabled]="watchlistAddingInstrumentId === +result.instrumentId">
+                    <span class="watchlist-result-symbol">{{ result.symbol }}</span>
+                    <span class="watchlist-result-name">{{ result.name }}</span>
+                    <span class="watchlist-result-action"><mat-icon>{{ watchlistAddingInstrumentId === +result.instrumentId ? 'hourglass_top' : 'add_circle_outline' }}</mat-icon></span>
+                  </button>
+                  <div class="watchlist-search-empty" *ngIf="!watchlistSearchLoading && watchlistSearchMatches.length === 0">
+                    {{ watchlistSearchError || 'No new instruments found.' }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="watchlist-table" [class.loading]="watchlistLoading" aria-label="Watchlist instruments">
+                <div class="watchlist-table-header">
+                  <span>INSTRUMENT</span>
+                  <span>TYPE</span>
+                  <span class="watchlist-number">LAST PRICE</span>
+                  <span class="watchlist-action-heading">ACTION</span>
+                </div>
+                <div class="watchlist-loading" *ngIf="watchlistLoading">Loading {{ activeWatchlistName }}...</div>
+                <div class="watchlist-row" *ngFor="let item of watchlistInstruments">
+                  <div class="watchlist-instrument-cell">
+                    <span class="watchlist-symbol-mark">{{ item.symbol.slice(0, 1) }}</span>
+                    <span class="watchlist-instrument-copy">
+                      <strong>{{ item.symbol }}</strong>
+                      <small>{{ item.name }}</small>
+                    </span>
+                  </div>
+                  <span class="watchlist-type">{{ item.instrumentType }}</span>
+                  <span class="watchlist-price watchlist-number">
+                    <ng-container *ngIf="getWatchlistQuote(item.symbol) as quote; else quoteUnavailable">
+                      {{ quote.price | currency:quote.currencyCode:'symbol':'1.2-2' }}
+                      <small [class.quote-stale]="quote.stale">{{ quote.stale ? 'Delayed' : 'Live' }}</small>
+                    </ng-container>
+                    <ng-template #quoteUnavailable><span class="quote-unavailable">--</span></ng-template>
+                  </span>
+                  <span class="watchlist-row-action">
+                    <button type="button" class="watchlist-remove-button" title="Remove from watchlist" [attr.aria-label]="'Remove ' + item.symbol + ' from watchlist'" [disabled]="watchlistRemovingInstrumentId === item.instrumentId" (click)="removeWatchlistInstrument(item)">
+                      <mat-icon>{{ watchlistRemovingInstrumentId === item.instrumentId ? 'hourglass_top' : 'remove_circle_outline' }}</mat-icon>
+                    </button>
+                  </span>
+                </div>
+                <div class="watchlist-empty" *ngIf="!watchlistLoading && watchlistInstruments.length === 0">
+                  <mat-icon aria-hidden="true">visibility</mat-icon>
+                  <strong>Your list is ready for its first idea.</strong>
+                  <span>Search above to add an instrument and keep an eye on it here.</span>
+                </div>
+              </div>
+            </ng-container>
+
+            <ng-template #noWatchlistSelected>
+              <div class="watchlist-empty no-list">
+                <mat-icon aria-hidden="true">playlist_add</mat-icon>
+                <strong>Create a watchlist to get started.</strong>
+                <span>Use the plus button above to make a focused list for the markets you care about.</span>
+                <button type="button" class="watchlist-primary-button" (click)="toggleCreateWatchlist()">Create watchlist</button>
+              </div>
             </ng-template>
           </div>
         </div>
