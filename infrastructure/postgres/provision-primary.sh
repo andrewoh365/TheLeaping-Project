@@ -87,7 +87,7 @@ SELECT format(
 )\gexec
 
 SELECT format(
-    'CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
+    'CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOREPLICATION',
     :'reporting_user'
 )
 WHERE NOT EXISTS (
@@ -95,7 +95,7 @@ WHERE NOT EXISTS (
 )\gexec
 
 SELECT format(
-    'ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L',
+    'ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOREPLICATION PASSWORD %L',
     :'reporting_user',
     :'reporting_password'
 )\gexec
@@ -104,6 +104,12 @@ SELECT format(
     'ALTER ROLE %I SET default_transaction_read_only = on',
     :'reporting_user'
 )\gexec
+
+SELECT format(
+    'GRANT pg_read_all_stats TO %I',
+    :'reporting_user'
+)
+\gexec
 
 SELECT format(
     'GRANT CONNECT ON DATABASE %I TO %I',

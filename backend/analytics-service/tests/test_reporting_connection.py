@@ -84,25 +84,45 @@ def test_settings_do_not_use_primary_database_variables(monkeypatch):
     assert "primary_user" not in settings.database_url
 
 
-def test_database_connection_accepts_only_recovery_server(monkeypatch):
+def test_streaming_standby_with_pending_wal_is_ready(monkeypatch):
+    monkeypatch.setattr(
+        database_connection,
+        "engine",
+        _Engine((True, "streaming", "0/20", "0/18", True)),
+    )
+
+    status = database_connection.get_reporting_status()
+
+    assert status["received_lsn"] == "0/20"
+    assert status["replayed_lsn"] == "0/18"
+    assert status["replay_pending"] is True
+    assert status["ready"] is True
+
+
+def test_streaming_standby_with_zero_pending_wal_is_ready(monkeypatch):
     monkeypatch.setattr(
         database_connection,
         "engine",
         _Engine((True, "streaming", "0/10", "0/10", False)),
     )
+
     assert database_connection.test_database_connection() is True
+
+
+def test_writable_primary_is_not_ready(monkeypatch):
 
     monkeypatch.setattr(
         database_connection,
         "engine",
         _Engine((False, "streaming", "0/10", "0/10", False)),
     )
-    assert database_connection.test_database_connection() is False
+
+    status = database_connection.get_reporting_status()
+
+    assert status["ready"] is False
 
 
-def test_reporting_status_rejects_disconnected_or_pending_replication(
-    monkeypatch,
-):
+def test_disconnected_standby_is_not_ready(monkeypatch):
     monkeypatch.setattr(
         database_connection,
         "engine",
