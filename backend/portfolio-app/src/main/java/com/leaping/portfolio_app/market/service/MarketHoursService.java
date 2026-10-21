@@ -65,6 +65,20 @@ public class MarketHoursService {
         );
     }
 
+    /**
+     * The first real session close after the given moment, from the market's actual trading
+     * hours. The testing override never affects this, so it can't change when orders expire.
+     *
+     * @return null for markets that never close
+     */
+    public OffsetDateTime firstCloseAfter(Market market, OffsetDateTime moment) {
+        if (market.getOpenTime() == null || market.getCloseTime() == null) {
+            return null;
+        }
+        ZonedDateTime local = moment.atZoneSameInstant(ZoneId.of(market.getTimezone()));
+        return computeNext(market.getCloseTime(), local);
+    }
+
     private boolean isWithinWindow(LocalTime now, LocalTime open, LocalTime close) {
         if (close.isAfter(open)) {
             return !now.isBefore(open) && now.isBefore(close);

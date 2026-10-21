@@ -11,6 +11,9 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+import com.leaping.portfolio_app.market.dto.TradabilityDto;
+import com.leaping.portfolio_app.market.service.PreTradeMarketService;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.leaping.portfolio_app.audit.enums.AuditEventType;
@@ -64,6 +67,11 @@ public class TradeService {
     private final PricingService pricingService;
     private final EntityManager entityManager;
     private final AuditService auditService;
+    private final PreTradeMarketService preTradeMarketService;
+
+    /** Same switch as TradeOrderService: market hours, instrument status and price freshness (BR-05). */
+    @Value("${trading.enforce-tradability:true}")
+    private boolean enforceTradability = true;
 
     public TradeService(
             TradeRepository tradeRepository,
@@ -74,7 +82,8 @@ public class TradeService {
             CashTransactionRepository cashTransactionRepository,
             PricingService pricingService,
             EntityManager entityManager,
-            AuditService auditService
+            AuditService auditService,
+            PreTradeMarketService preTradeMarketService
     ) {
         this.tradeRepository = tradeRepository;
         this.tradeOrderRepository = tradeOrderRepository;
@@ -85,6 +94,7 @@ public class TradeService {
         this.pricingService = pricingService;
         this.entityManager = entityManager;
         this.auditService = auditService;
+        this.preTradeMarketService = preTradeMarketService;
     }
 
     /**
@@ -132,6 +142,23 @@ public class TradeService {
         entityManager.refresh(portfolio, LockModeType.PESSIMISTIC_WRITE);
 
         Instrument instrument = order.getInstrument();
+
+        // The same gate as acceptance: market hours (the only thing the testing override changes),
+        // instrument active and tradeable, a fresh price with a USD rate. A limit order that can't
+        // trade right now keeps resting; a market order is rejected.
+        if (enforceTradability) {
+            TradabilityDto tradability = preTradeMarketService.getTradability(instrument.getSymbol());
+            if (!tradability.isTradable()) {
+                String reason = String.format("%s can't be traded right now: %s.",
+                    instrument.getSymbol(), tradability.getMessage());
+                if (OrderType.LIMIT.equals(order.getOrderType())) {
+                    throw new OrderNotExecutableException(reason);
+                }
+                ExecutionAttempt failedAttempt = createExecutionAttempt(
+                    order, captureQuote(instrument), ExecutionAttemptStatus.FAILED, reason);
+                throw reject(order, reason, failedAttempt);
+            }
+        }
 
         // 3. Capture the persisted native quote and its conversion inputs together.
         QuoteSnapshot quote = captureQuote(instrument);

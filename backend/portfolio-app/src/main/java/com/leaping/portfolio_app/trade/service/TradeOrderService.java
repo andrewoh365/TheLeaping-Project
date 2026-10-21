@@ -496,11 +496,16 @@ public class TradeOrderService {
         if (order.getInstrument().getMarket() == null) {
             return false;
         }
-        var market = order.getInstrument().getMarket();
-        var status = marketHoursService.getMarketStatus(market);
-        // Not while the market is open, including when the testing override holds it open
-        if (status.isAlwaysOpen() || status.isOpen() || market.getCloseTime() == null
-                || status.getMarketTime().toLocalTime().isBefore(market.getCloseTime())) {
+        // A DAY order lasts until the first real close after it was accepted. Only the market's
+        // actual hours decide this: the testing override can hold a market open for trading, but
+        // never extends or shortens an order's day. Checking the order's own session (rather than
+        // "is it after the close now") also expires orders whose close passed while the app was down.
+        OffsetDateTime acceptedAt = order.getAcceptedAt() != null ? order.getAcceptedAt() : order.getSubmittedAt();
+        if (acceptedAt == null) {
+            return false;
+        }
+        OffsetDateTime sessionClose = marketHoursService.firstCloseAfter(order.getInstrument().getMarket(), acceptedAt);
+        if (sessionClose == null || OffsetDateTime.now().isBefore(sessionClose)) {
             return false;
         }
 

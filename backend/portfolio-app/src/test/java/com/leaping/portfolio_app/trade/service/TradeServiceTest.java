@@ -30,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
@@ -43,6 +44,7 @@ import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.entity.Price;
 import com.leaping.portfolio_app.market.enums.PriceSourceType;
+import com.leaping.portfolio_app.market.service.PreTradeMarketService;
 import com.leaping.portfolio_app.market.service.PricingService;
 import com.leaping.portfolio_app.holdings.Holding;
 import com.leaping.portfolio_app.holdings.HoldingRepository;
@@ -95,6 +97,9 @@ class TradeServiceTest {
     @Mock
     private EntityManager entityManager;
 
+    @Mock
+    private PreTradeMarketService preTradeMarketService;
+
     @InjectMocks
     private TradeService tradeService;
 
@@ -103,6 +108,9 @@ class TradeServiceTest {
 
     @BeforeEach
     void setUp() {
+        // The tradability gate is covered by MarketOverrideIntegrationTest
+        ReflectionTestUtils.setField(tradeService, "enforceTradability", false);
+
         portfolio = new Portfolio();
         portfolio.setPortfolioId(1L);
         portfolio.setCashBalanceUsd(new BigDecimal("1000.00"));

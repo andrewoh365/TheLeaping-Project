@@ -41,6 +41,9 @@ class TradeServiceAtomicityIntegrationTest {
         registry.add("spring.flyway.url", postgres::getJdbcUrl);
         registry.add("spring.flyway.user", postgres::getUsername);
         registry.add("spring.flyway.password", postgres::getPassword);
+        // This test is about settlement rolling back, so it must reach settlement whatever the
+        // time of day; market hours and price freshness are covered by MarketOverrideIntegrationTest
+        registry.add("trading.enforce-tradability", () -> "false");
     }
 
     @Autowired

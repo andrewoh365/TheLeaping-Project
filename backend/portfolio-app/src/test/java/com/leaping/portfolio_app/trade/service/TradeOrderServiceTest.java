@@ -43,7 +43,6 @@ import com.leaping.portfolio_app.market.entity.Market;
 import com.leaping.portfolio_app.market.enums.TradabilityReason;
 import com.leaping.portfolio_app.market.service.PreTradeMarketService;
 import com.leaping.portfolio_app.market.service.MarketHoursService;
-import com.leaping.portfolio_app.market.service.MarketStatus;
 import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.service.MarketPriceService;
@@ -165,13 +164,12 @@ class TradeOrderServiceTest {
         order.setTimeInForce(TimeInForce.DAY);
         order.setOrderAction(OrderAction.BUY);
         order.setQuantity(BigDecimal.ONE);
+        order.setAcceptedAt(OffsetDateTime.now().minusHours(3));
 
         when(tradeOrderRepository.findById(700L)).thenReturn(Optional.of(order));
-        when(marketHoursService.getMarketStatus(market)).thenReturn(new MarketStatus(
-            "NASDAQ", "America/New_York",
-            OffsetDateTime.parse("2026-10-20T17:00:00-04:00"),
-            false, false, null, null
-        ));
+        // Its session closed an hour ago
+        when(marketHoursService.firstCloseAfter(market, order.getAcceptedAt()))
+            .thenReturn(OffsetDateTime.now().minusHours(1));
         when(tradeOrderRepository.save(order)).thenReturn(order);
 
         assertTrue(tradeOrderService.expireDayOrder(700L));
