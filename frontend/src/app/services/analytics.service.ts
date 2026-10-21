@@ -1,3 +1,4 @@
+
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
@@ -14,7 +15,8 @@ export type OrderStatus =
   | 'ACCEPTED'
   | 'FILLED'
   | 'REJECTED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'EXPIRED';
 
 export type ClientSegment =
   | 'INACTIVE'
@@ -115,8 +117,7 @@ export interface DashboardResponse {
 })
 export class AnalyticsService {
 
-  private readonly API_URL =
-  '/api/analytics';
+  private readonly API_URL = '/api/analytics';
 
   constructor(private http: HttpClient) {}
 

@@ -1,3 +1,4 @@
+
 package com.leaping.portfolio_app.analytics.controller;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -8,9 +9,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.leaping.portfolio_app.PortfolioAppApplication;
-import com.leaping.portfolio_app.auth.service.SessionService;
 import com.leaping.portfolio_app.analytics.service.AnalyticsService;
 import com.leaping.portfolio_app.auth.security.SecurityConfig;
+import com.leaping.portfolio_app.auth.service.SessionService;
 import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -51,10 +52,10 @@ class AnalyticsControllerSecurityTest {
         when(sessionService.isAccessTokenActive(token)).thenReturn(true);
         when(jwtTokenProvider.getEmailFromToken(token)).thenReturn(email);
         when(userDetailsService.loadUserByUsername(email)).thenReturn(
-            User.withUsername(email)
-                .password("unused")
-                .roles("ANALYST")
-                .build()
+                User.withUsername(email)
+                        .password("unused")
+                        .roles("ANALYST")
+                        .build()
         );
 
         when(analyticsService.getDashboard(
@@ -67,27 +68,27 @@ class AnalyticsControllerSecurityTest {
                 eq("FREQUENT")
         )).thenReturn("{}");
 
-            mockMvc.perform(get("/api/analytics/dashboard")
-                    .header("Authorization", "Bearer " + token)
-                    .param("client_segment", "FREQUENT"))
+        mockMvc.perform(get("/api/analytics/dashboard")
+                        .header("Authorization", "Bearer " + token)
+                        .param("client_segment", "FREQUENT"))
                 .andExpect(status().isOk());
     }
 
-            @Test
-            void adminCanAccessDashboardWithClientSegment() throws Exception {
-            String token = "admin-token";
-            String email = "admin@example.com";
+    @Test
+    void adminCanAccessDashboardWithClientSegment() throws Exception {
+        String token = "admin-token";
+        String email = "admin@example.com";
 
-            when(sessionService.isAccessTokenActive(token)).thenReturn(true);
-            when(jwtTokenProvider.getEmailFromToken(token)).thenReturn(email);
-            when(userDetailsService.loadUserByUsername(email)).thenReturn(
+        when(sessionService.isAccessTokenActive(token)).thenReturn(true);
+        when(jwtTokenProvider.getEmailFromToken(token)).thenReturn(email);
+        when(userDetailsService.loadUserByUsername(email)).thenReturn(
                 User.withUsername(email)
-                    .password("unused")
-                    .roles("ADMIN")
-                    .build()
-            );
+                        .password("unused")
+                        .roles("ADMIN")
+                        .build()
+        );
 
-            when(analyticsService.getDashboard(
+        when(analyticsService.getDashboard(
                 isNull(LocalDate.class),
                 isNull(LocalDate.class),
                 isNull(String.class),
@@ -95,30 +96,30 @@ class AnalyticsControllerSecurityTest {
                 isNull(Long.class),
                 isNull(String.class),
                 eq("FREQUENT")
-            )).thenReturn("{}");
+        )).thenReturn("{}");
 
-            mockMvc.perform(get("/api/analytics/dashboard")
-                    .header("Authorization", "Bearer " + token)
-                    .param("client_segment", "FREQUENT"))
+        mockMvc.perform(get("/api/analytics/dashboard")
+                        .header("Authorization", "Bearer " + token)
+                        .param("client_segment", "FREQUENT"))
                 .andExpect(status().isOk());
-            }
+    }
 
     @Test
     void customerCannotAccessDashboard() throws Exception {
-            String token = "customer-token";
-            String email = "customer@example.com";
+        String token = "customer-token";
+        String email = "customer@example.com";
 
-            when(sessionService.isAccessTokenActive(token)).thenReturn(true);
-            when(jwtTokenProvider.getEmailFromToken(token)).thenReturn(email);
-            when(userDetailsService.loadUserByUsername(email)).thenReturn(
+        when(sessionService.isAccessTokenActive(token)).thenReturn(true);
+        when(jwtTokenProvider.getEmailFromToken(token)).thenReturn(email);
+        when(userDetailsService.loadUserByUsername(email)).thenReturn(
                 User.withUsername(email)
-                    .password("unused")
-                    .roles("CUSTOMER")
-                    .build()
-            );
+                        .password("unused")
+                        .roles("CUSTOMER")
+                        .build()
+        );
 
         mockMvc.perform(get("/api/analytics/dashboard")
-                    .header("Authorization", "Bearer " + token)
+                        .header("Authorization", "Bearer " + token)
                         .param("client_segment", "FREQUENT"))
                 .andExpect(status().isForbidden());
 

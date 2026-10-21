@@ -17,6 +17,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Generated;
+import org.hibernate.annotations.Immutable;
+import org.hibernate.generator.EventType;
 import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
@@ -24,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Entity
+@Immutable
 @Table(name = "audit_events")
 public class AuditEvent {
 
@@ -68,6 +72,7 @@ public class AuditEvent {
     private Map<String, Object> eventDetails =
             new HashMap<>();
 
+    @Generated(event = EventType.INSERT)
     @Column(
         name = "occurred_at",
         nullable = false,

@@ -1,3 +1,4 @@
+
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
@@ -25,7 +26,7 @@ _CLIENT_SEGMENT_SQL = """
     LEFT JOIN trade_orders segment_orders
         ON segment_orders.portfolio_id = p.portfolio_id
         AND segment_orders.submitted_at >= :segment_start
-        AND segment_orders.submitted_at < (:segment_end + INTERVAL '1 day')
+        AND segment_orders.submitted_at < :segment_end
     GROUP BY p.portfolio_id
 """
 
@@ -78,6 +79,7 @@ def _period_expression(
 def _build_filters(
     filters: DashboardFilters,
     timestamp_column: str,
+    include_order_status: bool = True,
     include_client_segment: bool = True,
 ) -> Tuple[str, Dict[str, object]]:
     clauses = ["1 = 1"]
@@ -88,9 +90,7 @@ def _build_filters(
         params["date_from"] = _utc_midnight(filters.date_from)
 
     if filters.date_to is not None:
-        clauses.append(
-            f"{timestamp_column} < :date_to"
-        )
+        clauses.append(f"{timestamp_column} < :date_to")
         params["date_to"] = _utc_midnight(
             filters.date_to + timedelta(days=1)
         )
@@ -107,7 +107,7 @@ def _build_filters(
         clauses.append("m.market_name = :market")
         params["market"] = filters.market
 
-    if filters.order_status is not None:
+    if include_order_status and filters.order_status is not None:
         clauses.append("o.order_status = :order_status")
         params["order_status"] = filters.order_status.value
 
@@ -305,11 +305,13 @@ def get_client_segment_breakdown(
     order_where_clause, order_params = _build_filters(
         filters,
         timestamp_column="o.submitted_at",
+        include_order_status=True,
         include_client_segment=False,
     )
     volume_where_clause, volume_params = _build_filters(
         filters,
         timestamp_column="t.executed_at",
+        include_order_status=True,
         include_client_segment=False,
     )
 

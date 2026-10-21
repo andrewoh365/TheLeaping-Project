@@ -1,34 +1,31 @@
+
 package com.leaping.portfolio_app.watchlist.security;
 
 import com.leaping.portfolio_app.auth.security.SecurityConfig;
 import com.leaping.portfolio_app.auth.service.SessionService;
 import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
-
 import com.leaping.portfolio_app.watchlist.controller.WatchlistController;
-import com.leaping.portfolio_app.watchlist.service.WatchlistService;
 import com.leaping.portfolio_app.watchlist.dto.CreateWatchlistRequest;
 import com.leaping.portfolio_app.watchlist.dto.WatchlistResponse;
+import com.leaping.portfolio_app.watchlist.service.WatchlistService;
 
 import org.junit.jupiter.api.Test;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -48,8 +45,8 @@ class WatchlistSecurityTest {
     @MockitoBean
     private UserDetailsService userDetailsService;
 
-        @MockitoBean
-        private SessionService sessionService;
+    @MockitoBean
+    private SessionService sessionService;
 
     // TEST 1: REQUEST WITHOUT AUTHENTICATION
     @Test
@@ -119,6 +116,7 @@ class WatchlistSecurityTest {
                 .header("Authorization", "Bearer " + token));
 
         // DIAGNOSTIC: Verify each authentication step happened
+
         // Step 1: Was the access session active?
         verify(sessionService).isAccessTokenActive(token);
 
@@ -177,10 +175,10 @@ class WatchlistSecurityTest {
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                                {
-                                    "watchlistName": "Tech Stocks"
-                                }
-                                """))
+                        {
+                            "watchlistName": "Tech Stocks"
+                        }
+                        """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.watchlistId").value(10))
                 .andExpect(jsonPath("$.watchlistName")
@@ -193,7 +191,8 @@ class WatchlistSecurityTest {
     }
 
     @Test
-    void getWatchlists_shouldRejectTokenWhenUserNoLongerExists() throws Exception {
+    void getWatchlists_shouldRejectTokenWhenUserNoLongerExists()
+            throws Exception {
 
         String token = "valid-token";
         String email = "deleted@example.com";
@@ -205,7 +204,9 @@ class WatchlistSecurityTest {
                 .thenReturn(email);
 
         when(userDetailsService.loadUserByUsername(email))
-                .thenThrow(new UsernameNotFoundException("User not found"));
+                .thenThrow(
+                        new UsernameNotFoundException("User not found")
+                );
 
         mockMvc.perform(get("/api/watchlists")
                 .header("Authorization", "Bearer " + token))
@@ -217,7 +218,8 @@ class WatchlistSecurityTest {
     }
 
     @Test
-    void getWatchlists_shouldRejectTokenWithoutBearerPrefix() throws Exception {
+    void getWatchlists_shouldRejectTokenWithoutBearerPrefix()
+            throws Exception {
 
         mockMvc.perform(get("/api/watchlists")
                 .header("Authorization", "valid-token"))

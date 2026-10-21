@@ -1,14 +1,9 @@
-import { Injectable } from '@angular/core';
-import {
-  HttpClient,
-  HttpParams
-} from '@angular/common/http';
+import { Injectable } from "@angular/core";
+import { HttpClient, HttpParams } from "@angular/common/http";
 
-import { Observable } from 'rxjs';
+import { Observable } from "rxjs";
 
-export type ClientStatus =
-  | 'ACTIVE'
-  | 'INACTIVE';
+export type ClientStatus = "ACTIVE" | "INACTIVE";
 
 export interface AdminClientSummary {
   clientId: number;
@@ -81,7 +76,7 @@ export interface AdminHoldingPage {
 
 export interface AdminClientFilters {
   search?: string;
-  status?: ClientStatus | '';
+  status?: ClientStatus | "";
 }
 
 export interface AdminOrderLookup {
@@ -147,127 +142,142 @@ export interface AdminOrderFilters {
   status?: string;
 }
 
+// Audit data returned by the admin audit endpoints.
+export interface AdminAuditEvent {
+  auditEventId: number;
+  eventType: string;
+  occurredAt: string | null;
+  userId: number | null;
+  orderId: number | null;
+  executionAttemptId: number | null;
+  tradeId: number | null;
+  cashTransactionId: number | null;
+  eventDetails: Record<string, unknown>;
+}
+
+// Spring Data Page response, used by the client Activity timeline.
+export interface AdminPage<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+  first?: boolean;
+  last?: boolean;
+}
+
 @Injectable({
-  providedIn: 'root'
+  providedIn: "root",
 })
 export class AdminService {
+  private readonly API_URL = "/api/admin";
 
-  private readonly API_URL =
-    '/api/admin';
-
-  constructor(
-    private http: HttpClient
-  ) {}
+  constructor(private http: HttpClient) {}
 
   getClients(
     filters: AdminClientFilters = {},
     page = 0,
-    size = 100
+    size = 100,
   ): Observable<AdminClientPage> {
-
     let params = new HttpParams();
 
     if (filters.search?.trim()) {
-      params = params.set(
-        'search',
-        filters.search.trim()
-      );
+      params = params.set("search", filters.search.trim());
     }
 
     if (filters.status) {
-      params = params.set(
-        'status',
-        filters.status
-      );
+      params = params.set("status", filters.status);
     }
 
-    params = params.set('page', page);
-    params = params.set('size', size);
+    params = params.set("page", page);
+    params = params.set("size", size);
 
-    return this.http.get<AdminClientPage>(
-      `${this.API_URL}/clients`,
-      { params }
-    );
+    return this.http.get<AdminClientPage>(`${this.API_URL}/clients`, {
+      params,
+    });
   }
 
-  getClient(
-    clientId: number
-  ): Observable<AdminClientDetail> {
-
+  getClient(clientId: number): Observable<AdminClientDetail> {
     return this.http.get<AdminClientDetail>(
-      `${this.API_URL}/clients/${clientId}`
+      `${this.API_URL}/clients/${clientId}`,
     );
   }
 
   getClientHoldings(
     clientId: number,
     page = 0,
-    size = 100
+    size = 100,
   ): Observable<AdminHoldingPage> {
-
-    let params = new HttpParams()
-      .set('page', page)
-      .set('size', size);
+    const params = new HttpParams().set("page", page).set("size", size);
 
     return this.http.get<AdminHoldingPage>(
       `${this.API_URL}/clients/${clientId}/holdings`,
-      { params }
+      { params },
     );
   }
 
   getOrders(
     filters: AdminOrderFilters = {},
     page = 0,
-    size = 100
+    size = 100,
   ): Observable<AdminOrderPage> {
-
     let params = new HttpParams();
 
     if (filters.search?.trim()) {
-      params = params.set(
-        'search',
-        filters.search.trim()
-      );
+      params = params.set("search", filters.search.trim());
     }
 
     if (filters.status) {
-      params = params.set(
-        'status',
-        filters.status
-      );
+      params = params.set("status", filters.status);
     }
 
-    params = params.set('page', page);
-    params = params.set('size', size);
+    params = params.set("page", page);
+    params = params.set("size", size);
 
-    return this.http.get<AdminOrderPage>(
-      `${this.API_URL}/orders`,
-      { params }
-    );
+    return this.http.get<AdminOrderPage>(`${this.API_URL}/orders`, { params });
   }
 
   getClientOrders(
     clientId: number,
     page = 0,
-    size = 100
+    size = 100,
   ): Observable<AdminOrderPage> {
-
-    const params = new HttpParams()
-      .set('page', page)
-      .set('size', size);
+    const params = new HttpParams().set("page", page).set("size", size);
 
     return this.http.get<AdminOrderPage>(
       `${this.API_URL}/clients/${clientId}/orders`,
-      { params }
+      { params },
     );
   }
 
-  getOrder(
-    orderId: number
-  ): Observable<AdminOrderDetail> {
+  getOrder(orderId: number): Observable<AdminOrderDetail> {
+    return this.http.get<AdminOrderDetail>(`${this.API_URL}/orders/${orderId}`);
+  }
 
-    return this.http.get<AdminOrderDetail>(
-      `${this.API_URL}/orders/${orderId}`
+  getClientActivity(
+    clientId: number,
+    page = 0,
+    size = 10,
+  ): Observable<AdminPage<AdminAuditEvent>> {
+    const params = new HttpParams().set("page", page).set("size", size);
+
+    return this.http.get<AdminPage<AdminAuditEvent>>(
+      `${this.API_URL}/clients/${clientId}/activity`,
+      { params },
+    );
+  }
+
+  /** One page of an order's audit trail, oldest event first. */
+  getOrderAudit(
+    orderId: number,
+    page = 0,
+    size = 100,
+  ): Observable<AdminPage<AdminAuditEvent>> {
+    const params = new HttpParams().set("page", page).set("size", size);
+
+    return this.http.get<AdminPage<AdminAuditEvent>>(
+      `${this.API_URL}/orders/${orderId}/audit`,
+      { params },
     );
   }
 }

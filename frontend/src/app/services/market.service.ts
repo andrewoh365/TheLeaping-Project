@@ -12,6 +12,12 @@ export interface MarketStatusResponse {
   nextClose: string | null;
 }
 
+/** Testing switch that holds every market open (local development only). */
+export interface MarketOverrideStatus {
+  allowed: boolean;
+  enabled: boolean;
+}
+
 export interface NewsItem {
   title: string;
   source: string | null;
@@ -64,6 +70,14 @@ export class MarketService {
 
   getMarketStatus(marketName: string): Observable<MarketStatusResponse> {
     return this.http.get<MarketStatusResponse>(`${this.apiUrl}/exchanges/${marketName}/status`);
+  }
+
+  getMarketOverride(): Observable<MarketOverrideStatus> {
+    return this.http.get<MarketOverrideStatus>(`${this.apiUrl}/override`);
+  }
+
+  setMarketOverride(enabled: boolean): Observable<MarketOverrideStatus> {
+    return this.http.put<MarketOverrideStatus>(`${this.apiUrl}/override`, { enabled });
   }
 
   getPriceHistory(symbol: string, from: string, to: string): Observable<PricePointResponse[]> {

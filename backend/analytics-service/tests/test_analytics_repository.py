@@ -1,3 +1,4 @@
+
 from datetime import date, datetime, timezone
 
 import app.repositories.analytics_repository as repository
@@ -215,6 +216,7 @@ def test_client_segment_breakdown_uses_unfiltered_segments_and_report_filters(
         date_from=date(2026, 9, 1),
         date_to=date(2026, 9, 30),
         instrument_id=15,
+        order_status=OrderStatus.FILLED,
         client_segment=ClientSegment.REGULAR,
     )
 
@@ -224,6 +226,7 @@ def test_client_segment_breakdown_uses_unfiltered_segments_and_report_filters(
     params = engine.connection.params
 
     assert "LEFT JOIN trade_orders segment_orders" in query
+    assert "segment_orders.submitted_at < :segment_end" in query
     assert "COUNT(DISTINCT p.customer_id) AS active_clients" in query
     assert "COUNT(o.order_id) AS order_count" in query
     assert "SUM(t.total_usd_value)" in query
@@ -236,8 +239,11 @@ def test_client_segment_breakdown_uses_unfiltered_segments_and_report_filters(
     assert "COALESCE(segment_populations.total_clients, 0)" in query
     assert "COALESCE(order_metrics.order_count, 0)" in query
     assert "COALESCE(volume_metrics.trading_volume_usd, 0)" in query
+
     assert "o.instrument_id = :instrument_id" in query
+    assert query.count("o.order_status = :order_status") == 2
     assert "segment_orders.instrument_id" not in query
+    assert "segment_orders.order_status" not in query
     assert "client_segments.client_segment = :client_segment" not in query
     assert "segment_values.segment = :client_segment" in query
 
@@ -278,6 +284,7 @@ def test_client_segment_breakdown_uses_unfiltered_segments_and_report_filters(
         tzinfo=UTC,
     )
     assert params["instrument_id"] == 15
+    assert params["order_status"] == "FILLED"
     assert params["client_segment"] == "REGULAR"
 
 

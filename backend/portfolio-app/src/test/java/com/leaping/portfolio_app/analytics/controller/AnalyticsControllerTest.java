@@ -1,3 +1,4 @@
+
 package com.leaping.portfolio_app.analytics.controller;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -17,9 +18,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.http.HttpStatus;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -156,13 +157,13 @@ class AnalyticsControllerTest {
         verifyNoInteractions(analyticsService);
     }
 
-        @Test
-        void getDashboard_rejectsReversedDateRange() throws Exception {
-                mockMvc.perform(get("/api/analytics/dashboard")
-                                                .param("date_from", "2026-10-10")
-                                                .param("date_to", "2026-10-01"))
-                                .andExpect(status().isUnprocessableEntity());
+    @Test
+    void getDashboard_rejectsReversedDateRange() throws Exception {
+        mockMvc.perform(get("/api/analytics/dashboard")
+                        .param("date_from", "2026-10-10")
+                        .param("date_to", "2026-10-01"))
+                .andExpect(status().isUnprocessableEntity());
 
-                verifyNoInteractions(analyticsService);
-        }
+        verifyNoInteractions(analyticsService);
+    }
 }

@@ -17,6 +17,14 @@ class OrderStatus(str, Enum):
     FILLED = "FILLED"
     REJECTED = "REJECTED"
     CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
+
+
+class ClientSegment(str, Enum):
+    INACTIVE = "INACTIVE"
+    OCCASIONAL = "OCCASIONAL"
+    REGULAR = "REGULAR"
+    FREQUENT = "FREQUENT"
 
 
 class ClientSegment(str, Enum):

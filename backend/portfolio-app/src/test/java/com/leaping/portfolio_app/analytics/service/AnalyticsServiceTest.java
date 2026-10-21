@@ -1,3 +1,4 @@
+
 package com.leaping.portfolio_app.analytics.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -5,8 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,8 +27,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @ExtendWith(MockitoExtension.class)
 class AnalyticsServiceTest {
@@ -56,7 +55,8 @@ class AnalyticsServiceTest {
         lenient().doReturn(request).when(restClient).get();
         lenient().doReturn(request).when(request)
                 .header(anyString(), anyString());
-        lenient().doReturn(request).when(request).uri(any(URI.class));
+        lenient().doReturn(request).when(request)
+                .uri(any(URI.class));
         lenient().when(request.retrieve()).thenReturn(response);
         lenient().when(response.body(String.class)).thenReturn("{}");
     }
@@ -76,10 +76,12 @@ class AnalyticsServiceTest {
         MultiValueMap<String, String> query = capturedQuery();
 
         assertEquals("{}", result);
+
         verify(request).header(
                 "X-Analytics-Internal-Token",
                 "test-internal-token"
         );
+
         assertEquals(
                 List.of("2026-09-01"),
                 query.get("date_from")
@@ -88,8 +90,14 @@ class AnalyticsServiceTest {
                 List.of("2026-09-30"),
                 query.get("date_to")
         );
-        assertEquals(List.of("STOCK"), query.get("asset_type"));
-        assertEquals(List.of("NASDAQ"), query.get("market"));
+        assertEquals(
+                List.of("STOCK"),
+                query.get("asset_type")
+        );
+        assertEquals(
+                List.of("NASDAQ"),
+                query.get("market")
+        );
         assertEquals(
                 List.of("15"),
                 query.get("instrument_id")
@@ -161,7 +169,11 @@ class AnalyticsServiceTest {
                 )
         );
 
-        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+        assertEquals(
+                HttpStatus.NOT_FOUND,
+                exception.getStatusCode()
+        );
+
         assertTrue(
                 exception.getReason().contains(
                         "Instrument 999 was not found"
@@ -200,6 +212,7 @@ class AnalyticsServiceTest {
                 HttpStatus.UNPROCESSABLE_ENTITY,
                 exception.getStatusCode()
         );
+
         assertTrue(
                 exception.getReason().contains(
                         "Invalid dashboard filter"
@@ -230,6 +243,7 @@ class AnalyticsServiceTest {
                 HttpStatus.SERVICE_UNAVAILABLE,
                 exception.getStatusCode()
         );
+
         assertEquals(
                 "Analytics reporting is temporarily unavailable",
                 exception.getReason()

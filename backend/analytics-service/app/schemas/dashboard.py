@@ -1,3 +1,4 @@
+
 from datetime import date
 from enum import Enum
 from typing import List, Literal, Optional
@@ -87,5 +88,5 @@ class DashboardResponse(BaseModel):
     client_activity_trend: ClientActivityTrend
     top_rejection_reasons: List[RejectionReason]
     client_segment_breakdown: List[ClientSegmentBreakdown]
-    selected_instrument: Optional[SelectedInstrument] = None
     reporting_period: ReportingPeriod
+    selected_instrument: Optional[SelectedInstrument] = None

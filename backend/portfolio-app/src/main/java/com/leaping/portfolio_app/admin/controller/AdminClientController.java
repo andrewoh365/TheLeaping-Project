@@ -1,12 +1,16 @@
+
 package com.leaping.portfolio_app.admin.controller;
 
 import com.leaping.portfolio_app.admin.dto.AdminClientDetailResponse;
 import com.leaping.portfolio_app.admin.dto.AdminClientPageResponse;
 import com.leaping.portfolio_app.admin.dto.AdminHoldingPageResponse;
 import com.leaping.portfolio_app.admin.dto.AdminOrderPageResponse;
+import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
+
 import com.leaping.portfolio_app.admin.service.AdminClientService;
 import com.leaping.portfolio_app.admin.service.AdminTradeLookupService;
 
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 
@@ -20,22 +24,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/clients")
 public class AdminClientController {
 
-        private final AdminClientService adminClientService;
-        private final AdminTradeLookupService adminTradeLookupService;
+    private final AdminClientService adminClientService;
+    private final AdminTradeLookupService adminTradeLookupService;
 
     public AdminClientController(
-                        AdminClientService adminClientService,
-                        AdminTradeLookupService adminTradeLookupService
+            AdminClientService adminClientService,
+            AdminTradeLookupService adminTradeLookupService
     ) {
         this.adminClientService = adminClientService;
-                this.adminTradeLookupService = adminTradeLookupService;
+        this.adminTradeLookupService = adminTradeLookupService;
     }
 
-        // GET A PAGE OF CLIENTS
-    // Optional filters:
-    // /api/admin/clients?search=ava
-    // /api/admin/clients?status=ACTIVE
-
+    // GET A PAGE OF CLIENTS
+    // Optional search, status, page, and size parameters.
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AdminClientPageResponse> getClients(
@@ -44,7 +45,6 @@ public class AdminClientController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "100") int size
     ) {
-
         AdminClientPageResponse response =
                 adminClientService.getClients(
                         search,
@@ -56,18 +56,19 @@ public class AdminClientController {
         return ResponseEntity.ok(response);
     }
 
+    // GET CLIENT DETAILS
     @GetMapping("/{clientId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AdminClientDetailResponse> getClient(
             @PathVariable Long clientId
     ) {
-
         AdminClientDetailResponse response =
                 adminClientService.getClient(clientId);
 
         return ResponseEntity.ok(response);
     }
 
+    // GET A PAGE OF CLIENT HOLDINGS
     @GetMapping("/{clientId}/holdings")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AdminHoldingPageResponse> getClientHoldings(
@@ -85,7 +86,8 @@ public class AdminClientController {
         return ResponseEntity.ok(response);
     }
 
-        @GetMapping("/{clientId}/orders")
+    // GET A PAGE OF CLIENT ORDERS
+    @GetMapping("/{clientId}/orders")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AdminOrderPageResponse> getClientOrders(
             @PathVariable Long clientId,
@@ -100,5 +102,22 @@ public class AdminClientController {
                 );
 
         return ResponseEntity.ok(response);
+    }
+
+    // GET CLIENT AUDIT ACTIVITY
+    @GetMapping("/{clientId}/activity")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<AuditEventResponse>> getClientActivity(
+            @PathVariable Long clientId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size
+    ) {
+        return ResponseEntity.ok(
+                adminClientService.getClientActivity(
+                        clientId,
+                        page,
+                        size
+                )
+        );
     }
 }

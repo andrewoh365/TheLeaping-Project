@@ -1,13 +1,15 @@
+
 package com.leaping.portfolio_app.analytics.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDate;
 
@@ -92,31 +94,34 @@ public class AnalyticsService {
 
         try {
             return restClient
-                .get()
-                .uri(uriBuilder.build().toUri())
-                .header(
-                    "X-Analytics-Internal-Token",
-                    analyticsInternalToken
-                )
-                .retrieve()
-                .body(String.class);
+                    .get()
+                    .uri(uriBuilder.build().toUri())
+                    .header(
+                            "X-Analytics-Internal-Token",
+                            analyticsInternalToken
+                    )
+                    .retrieve()
+                    .body(String.class);
+
         } catch (RestClientResponseException exception) {
             String responseBody = exception.getResponseBodyAsString();
+
             String reason = responseBody == null || responseBody.isBlank()
-                ? exception.getStatusText()
-                : responseBody;
+                    ? exception.getStatusText()
+                    : responseBody;
 
             throw new ResponseStatusException(
-                exception.getStatusCode(),
-                reason,
-                exception
+                    exception.getStatusCode(),
+                    reason,
+                    exception
             );
-            } catch (RestClientException exception) {
-                throw new ResponseStatusException(
-                    org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
                     "Analytics reporting is temporarily unavailable",
                     exception
-                );
+            );
         }
     }
 }

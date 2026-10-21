@@ -160,7 +160,8 @@ def test_health_endpoint():
         "status": "healthy",
         "service": "analytics",
     }
-    
+
+
 def test_ready_endpoint_when_database_is_available(monkeypatch):
     monkeypatch.setattr(
         main_api,

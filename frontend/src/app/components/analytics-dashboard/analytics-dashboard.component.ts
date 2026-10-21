@@ -282,7 +282,6 @@ export class AnalyticsDashboardComponent
 
     private setupDashboardRequests(): void {
         this.dashboardRequests$
-            .pipe(takeUntil(this.destroy$))
             .pipe(
                 switchMap(filters => {
                     if (filters === null) {
@@ -302,7 +301,8 @@ export class AnalyticsDashboardComponent
                                 return EMPTY;
                             })
                         );
-                })
+                }),
+                takeUntil(this.destroy$)
             )
             .subscribe(response => {
                 this.dashboard = response;

@@ -55,7 +55,16 @@ class MarketIngestionLockOrderTest {
 
     @Test
     @Timeout(180)
-    void startupBackfillCompletesWhileTheSchedulerIsTicking() {
+    void startupBackfillCompletesWhileTheSchedulerIsTicking() throws InterruptedException {
+        // Startup backfill and the first scheduler tick are asynchronous; poll briefly
+        // so the assertion checks readiness rather than immediate startup timing.
+        long deadline = System.currentTimeMillis() + 10_000L;
+        while (System.currentTimeMillis() < deadline) {
+            if (priceRepository.count() > 0) {
+                return;
+            }
+            Thread.sleep(50);
+        }
         assertTrue(priceRepository.count() > 0);
     }
 
