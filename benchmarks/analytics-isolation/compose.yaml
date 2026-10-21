@@ -1,0 +1,152 @@
+services:
+  primary:
+    build: ../../infrastructure/postgres/primary
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=2
+      - -c
+      - max_slot_wal_keep_size=512MB
+      - -c
+      - max_connections=80
+    environment:
+      POSTGRES_DB: leaping_db
+      POSTGRES_USER: ${BENCHMARK_DB_USERNAME:?BENCHMARK_DB_USERNAME is required}
+      POSTGRES_PASSWORD: ${BENCHMARK_DB_PASSWORD:?BENCHMARK_DB_PASSWORD is required}
+      REPLICATION_NETWORK_CIDR: 172.31.0.0/24
+      REPLICATION_USER: ${BENCHMARK_REPLICATION_USER:?BENCHMARK_REPLICATION_USER is required}
+    volumes:
+      - primary-data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    cpus: 0.50
+    mem_limit: 768m
+
+  replication-init:
+    image: postgres:16
+    entrypoint: ["bash", "/provision-primary.sh"]
+    environment:
+      PGHOST: primary
+      PGPORT: 5432
+      PGDATABASE: leaping_db
+      PGUSER: ${BENCHMARK_DB_USERNAME:?BENCHMARK_DB_USERNAME is required}
+      PGPASSWORD: ${BENCHMARK_DB_PASSWORD:?BENCHMARK_DB_PASSWORD is required}
+      REPLICATION_USER: ${BENCHMARK_REPLICATION_USER:?BENCHMARK_REPLICATION_USER is required}
+      REPLICATION_PASSWORD: ${BENCHMARK_REPLICATION_PASSWORD:?BENCHMARK_REPLICATION_PASSWORD is required}
+      REPORTING_DB_USERNAME: ${BENCHMARK_REPORTING_USER:?BENCHMARK_REPORTING_USER is required}
+      REPORTING_DB_PASSWORD: ${BENCHMARK_REPORTING_PASSWORD:?BENCHMARK_REPORTING_PASSWORD is required}
+      REPLICATION_SLOT: ${BENCHMARK_REPLICATION_SLOT:?BENCHMARK_REPLICATION_SLOT is required}
+    volumes:
+      - ../../infrastructure/postgres/provision-primary.sh:/provision-primary.sh:ro
+    networks:
+      - data
+    depends_on:
+      primary:
+        condition: service_healthy
+    cpus: 0.10
+    mem_limit: 128m
+
+  replica:
+    build: ../../infrastructure/postgres/replica
+    environment:
+      PRIMARY_HOST: primary
+      PRIMARY_PORT: 5432
+      PRIMARY_DB_NAME: leaping_db
+      REPLICATION_USER: ${BENCHMARK_REPLICATION_USER:?BENCHMARK_REPLICATION_USER is required}
+      REPLICATION_PASSWORD: ${BENCHMARK_REPLICATION_PASSWORD:?BENCHMARK_REPLICATION_PASSWORD is required}
+      REPLICATION_SLOT: ${BENCHMARK_REPLICATION_SLOT:?BENCHMARK_REPLICATION_SLOT is required}
+      REPORTING_DB_USERNAME: ${BENCHMARK_REPORTING_USER:?BENCHMARK_REPORTING_USER is required}
+      REPORTING_DB_PASSWORD: ${BENCHMARK_REPORTING_PASSWORD:?BENCHMARK_REPORTING_PASSWORD is required}
+    volumes:
+      - replica-data:/var/lib/postgresql/data
+    networks:
+      - data
+    depends_on:
+      replication-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          PGPASSWORD=$${REPORTING_DB_PASSWORD}
+          psql -U $${REPORTING_DB_USERNAME:-leap_reporting} -d leaping_db -Atqc
+          "SELECT pg_is_in_recovery()" | grep -qx t
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    cpus: 0.25
+    mem_limit: 512m
+
+  portfolio:
+    build: ../../backend/portfolio-app
+    environment:
+      DB_USERNAME: ${BENCHMARK_DB_USERNAME:?BENCHMARK_DB_USERNAME is required}
+      DB_PASSWORD: ${BENCHMARK_DB_PASSWORD:?BENCHMARK_DB_PASSWORD is required}
+      JWT_SECRET: ${BENCHMARK_JWT_SECRET:?BENCHMARK_JWT_SECRET is required}
+      ANALYTICS_INTERNAL_TOKEN: ${BENCHMARK_ANALYTICS_TOKEN:?BENCHMARK_ANALYTICS_TOKEN is required}
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://primary:5432/leaping_db
+      ANALYTICS_SERVICE_BASE_URL: http://analytics:8000
+      MARKET_SIMULATION_ENABLED: "false"
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "1"
+    ports:
+      - "127.0.0.1:${BENCHMARK_SPRING_PORT:-18080}:8080"
+    networks:
+      - data
+    depends_on:
+      primary:
+        condition: service_healthy
+    cpus: 0.50
+    mem_limit: 1024m
+
+  analytics:
+    build: ../../backend/analytics-service
+    environment:
+      ANALYTICS_DB_USERNAME: ${BENCHMARK_REPORTING_USER:?BENCHMARK_REPORTING_USER is required}
+      ANALYTICS_DB_PASSWORD: ${BENCHMARK_REPORTING_PASSWORD:?BENCHMARK_REPORTING_PASSWORD is required}
+      ANALYTICS_DB_HOST: replica
+      ANALYTICS_DB_PORT: 5432
+      ANALYTICS_DB_NAME: leaping_db
+      ANALYTICS_INTERNAL_TOKEN: ${BENCHMARK_ANALYTICS_TOKEN:?BENCHMARK_ANALYTICS_TOKEN is required}
+      ANALYTICS_DB_POOL_SIZE: "2"
+      ANALYTICS_DB_MAX_OVERFLOW: "0"
+      ANALYTICS_DB_POOL_TIMEOUT_SECONDS: "10"
+      ANALYTICS_DB_STATEMENT_TIMEOUT_MS: "30000"
+    ports:
+      - "127.0.0.1:${BENCHMARK_ANALYTICS_PORT:-18000}:8000"
+    networks:
+      - data
+    depends_on:
+      replica:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request; urllib.request.urlopen(
+          'http://127.0.0.1:8000/ready', timeout=2)"
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    cpus: 0.25
+    mem_limit: 512m
+
+volumes:
+  primary-data:
+  replica-data:
+
+networks:
+  data:
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24

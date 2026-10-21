@@ -4,6 +4,10 @@
 *.swp
 *.swo
 .run/
+# Disposable benchmark output
+benchmarks/analytics-isolation/results/
+__pycache__/
+*.pyc
 
 # Backend
 target/

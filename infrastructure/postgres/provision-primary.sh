@@ -123,26 +123,79 @@ SELECT format(
 )\gexec
 
 SELECT format(
-    'GRANT USAGE ON SCHEMA public TO %I',
-    :'reporting_user'
-)\gexec
+    'REVOKE %I FROM %I',
+    parent_role.rolname,
+    member_role.rolname
+)
+FROM pg_auth_members AS membership
+JOIN pg_roles AS parent_role
+    ON parent_role.oid = membership.roleid
+JOIN pg_roles AS member_role
+    ON member_role.oid = membership.member
+WHERE member_role.rolname = :'reporting_user'
+  AND parent_role.rolname <> 'pg_read_all_stats'
+\gexec
 
 SELECT format(
-    'GRANT SELECT ON TABLE %I TO %I',
-    table_name,
+    'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I '
+    'REVOKE ALL ON TABLES FROM %I',
+    grantor.rolname,
+    schema_name.nspname,
     :'reporting_user'
 )
-FROM (VALUES
-    ('portfolios'),
-    ('trade_orders'),
-    ('trades'),
-    ('instruments'),
-    ('markets')
-) AS analytics_tables(table_name)
-WHERE to_regclass('public.' || table_name) IS NOT NULL\gexec
+FROM pg_default_acl AS default_acl
+JOIN pg_roles AS grantor
+    ON grantor.oid = default_acl.defaclrole
+JOIN pg_namespace AS schema_name
+    ON schema_name.oid = default_acl.defaclnamespace
+WHERE default_acl.defaclobjtype = 'r'
+  AND EXISTS (
+      SELECT 1
+      FROM aclexplode(default_acl.defaclacl) AS privilege
+      WHERE privilege.grantee = (
+          SELECT oid
+          FROM pg_roles
+          WHERE rolname = :'reporting_user'
+      )
+  )
+\gexec
 
 SELECT format(
-    'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO %I',
+    'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I '
+    'REVOKE ALL ON TABLES FROM PUBLIC',
+    grantor.rolname,
+    schema_name.nspname
+)
+FROM pg_default_acl AS default_acl
+JOIN pg_roles AS grantor
+    ON grantor.oid = default_acl.defaclrole
+JOIN pg_namespace AS schema_name
+    ON schema_name.oid = default_acl.defaclnamespace
+WHERE default_acl.defaclobjtype = 'r'
+  AND EXISTS (
+      SELECT 1
+      FROM aclexplode(default_acl.defaclacl) AS privilege
+      WHERE privilege.grantee = 0
+  )
+\gexec
+
+SELECT format(
+    'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM %I',
+    :'reporting_user'
+)
+\gexec
+
+SELECT format(
+    'REVOKE ALL PRIVILEGES ON SCHEMA public FROM %I',
+    :'reporting_user'
+)
+\gexec
+
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM PUBLIC;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+
+SELECT format(
+    'GRANT USAGE ON SCHEMA public TO %I',
     :'reporting_user'
 )\gexec
 
@@ -155,6 +208,48 @@ WHERE NOT EXISTS (
     FROM pg_replication_slots
     WHERE slot_name = :'slot_name'
 )\gexec
+SQL
+
+required_reporting_tables_count() {
+    psql_query "
+        SELECT COUNT(*)
+        FROM (VALUES
+            ('portfolios'),
+            ('trade_orders'),
+            ('trades'),
+            ('instruments'),
+            ('markets')
+        ) AS analytics_tables(table_name)
+        WHERE to_regclass('public.' || table_name) IS NOT NULL
+    "
+}
+
+table_wait_attempts=0
+until [[ "$(required_reporting_tables_count)" == "5" ]]; do
+    if (( table_wait_attempts >= 120 )); then
+        echo "Required analytics tables were not created in time" >&2
+        exit 1
+    fi
+
+    table_wait_attempts=$((table_wait_attempts + 1))
+    sleep 1
+done
+
+psql -X -q -v ON_ERROR_STOP=1 \
+    -v reporting_user="${REPORTING_DB_USERNAME}" \
+    <<'SQL' >/dev/null
+SELECT format(
+    'GRANT SELECT ON TABLE %I TO %I',
+    table_name,
+    :'reporting_user'
+)
+FROM (VALUES
+    ('portfolios'),
+    ('trade_orders'),
+    ('trades'),
+    ('instruments'),
+    ('markets')
+) AS analytics_tables(table_name)\gexec
 SQL
 
 slot_type="$(psql_query \

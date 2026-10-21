@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.pool import NullPool
 
+import app.database.connection as database_connection
 import app.repositories.analytics_repository as repository
 from app.main import app
 from app.schemas.dashboard import TimeGrouping
@@ -20,6 +21,13 @@ from app.schemas.filters import (
 
 UTC = timezone.utc
 REPORTING_READER_PASSWORD = "reporting-reader-test-password"
+ANALYTICS_TABLES = (
+    "portfolios",
+    "trade_orders",
+    "trades",
+    "instruments",
+    "markets",
+)
 
 
 @pytest.fixture()
@@ -82,6 +90,11 @@ def postgres_engine(monkeypatch):
                 total_usd_value NUMERIC(30, 8) NOT NULL,
                 executed_at TIMESTAMPTZ NOT NULL
             );
+
+            CREATE TABLE users (
+                user_id BIGINT PRIMARY KEY,
+                email VARCHAR(255) NOT NULL
+            );
             """
         )
         connection.exec_driver_sql(
@@ -100,9 +113,18 @@ def postgres_engine(monkeypatch):
                 NOCREATEROLE NOREPLICATION
                 PASSWORD 'reporting-reader-test-password';
             ALTER ROLE leap_reporting SET default_transaction_read_only = on;
+            REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM PUBLIC;
+            REVOKE CREATE ON SCHEMA public FROM PUBLIC;
             GRANT CONNECT ON DATABASE analytics_test TO leap_reporting;
             GRANT USAGE ON SCHEMA public TO leap_reporting;
-            GRANT SELECT ON ALL TABLES IN SCHEMA public TO leap_reporting;
+            GRANT SELECT ON TABLE
+                portfolios,
+                trade_orders,
+                trades,
+                instruments,
+                markets
+                TO leap_reporting;
+            GRANT pg_read_all_stats TO leap_reporting;
             """
         )
 
@@ -119,6 +141,8 @@ def postgres_engine(monkeypatch):
                 DROP TABLE IF EXISTS instruments;
                 DROP TABLE IF EXISTS markets;
                 DROP TABLE IF EXISTS portfolios;
+                DROP TABLE IF EXISTS users;
+                DROP TABLE IF EXISTS future_application_table;
                 """
             )
         test_engine.dispose()
@@ -997,22 +1021,34 @@ def test_utc_boundaries_grouping_and_non_utc_session_timezone(
 
 def test_dashboard_http_endpoint_uses_real_postgresql_fixture(
     postgres_engine,
+    monkeypatch,
 ):
     _seed_boundary_data(postgres_engine)
 
-    response = TestClient(app).get(
-        "/analytics/dashboard",
-        headers={
-            "X-Analytics-Internal-Token": "test-analytics-internal-token"
-        },
-        params={
-            "date_from": "2026-07-03",
-            "date_to": "2026-09-30",
-            "instrument_id": "2",
-            "order_status": "REJECTED",
-            "client_segment": "REGULAR",
-        },
+    database_url = os.environ["ANALYTICS_TEST_DATABASE_URL"]
+    reader_url = make_url(database_url).set(
+        username="leap_reporting",
+        password=REPORTING_READER_PASSWORD,
     )
+    reader_engine = create_engine(reader_url, poolclass=NullPool)
+    monkeypatch.setattr(repository, "engine", reader_engine)
+
+    try:
+        response = TestClient(app).get(
+            "/analytics/dashboard",
+            headers={
+                "X-Analytics-Internal-Token": "test-analytics-internal-token"
+            },
+            params={
+                "date_from": "2026-07-03",
+                "date_to": "2026-09-30",
+                "instrument_id": "2",
+                "order_status": "REJECTED",
+                "client_segment": "REGULAR",
+            },
+        )
+    finally:
+        reader_engine.dispose()
 
     assert response.status_code == 200
     body = response.json()
@@ -1044,7 +1080,19 @@ def test_dashboard_http_endpoint_uses_real_postgresql_fixture(
     ]
 
 
-def test_reporting_reader_role_is_read_only(postgres_engine):
+def test_reporting_reader_role_is_scoped_and_read_only(
+    postgres_engine,
+    monkeypatch,
+):
+    with postgres_engine.begin() as connection:
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE future_application_table (
+                future_id BIGINT PRIMARY KEY
+            )
+            """
+        )
+
     with postgres_engine.begin() as connection:
         connection.execute(
             text(
@@ -1065,15 +1113,120 @@ def test_reporting_reader_role_is_read_only(postgres_engine):
     try:
         with reader_engine.connect() as connection:
             assert connection.execute(
-                text("SELECT COUNT(*) FROM markets")
-            ).scalar_one() == 1
+                text("SHOW default_transaction_read_only")
+            ).scalar_one() == "on"
 
-            with pytest.raises(Exception, match="read-only"):
+            for table_name in ANALYTICS_TABLES:
+                assert connection.execute(
+                    text(f"SELECT COUNT(*) FROM {table_name}")
+                ).scalar_one() >= 0
+
+                for privilege in ("INSERT", "UPDATE", "DELETE", "TRUNCATE"):
+                    assert connection.execute(
+                        text(
+                            "SELECT has_table_privilege "
+                            "('leap_reporting', :table_name, :privilege)"
+                        ),
+                        {
+                            "table_name": f"public.{table_name}",
+                            "privilege": privilege,
+                        },
+                    ).scalar_one() is False
+
+            with pytest.raises(Exception, match="permission denied"):
+                connection.execute(text("SELECT COUNT(*) FROM users"))
+            connection.rollback()
+
+            with pytest.raises(Exception, match="permission denied"):
+                connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM future_application_table"
+                    )
+                )
+            connection.rollback()
+
+            connection.execute(
+                text("SET SESSION default_transaction_read_only = off")
+            )
+            connection.commit()
+
+            with pytest.raises(Exception, match="permission denied"):
                 connection.execute(
                     text(
                         "INSERT INTO markets (market_id, market_name) "
-                        "VALUES (21, 'SHOULD-FAIL')"
+                        "VALUES (21, 'SHOULD_FAIL')"
                     )
                 )
+            connection.rollback()
+
+            with pytest.raises(Exception, match="permission denied"):
+                connection.execute(
+                    text(
+                        "CREATE TABLE reporting_should_fail "
+                        "(id BIGINT PRIMARY KEY)"
+                    )
+                )
+
+        with postgres_engine.connect() as connection:
+            role_attributes = connection.execute(
+                text(
+                    "SELECT rolcanlogin, rolinherit, rolsuper, "
+                    "rolcreatedb, rolcreaterole, rolreplication "
+                    "FROM pg_roles WHERE rolname = 'leap_reporting'"
+                )
+            ).one()
+            assert role_attributes == (
+                True,
+                True,
+                False,
+                False,
+                False,
+                False,
+            )
+
+            assert connection.execute(
+                text(
+                    "SELECT has_schema_privilege "
+                    "('leap_reporting', 'public', 'USAGE')"
+                )
+            ).scalar_one() is True
+            assert connection.execute(
+                text(
+                    "SELECT has_schema_privilege "
+                    "('leap_reporting', 'public', 'CREATE')"
+                )
+            ).scalar_one() is False
+            assert connection.execute(
+                text(
+                    "SELECT pg_has_role "
+                    "('leap_reporting', 'pg_read_all_stats', 'member')"
+                )
+            ).scalar_one() is True
+
+            for table_name in ANALYTICS_TABLES:
+                assert connection.execute(
+                    text(
+                        "SELECT has_table_privilege "
+                        "('leap_reporting', :table_name, 'SELECT')"
+                    ),
+                    {"table_name": f"public.{table_name}"},
+                ).scalar_one() is True
+
+            assert connection.execute(
+                text(
+                    "SELECT has_table_privilege "
+                    "('leap_reporting', 'public.users', 'SELECT')"
+                )
+            ).scalar_one() is False
+
+        monkeypatch.setattr(
+            database_connection,
+            "engine",
+            reader_engine,
+        )
+        status = database_connection.get_reporting_status()
+        assert status["in_recovery"] is False
+        assert status["receiver_status"] == "disconnected"
+        assert status["ready"] is False
     finally:
         reader_engine.dispose()

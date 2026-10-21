@@ -77,10 +77,14 @@ standby is maintained by PostgreSQL physical streaming replication.
 The primary creates the `leap_replication` role, the `leap_reporting` reader,
 and the physical slot `leap_reporting_slot`. The replication role has only
 `LOGIN` and `REPLICATION` privileges. The reporting role has `CONNECT`, schema
-`USAGE`, `SELECT` on the analytics tables, and `default_transaction_read_only`
-enabled; it has no create, superuser, or replication privileges. The default
-SELECT grant applies to tables created by the role that runs the provisioner,
-so new migration-owned tables should be reviewed explicitly.
+`USAGE`, SELECT only on `portfolios`, `trade_orders`, `trades`, `instruments`,
+and `markets`, and `default_transaction_read_only` enabled; it has no create,
+superuser, or replication privileges. Provisioning removes old direct,
+inherited, public, and default table privileges, and does not grant SELECT on
+future application tables. The role remains a member of
+`pg_read_all_stats` for standby monitoring; that predefined role exposes
+broader PostgreSQL statistics and may be separated into a dedicated monitoring
+account later.
 
 Replication is asynchronous. Analytics can be slightly behind live trading.
 The slot has `max_slot_wal_keep_size=2048MB`; if the standby remains offline
@@ -183,10 +187,14 @@ This runs the Spring suite against a disposable PostgreSQL database, the
 analytics suite, and an Angular production build. Focused checks can be run
 with `pytest` in `backend/analytics-service`, the focused analytics Maven test
 classes in `backend/portfolio-app`, and `npm run build` in `frontend`. No
-checked-in performance benchmark currently exists. A valid performance
-verification must use an isolated environment and record a no-analytics
-trading baseline plus concurrent analytics p50/p95 latency and primary CPU,
-memory, WAL, and transaction impact; it must not use the project primary.
+The isolated performance benchmark is checked in under
+`benchmarks/analytics-isolation/`. It records a no-analytics trading baseline
+and concurrent analytics p50/p95 latency, throughput, errors, connection
+usage, container CPU/memory, and WAL/replication state without using the
+project primary. Its safety gate blocked execution on the current 2-vCPU host
+because only about 2.2 GiB was available while the development stack was
+running; no performance result is claimed until it runs on a host with at
+least 3 GiB available memory.
 
 ## 🚀 Quick Start
 
