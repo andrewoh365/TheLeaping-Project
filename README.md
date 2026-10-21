@@ -81,10 +81,14 @@ and the physical slot `leap_reporting_slot`. The replication role has only
 and `markets`, and `default_transaction_read_only` enabled; it has no create,
 superuser, or replication privileges. Provisioning removes old direct,
 inherited, public, and default table privileges, and does not grant SELECT on
-future application tables. The role remains a member of
-`pg_read_all_stats` for standby monitoring; that predefined role exposes
-broader PostgreSQL statistics and may be separated into a dedicated monitoring
-account later.
+future application tables. The role remains a member of `pg_read_all_stats`
+so the reporting readiness check can inspect standby receiver and replay
+statistics. This is an explicit accepted security boundary:
+`pg_read_all_stats` exposes broader PostgreSQL statistics than the five
+reporting tables, but does not grant application-table SELECT, write, create,
+superuser, or replication privileges. A dedicated monitoring account is the
+follow-up design if those statistics must be removed from the reporting
+account.
 
 Replication is asynchronous. Analytics can be slightly behind live trading.
 The slot has `max_slot_wal_keep_size=2048MB`; if the standby remains offline
@@ -117,6 +121,15 @@ An existing primary container created before the loopback hardening may retain
 an older `0.0.0.0:5432` binding; inspect it with `docker port leap-postgres` and
 recreate only the container, retaining `leap-postgres-data`, during an approved
 maintenance window.
+
+The standby's replication `.pgpass` is created with mode `0600` under the
+container's ephemeral `/run/postgresql` filesystem and is recreated on every
+standby start. It is not stored in `postgres-replica-data`, so stopping the
+container removes the runtime credential from the reporting volume and its
+backups. Restart the standby after rotating `REPLICATION_PASSWORD`; startup
+rewrites the passfile and the standby connection configuration. The startup
+script also removes the legacy persistent `/var/lib/postgresql/data/.pgpass`
+left by older images.
 
 #### Docker Compose startup
 
