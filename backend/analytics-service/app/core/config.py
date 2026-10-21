@@ -28,6 +28,10 @@ class Settings:
         self.statement_timeout_ms = int(
             os.getenv("ANALYTICS_DB_STATEMENT_TIMEOUT_MS", "30000")
         )
+        # Default is one 16 MiB WAL segment behind the primary.
+        self.max_replay_lag_bytes = int(
+            os.getenv("ANALYTICS_MAX_REPLAY_LAG_BYTES", "16777216")
+        )
 
     @staticmethod
     def _required(name: str) -> str:

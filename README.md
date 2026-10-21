@@ -161,9 +161,13 @@ ANALYTICS_INTERNAL_TOKEN
 
 `/health` is a liveness endpoint. FastAPI `/ready` is reporting-specific and
 returns 503 unless the database is in recovery, the WAL receiver is streaming,
-and received and replayed WAL are caught up at the check. It reports receiver
-state, received/replayed LSNs, replay backlog, and replay timestamp, without
-returning credentials or tokens. Inspect the primary and standby with:
+and replay is within `ANALYTICS_MAX_REPLAY_LAG_BYTES` (default 16777216, one
+WAL segment) of the primary's WAL end as last reported to the receiver
+(`latest_end_lsn`). This covers WAL not yet received as well as WAL received
+but not replayed. The standby cannot see the primary's exact current
+position; check `pg_stat_replication` on the primary for that. It reports
+receiver state, received/replayed LSNs, replay backlog, lag in bytes, and
+replay timestamp, without returning credentials or tokens. Inspect the primary and standby with:
 
 ```sql
 SELECT pg_is_in_recovery();
