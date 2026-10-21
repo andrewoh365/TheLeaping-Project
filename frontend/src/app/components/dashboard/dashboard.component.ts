@@ -67,6 +67,7 @@ interface SummaryCard {
   value: number;
   changePercent: number | null;
   tone: 'positive' | 'negative' | 'neutral';
+  trend: number[];
 }
 
 /** Outcome of the last order, shown on the ticket in plain language. */
@@ -482,14 +483,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
         subtitle: 'Cash plus listed holdings',
         value: this.brokerageValue,
         changePercent: listedChange,
-        tone: this.getTone(listedChange)
+        tone: this.getTone(listedChange),
+        trend: this.buildSummaryTrend(this.brokerageValue, listedChange)
       },
       {
         title: 'Crypto Wallet',
         subtitle: 'Digital asset exposure',
         value: this.cryptoHoldingsValue,
         changePercent: cryptoChange,
-        tone: this.getTone(cryptoChange)
+        tone: this.getTone(cryptoChange),
+        trend: this.buildSummaryTrend(this.cryptoHoldingsValue, cryptoChange)
       }
     ];
   }
@@ -1001,6 +1004,28 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.buildAreaPath(this.chartPoints.map((point) => point.value), 1000, 260);
   }
 
+  getPortfolioAxisLabels(): string[] {
+    const values = this.chartPoints.map((point) => point.value);
+    if (!values.length) {
+      return [];
+    }
+
+    const minimum = Math.min(...values);
+    const maximum = Math.max(...values);
+    const range = Math.max(maximum - minimum, 1);
+    return [0, 0.33, 0.66, 1].map((position) =>
+      this.formatUsd(minimum + range * (1 - position))
+    );
+  }
+
+  getPortfolioAxisY(index: number): number {
+    return 40 + index * 60;
+  }
+
+  getSummaryTrendPath(values: number[]): string {
+    return this.buildLinePath(values, 180, 48);
+  }
+
   getHoldingMarketValue(holding: HoldingResponse): number {
     const marketValue = this.toNumber(holding.marketValueUsd);
     if (marketValue > 0) {
@@ -1016,6 +1041,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
 
     return value > 0 ? 'positive' : 'negative';
+  }
+
+  private buildSummaryTrend(value: number, changePercent: number | null): number[] {
+    const change = changePercent ?? 0;
+    const startingValue = value / (1 + change / 100 || 1);
+    const step = (value - startingValue) / 3;
+    return [0, 1, 2, 3].map((index) => startingValue + step * index);
   }
 
   formatSignedCurrency(value: number): string {

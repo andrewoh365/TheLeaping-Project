@@ -560,6 +560,24 @@ button {
   height: 48px;
 }
 
+.mini-sparkline-svg path {
+  fill: none;
+  stroke: var(--secondary-color);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mini-sparkline-svg path.negative-trend {
+  stroke: var(--danger-color);
+}
+
+.grid-lines text {
+  fill: var(--muted-text-color);
+  font-size: 16px;
+  dominant-baseline: middle;
+}
+
 .ghost-figma {
   border: 0;
   background: transparent;
