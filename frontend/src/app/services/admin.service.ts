@@ -267,9 +267,17 @@ export class AdminService {
     );
   }
 
-  getOrderAudit(orderId: number): Observable<AdminAuditEvent[]> {
-    return this.http.get<AdminAuditEvent[]>(
+  /** One page of an order's audit trail, oldest event first. */
+  getOrderAudit(
+    orderId: number,
+    page = 0,
+    size = 100,
+  ): Observable<AdminPage<AdminAuditEvent>> {
+    const params = new HttpParams().set("page", page).set("size", size);
+
+    return this.http.get<AdminPage<AdminAuditEvent>>(
       `${this.API_URL}/orders/${orderId}/audit`,
+      { params },
     );
   }
 }

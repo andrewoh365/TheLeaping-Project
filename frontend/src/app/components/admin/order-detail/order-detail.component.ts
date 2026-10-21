@@ -34,9 +34,14 @@ import { InternalNavComponent } from "../../internal-nav/internal-nav.component"
 export class OrderDetailComponent implements OnInit, OnDestroy {
   order: AdminOrderDetail | null = null;
   auditEvents: AdminAuditEvent[] = [];
+  auditTotal = 0;
+  private auditPage = 0;
+  private auditOrderId: number | null = null;
 
   loading = false;
   auditLoading = false;
+  auditLoadingMore = false;
+  auditMoreError = "";
 
   errorMessage = "";
   auditErrorMessage = "";
@@ -162,17 +167,26 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       .slice(0, 8);
   }
 
-  // AUDIT: Fetch the audit trail for this order.
+  /** Older events are loaded first, so more remain when the trail is longer than one page. */
+  get hasMoreAudit(): boolean {
+    return this.auditEvents.length < this.auditTotal;
+  }
+
+  // AUDIT: Fetch the audit trail for this order (paged, oldest first).
   private loadAudit(orderId: number): void {
     this.auditLoading = true;
     this.auditErrorMessage = "";
+    this.auditOrderId = orderId;
+    this.auditPage = 0;
 
     this.adminService
       .getOrderAudit(orderId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: (events) => {
-          this.auditEvents = events;
+        next: (page) => {
+          this.auditEvents = page.content;
+          this.auditTotal = page.totalElements;
+          this.auditPage = page.number;
           this.auditLoading = false;
         },
         error: (error) => {
@@ -186,6 +200,33 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
           } else {
             this.auditErrorMessage = "Unable to load the audit trail.";
           }
+        },
+      });
+  }
+
+  /** Append the next page of audit events. */
+  loadMoreAudit(): void {
+    if (this.auditOrderId === null || this.auditLoadingMore || !this.hasMoreAudit) {
+      return;
+    }
+    this.auditLoadingMore = true;
+    this.auditMoreError = "";
+
+    this.adminService
+      .getOrderAudit(this.auditOrderId, this.auditPage + 1)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (page) => {
+          this.auditEvents = [...this.auditEvents, ...page.content];
+          this.auditTotal = page.totalElements;
+          this.auditPage = page.number;
+          this.auditLoadingMore = false;
+        },
+        error: (error) => {
+          console.error("Failed to load more audit events:", error);
+          this.auditLoadingMore = false;
+          // Keep the events already shown; just report that the next page failed
+          this.auditMoreError = "Couldn't load more events. Try again.";
         },
       });
   }

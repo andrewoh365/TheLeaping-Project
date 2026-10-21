@@ -223,6 +223,25 @@
   border-radius: 8px;
 }
 
+.audit-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 13px;
+}
+
+.audit-more button {
+  color: rgba(255, 255, 255, 0.87);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.audit-more-error {
+  color: #ff8383;
+}
+
 .audit-empty {
   padding: 34px 20px;
   color: rgba(255, 255, 255, 0.58);
