@@ -285,7 +285,7 @@ def test_build_dashboard(monkeypatch):
         dashboard.trading_volume_over_time.points
     ) == 2
 
-    assert len(dashboard.order_outcomes) == 5
+    assert len(dashboard.order_outcomes) == 6
 
     filled_outcome = next(
         outcome
@@ -295,6 +295,15 @@ def test_build_dashboard(monkeypatch):
 
     assert filled_outcome.count == 75
     assert filled_outcome.percentage == 75.0
+
+    expired_outcome = next(
+        outcome
+        for outcome in dashboard.order_outcomes
+        if outcome.status.value == "EXPIRED"
+    )
+
+    assert expired_outcome.count == 0
+    assert expired_outcome.percentage == 0.0
 
     assert len(
         dashboard.most_active_instruments
