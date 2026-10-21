@@ -64,19 +64,19 @@ class AdminAuditControllerTest {
     }
 
     @Test
-    void getOrderAuditReturnsChronologicalDtoList() throws Exception {
-        when(adminTradeLookupService.getOrderAudit(42L))
-                .thenReturn(List.of(
+    void getOrderAuditReturnsChronologicalDtoPage() throws Exception {
+        when(adminTradeLookupService.getOrderAudit(42L, 0, 100))
+                .thenReturn(new PageImpl<>(List.of(
                         event(1L, "ORDER_SUBMITTED"),
                         event(2L, "TRADE_FILLED")
-                ));
+                ), PageRequest.of(0, 100), 2));
 
         mockMvc.perform(get("/api/admin/orders/42/audit"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].eventType").value("ORDER_SUBMITTED"))
-                .andExpect(jsonPath("$[1].eventType").value("TRADE_FILLED"));
+                .andExpect(jsonPath("$.content[0].eventType").value("ORDER_SUBMITTED"))
+                .andExpect(jsonPath("$.content[1].eventType").value("TRADE_FILLED"));
 
-        verify(adminTradeLookupService).getOrderAudit(42L);
+        verify(adminTradeLookupService).getOrderAudit(42L, 0, 100);
     }
 
     @Test

@@ -15,6 +15,8 @@ import com.leaping.portfolio_app.trade.repository.TradeRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +30,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class AdminTradeLookupService {
+        private static final int MAX_AUDIT_PAGE_SIZE = 100;
 
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -191,7 +194,11 @@ public class AdminTradeLookupService {
     }
 
     @Transactional(readOnly = true)
-    public List<AuditEventResponse> getOrderAudit(Long orderId) {
+    public Page<AuditEventResponse> getOrderAudit(
+            Long orderId,
+            int page,
+            int size
+    ) {
         tradeOrderRepository
                 .findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -201,10 +208,12 @@ public class AdminTradeLookupService {
         return auditEventRepository
                 .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
                         orderId,
-                        Pageable.unpaged()
+                        PageRequest.of(
+                                Math.max(page, 0),
+                                Math.min(Math.max(size, 1), MAX_AUDIT_PAGE_SIZE)
+                        )
                 )
-                .map(this::toAuditEventResponse)
-                .getContent();
+                .map(this::toAuditEventResponse);
     }
 
     private AdminOrderLookupResponse toLookupResponse(

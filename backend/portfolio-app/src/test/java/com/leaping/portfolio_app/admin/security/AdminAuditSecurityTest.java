@@ -54,8 +54,8 @@ class AdminAuditSecurityTest {
         authenticateAs("ADMIN");
         when(adminClientService.getClientActivity(anyLong(), anyInt(), anyInt()))
                 .thenReturn(Page.empty());
-        when(adminTradeLookupService.getOrderAudit(anyLong()))
-                .thenReturn(List.of());
+        when(adminTradeLookupService.getOrderAudit(anyLong(), anyInt(), anyInt()))
+                .thenReturn(Page.empty());
 
         mockMvc.perform(get("/api/admin/clients/7/activity")
                         .header("Authorization", "Bearer admin-token"))

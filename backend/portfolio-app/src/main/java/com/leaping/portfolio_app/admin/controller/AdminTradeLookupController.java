@@ -7,6 +7,7 @@ import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
 import com.leaping.portfolio_app.admin.service.AdminTradeLookupService;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,8 +15,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/orders")
@@ -63,11 +62,13 @@ public class AdminTradeLookupController {
     // AUDIT: Retrieve audit history for an order
     @GetMapping("/{orderId}/audit")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<AuditEventResponse>> getOrderAudit(
-            @PathVariable Long orderId
+    public ResponseEntity<Page<AuditEventResponse>> getOrderAudit(
+            @PathVariable Long orderId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size
     ) {
         return ResponseEntity.ok(
-                adminTradeLookupService.getOrderAudit(orderId)
+                adminTradeLookupService.getOrderAudit(orderId, page, size)
         );
     }
 }

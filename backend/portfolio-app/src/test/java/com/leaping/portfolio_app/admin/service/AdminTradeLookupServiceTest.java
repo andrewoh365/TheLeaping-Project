@@ -195,12 +195,13 @@ class AdminTradeLookupServiceTest {
         when(auditEventRepository
                 .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
                         eq(42L),
-                        eq(Pageable.unpaged())
+                        eq(PageRequest.of(0, 100))
                 ))
                 .thenReturn(new PageImpl<>(List.of(older, newer)));
 
         List<AuditEventResponse> result =
-                adminTradeLookupService.getOrderAudit(42L);
+                adminTradeLookupService.getOrderAudit(42L, 0, 100)
+                        .getContent();
 
         assertEquals(
                 List.of("ORDER_SUBMITTED", "TRADE_FILLED"),
@@ -229,15 +230,43 @@ class AdminTradeLookupServiceTest {
         when(auditEventRepository
                 .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
                         eq(42L),
-                        eq(Pageable.unpaged())
+                        eq(PageRequest.of(0, 100))
                 ))
                 .thenReturn(new PageImpl<>(List.of()));
 
         assertEquals(
                 0,
-                adminTradeLookupService.getOrderAudit(42L).size()
+                adminTradeLookupService.getOrderAudit(42L, 0, 100)
+                        .getContent()
+                        .size()
         );
     }
+
+            @Test
+            void getOrderAuditCapsPageSizeAtOneHundredEvents() {
+                TradeOrder order = new TradeOrder();
+                order.setOrderId(42L);
+
+                when(tradeOrderRepository.findById(42L))
+                        .thenReturn(Optional.of(order));
+                when(auditEventRepository
+                        .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
+                                eq(42L),
+                                any(Pageable.class)
+                        ))
+                        .thenReturn(new PageImpl<>(List.of()));
+
+                adminTradeLookupService.getOrderAudit(42L, 0, 500);
+
+                ArgumentCaptor<Pageable> pageable =
+                        ArgumentCaptor.forClass(Pageable.class);
+                verify(auditEventRepository)
+                        .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
+                                eq(42L),
+                                pageable.capture()
+                        );
+                assertEquals(100, pageable.getValue().getPageSize());
+            }
 
     // AUDIT: Missing orders should return 404.
     @Test
@@ -247,7 +276,7 @@ class AdminTradeLookupServiceTest {
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> adminTradeLookupService.getOrderAudit(404L)
+                () -> adminTradeLookupService.getOrderAudit(404L, 0, 100)
         );
 
         assertEquals(404, exception.getStatusCode().value());
@@ -255,7 +284,7 @@ class AdminTradeLookupServiceTest {
         verify(auditEventRepository, never())
                 .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
                         eq(404L),
-                        eq(Pageable.unpaged())
+                        eq(PageRequest.of(0, 100))
                 );
     }
 
