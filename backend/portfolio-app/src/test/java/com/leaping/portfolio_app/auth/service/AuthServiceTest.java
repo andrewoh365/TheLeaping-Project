@@ -58,6 +58,9 @@ class AuthServiceTest {
     @Mock
     private PortfolioRepository portfolioRepository;
 
+    @Mock
+    private SessionService sessionService;
+
     @InjectMocks
     private AuthService authService;
 
@@ -86,8 +89,8 @@ class AuthServiceTest {
         savedUser.setId(42L);
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
-        when(jwtTokenProvider.generateToken(savedUser.getEmail())).thenReturn("fake-token");
-        when(jwtTokenProvider.generateRefreshToken(savedUser.getEmail())).thenReturn("fake-refresh-token");
+        when(sessionService.openSession(any(User.class)))
+                .thenReturn(new IssuedTokens("fake-token", "fake-refresh-token"));
 
         RegisterResponse response = authService.register(request);
 
