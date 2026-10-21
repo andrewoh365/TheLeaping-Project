@@ -1,6 +1,7 @@
 package com.leaping.portfolio_app.market.service;
 
 import com.leaping.portfolio_app.market.entity.Market;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -14,6 +15,22 @@ import java.time.ZonedDateTime;
 @Service
 public class MarketHoursService {
 
+    private final MarketOverride marketOverride;
+
+    @Autowired
+    public MarketHoursService(MarketOverride marketOverride) {
+        this.marketOverride = marketOverride;
+    }
+
+    /** Real trading hours only, with no testing override. */
+    public MarketHoursService() {
+        this(MarketOverride.disabled());
+    }
+
+    /**
+     * Whether the market is open now. While the testing override is on, every market reports
+     * open, so trading checks, the price simulator and the status badge all agree.
+     */
     public MarketStatus getMarketStatus(Market market) {
         ZoneId zone = ZoneId.of(market.getTimezone());
         ZonedDateTime now = OffsetDateTime.now(ZoneOffset.UTC).atZoneSameInstant(zone);
@@ -33,7 +50,7 @@ public class MarketHoursService {
             );
         }
 
-        boolean isOpen = isWithinWindow(now.toLocalTime(), openTime, closeTime);
+        boolean isOpen = marketOverride.isActive() || isWithinWindow(now.toLocalTime(), openTime, closeTime);
         OffsetDateTime nextOpen = computeNext(openTime, now);
         OffsetDateTime nextClose = computeNext(closeTime, now);
 
@@ -46,6 +63,20 @@ public class MarketHoursService {
                 nextOpen,
                 nextClose
         );
+    }
+
+    /**
+     * The first real session close after the given moment, from the market's actual trading
+     * hours. The testing override never affects this, so it can't change when orders expire.
+     *
+     * @return null for markets that never close
+     */
+    public OffsetDateTime firstCloseAfter(Market market, OffsetDateTime moment) {
+        if (market.getOpenTime() == null || market.getCloseTime() == null) {
+            return null;
+        }
+        ZonedDateTime local = moment.atZoneSameInstant(ZoneId.of(market.getTimezone()));
+        return computeNext(market.getCloseTime(), local);
     }
 
     private boolean isWithinWindow(LocalTime now, LocalTime open, LocalTime close) {

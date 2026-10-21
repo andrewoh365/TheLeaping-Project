@@ -16,6 +16,13 @@ import java.time.LocalDate;
 @RequestMapping("/api/analytics")
 public class AnalyticsController {
 
+    public enum ClientSegment {
+        INACTIVE,
+        OCCASIONAL,
+        REGULAR,
+        FREQUENT
+    }
+
     private final AnalyticsService analyticsService;
 
     public AnalyticsController(AnalyticsService analyticsService) {
@@ -40,14 +47,18 @@ public class AnalyticsController {
             String market,
 
             @RequestParam(name = "order_status", required = false)
-            String orderStatus
+            String orderStatus,
+
+            @RequestParam(name = "client_segment", required = false)
+            ClientSegment clientSegment
     ) {
         String dashboard = analyticsService.getDashboard(
                 dateFrom,
                 dateTo,
                 assetType,
                 market,
-                orderStatus
+                orderStatus,
+                clientSegment != null ? clientSegment.name() : null
         );
 
         return ResponseEntity

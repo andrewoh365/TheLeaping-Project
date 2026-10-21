@@ -62,7 +62,7 @@
 
 .filter-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(135px, 1fr)) auto;
+  grid-template-columns: repeat(6, minmax(135px, 1fr)) auto;
   gap: 14px;
   align-items: center;
 
@@ -212,6 +212,71 @@
   height: 320px;
 }
 
+.segment-breakdown-card {
+  overflow: hidden;
+}
+
+.segment-description {
+  margin: -4px 0 20px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.segment-chart-container {
+  height: 280px;
+  margin-bottom: 20px;
+}
+
+.segment-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.segment-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  color: var(--text-color);
+  font-size: 14px;
+
+  th,
+  td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  th {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  th:first-child,
+  td:first-child {
+    text-align: left;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+}
+
+.segment-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  padding: 24px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.65);
+  text-align: center;
+}
+
 .loading-container {
   display: flex;
   justify-content: center;
@@ -263,6 +328,10 @@
 
   .chart-wide {
     grid-column: span 1;
+  }
+
+  .segment-chart-container {
+    height: 240px;
   }
 
   .filter-actions {

@@ -3,7 +3,7 @@ from typing import List
 
 from pydantic import BaseModel
 
-from app.schemas.filters import OrderStatus
+from app.schemas.filters import ClientSegment, OrderStatus
 
 
 class TimeGrouping(str, Enum):
@@ -50,6 +50,14 @@ class ClientActivityTrend(BaseModel):
     points: List[ClientActivityPoint]
 
 
+class ClientSegmentBreakdown(BaseModel):
+    segment: ClientSegment
+    total_clients: int
+    active_clients: int
+    order_count: int
+    trading_volume_usd: float
+
+
 class RejectionReason(BaseModel):
     reason: str
     count: int
@@ -62,3 +70,4 @@ class DashboardResponse(BaseModel):
     most_active_instruments: List[InstrumentActivity]
     client_activity_trend: ClientActivityTrend
     top_rejection_reasons: List[RejectionReason]
+    client_segment_breakdown: List[ClientSegmentBreakdown]

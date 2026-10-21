@@ -1,9 +1,12 @@
 package com.leaping.portfolio_app.admin.service;
 
 import com.leaping.portfolio_app.admin.dto.AdminOrderDetailResponse;
-import com.leaping.portfolio_app.admin.dto.AdminOrderPageResponse;
 import com.leaping.portfolio_app.admin.dto.AdminOrderLookupResponse;
+import com.leaping.portfolio_app.admin.dto.AdminOrderPageResponse;
+import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
 import com.leaping.portfolio_app.auth.model.User;
+import com.leaping.portfolio_app.audit.entity.AuditEvent;
+import com.leaping.portfolio_app.audit.repository.AuditEventRepository;
 import com.leaping.portfolio_app.trade.entity.Trade;
 import com.leaping.portfolio_app.trade.entity.TradeOrder;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
@@ -12,6 +15,8 @@ import com.leaping.portfolio_app.trade.repository.TradeRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,21 +24,28 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class AdminTradeLookupService {
+        private static final int MAX_AUDIT_PAGE_SIZE = 100;
 
-        private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final TradeOrderRepository tradeOrderRepository;
     private final TradeRepository tradeRepository;
+    private final AuditEventRepository auditEventRepository;
 
     public AdminTradeLookupService(
             TradeOrderRepository tradeOrderRepository,
-            TradeRepository tradeRepository
+            TradeRepository tradeRepository,
+            AuditEventRepository auditEventRepository
     ) {
         this.tradeOrderRepository = tradeOrderRepository;
         this.tradeRepository = tradeRepository;
+        this.auditEventRepository = auditEventRepository;
     }
 
     @Transactional(readOnly = true)
@@ -50,7 +62,6 @@ public class AdminTradeLookupService {
                 normalizedStatus,
                 pageRequest(page, size)
         );
-
         return toPageResponse(orderPage);
     }
 
@@ -65,17 +76,29 @@ public class AdminTradeLookupService {
                         clientId,
                         pageRequest(page, size)
                 );
-
         return toPageResponse(orderPage);
     }
 
     private AdminOrderPageResponse toPageResponse(
             Page<TradeOrder> orderPage
     ) {
-        List<AdminOrderLookupResponse> orders = orderPage
-                .map(this::toLookupResponse)
-                .getContent();
-
+        List<TradeOrder> pageOrders = orderPage.getContent();
+        Map<Long, Trade> tradesByOrderId = pageOrders.isEmpty()
+                ? Map.of()
+                : tradeRepository.findByOrderOrderIdIn(
+                        pageOrders.stream()
+                                .map(TradeOrder::getOrderId)
+                                .toList()
+                ).stream().collect(Collectors.toMap(
+                        trade -> trade.getOrder().getOrderId(),
+                        Function.identity()
+                ));
+        List<AdminOrderLookupResponse> orders = pageOrders.stream()
+                .map(order -> toLookupResponse(
+                        order,
+                        tradesByOrderId.get(order.getOrderId())
+                ))
+                .toList();
         return new AdminOrderPageResponse(
                 orders,
                 orderPage.getNumber(),
@@ -93,7 +116,6 @@ public class AdminTradeLookupService {
                 Math.max(size, 1),
                 MAX_PAGE_SIZE
         );
-
         return PageRequest.of(safePage, safeSize);
     }
 
@@ -105,18 +127,14 @@ public class AdminTradeLookupService {
                         HttpStatus.NOT_FOUND,
                         "Order not found"
                 ));
-
         Trade trade = tradeRepository
                 .findByOrderOrderId(orderId)
                 .orElse(null);
-
         User user = null;
         Long clientId = null;
         Long portfolioId = null;
-
         if (order.getPortfolio() != null) {
             portfolioId = order.getPortfolio().getPortfolioId();
-
             if (order.getPortfolio().getCustomer() != null) {
                 clientId = order.getPortfolio()
                         .getCustomer()
@@ -126,7 +144,6 @@ public class AdminTradeLookupService {
                         .getUser();
             }
         }
-
         return new AdminOrderDetailResponse(
                 order.getOrderId(),
                 order.getOrderStatus() != null
@@ -176,77 +193,99 @@ public class AdminTradeLookupService {
         );
     }
 
-    private AdminOrderLookupResponse toLookupResponse(
-            TradeOrder order
+    @Transactional(readOnly = true)
+    public Page<AuditEventResponse> getOrderAudit(
+            Long orderId,
+            int page,
+            int size
     ) {
-        Trade trade = tradeRepository
-                .findByOrderOrderId(order.getOrderId())
-                .orElse(null);
+        tradeOrderRepository
+                .findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Order not found"
+                ));
+        return auditEventRepository
+                .findByOrder_OrderIdOrderByOccurredAtAscAuditEventIdAsc(
+                        orderId,
+                        PageRequest.of(
+                                Math.max(page, 0),
+                                Math.min(Math.max(size, 1), MAX_AUDIT_PAGE_SIZE)
+                        )
+                )
+                .map(this::toAuditEventResponse);
+    }
 
+    private AdminOrderLookupResponse toLookupResponse(
+            TradeOrder order,
+            Trade trade
+    ) {
         User user = null;
         Long clientId = null;
-
         if (order.getPortfolio() != null
                 && order.getPortfolio().getCustomer() != null) {
-
             clientId =
                     order.getPortfolio()
                             .getCustomer()
                             .getUserId();
-
             user =
                     order.getPortfolio()
                             .getCustomer()
                             .getUser();
         }
-
         return new AdminOrderLookupResponse(
                 order.getOrderId(),
-
                 trade != null
                         ? trade.getTradeId()
                         : null,
-
                 clientId,
-
                 user != null
                         ? user.getFirstName()
                         : null,
-
                 user != null
                         ? user.getLastName()
                         : null,
-
                 order.getInstrument() != null
                         ? order.getInstrument()
                                 .getInstrumentId()
                         : null,
-
                 order.getInstrument() != null
                         ? order.getInstrument()
                                 .getSymbol()
                         : null,
-
                 order.getInstrument() != null
                         ? order.getInstrument()
                                 .getName()
                         : null,
-
                 order.getOrderAction() != null
                         ? order.getOrderAction().name()
                         : null,
-
                 order.getQuantity(),
-
                 order.getOrderStatus() != null
                         ? order.getOrderStatus().name()
                         : null,
-
                 order.getSubmittedAt(),
-
                 trade != null
                         ? trade.getExecutedAt()
                         : null
+        );
+    }
+
+    private AuditEventResponse toAuditEventResponse(AuditEvent event) {
+        return new AuditEventResponse(
+                event.getAuditEventId(),
+                event.getEventType(),
+                event.getOccurredAt(),
+                event.getUser() != null ? event.getUser().getId() : null,
+                event.getOrder() != null ? event.getOrder().getOrderId() : null,
+                event.getExecutionAttempt() != null
+                        ? event.getExecutionAttempt().getExecutionAttemptId()
+                        : null,
+                event.getTrade() != null ? event.getTrade().getTradeId() : null,
+                event.getCashTransaction() != null
+                        ? event.getCashTransaction().getCashTransactionId()
+                        : null,
+                event.getEventDetails()
         );
     }
 
@@ -256,5 +295,4 @@ public class AdminTradeLookupService {
                 : value.trim()
                         .toLowerCase(Locale.ROOT);
     }
-
 }

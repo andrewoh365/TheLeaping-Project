@@ -2,19 +2,26 @@ package com.leaping.portfolio_app.trade.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.time.OffsetDateTime;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.leaping.portfolio_app.audit.enums.AuditEventType;
+import com.leaping.portfolio_app.audit.service.AuditService;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.enums.InstrumentType;
 import com.leaping.portfolio_app.instrument.repository.InstrumentRepository;
@@ -37,6 +44,7 @@ import com.leaping.portfolio_app.trade.enums.OrderAction;
 import com.leaping.portfolio_app.trade.enums.OrderStatus;
 import com.leaping.portfolio_app.trade.enums.OrderType;
 import com.leaping.portfolio_app.trade.enums.TimeInForce;
+import com.leaping.portfolio_app.market.service.MarketHoursService;
 import com.leaping.portfolio_app.trade.repository.TradeOrderRepository;
 import com.leaping.portfolio_app.trade.repository.TradeRepository;
 
@@ -59,6 +67,10 @@ public class TradeOrderService {
     private final MarketPriceService priceService;
     private final PreTradeMarketService preTradeMarketService;
     private final TradeRepository tradeRepository;
+    private final AuditService auditService;
+    private final EntityManager entityManager;
+    private final ApplicationEventPublisher eventPublisher;
+    private final MarketHoursService marketHoursService;
 
     /**
      * Enforce market hours and price freshness when accepting orders (BR-05).
@@ -75,7 +87,11 @@ public class TradeOrderService {
             HoldingRepository holdingRepository,
             MarketPriceService priceService,
             PreTradeMarketService preTradeMarketService,
-            TradeRepository tradeRepository
+            TradeRepository tradeRepository,
+            AuditService auditService,
+            EntityManager entityManager,
+            ApplicationEventPublisher eventPublisher,
+            MarketHoursService marketHoursService
     ) {
         this.tradeOrderRepository = tradeOrderRepository;
         this.portfolioRepository = portfolioRepository;
@@ -84,13 +100,19 @@ public class TradeOrderService {
         this.priceService = priceService;
         this.preTradeMarketService = preTradeMarketService;
         this.tradeRepository = tradeRepository;
+        this.auditService = auditService;
+        this.entityManager = entityManager;
+        this.eventPublisher = eventPublisher;
+        this.marketHoursService = marketHoursService;
     }
 
     /**
      * Place a new order on behalf of a customer.
      * 
-     * Validates order before creation. If validation fails, throws exception.
-     * Creates order in SUBMITTED status and returns it.
+        * Validates the request before creating or persisting an order. If validation
+        * fails, no order or audit event is written. A valid request creates an order
+        * in ACCEPTED status after validation and persistence. Execution is a separate
+        * step and may fill, reject, or remain pending.
      * 
      * @param customerId The customer placing the order (identified by User ID)
      * @param request The order request with symbol, quantity, and price
@@ -106,10 +128,10 @@ public class TradeOrderService {
         Instrument instrument = instrumentRepository.findById(request.getInstrumentId())
             .orElseThrow(() -> new IllegalArgumentException("Instrument not found"));
 
-        // 3. Validate order
+        // Validation happens before the TradeOrder exists or is persisted.
         validateOrder(request, portfolio, instrument);
 
-        // 4. Create and persist order
+        // Persist first so the audit event can link to the actual saved order.
         TradeOrder order = new TradeOrder(
             portfolio,
             instrument,
@@ -119,8 +141,39 @@ public class TradeOrderService {
             request.getQuantity(),
             request.getLimitPrice()
         );
+        order.setReferencePriceUsd(captureReferencePrice(order, instrument));
 
-        return tradeOrderRepository.save(order);
+        TradeOrder savedOrder = tradeOrderRepository.save(order);
+
+        auditService.recordEvent(
+            AuditEventType.ORDER_SUBMITTED,
+            portfolio.getCustomer().getUser(),
+            savedOrder,
+            null,
+            null,
+            null,
+            orderAuditDetails(customerId, savedOrder)
+        );
+
+        savedOrder.setOrderStatus(OrderStatus.ACCEPTED);
+        savedOrder.setAcceptedAt(OffsetDateTime.now());
+        TradeOrder acceptedOrder = tradeOrderRepository.save(savedOrder);
+
+        auditService.recordEvent(
+            AuditEventType.ORDER_ACCEPTED,
+            portfolio.getCustomer().getUser(),
+            acceptedOrder,
+            null,
+            null,
+            null,
+            acceptanceAuditDetails(customerId, acceptedOrder)
+        );
+
+        if (acceptedOrder.getOrderType() == OrderType.MARKET) {
+            eventPublisher.publishEvent(new OrderAcceptedEvent(acceptedOrder.getOrderId()));
+        }
+
+        return acceptedOrder;
     }
 
     /**
@@ -172,6 +225,15 @@ public class TradeOrderService {
         if (issue != null) {
             throw new IllegalArgumentException(issue);
         }
+    }
+
+    private BigDecimal captureReferencePrice(TradeOrder order, Instrument instrument) {
+        // Keep this additive and non-invasive: LIMIT orders already carry the client's
+        // explicit price; for MARKET orders we persist the current reference quote.
+        if (OrderType.LIMIT.equals(order.getOrderType())) {
+            return null;
+        }
+        return priceService.getCurrentPrice(instrument.getSymbol());
     }
 
     /**
@@ -263,7 +325,8 @@ public class TradeOrderService {
             if (price == null || price.compareTo(BigDecimal.ZERO) <= 0) {
                 return String.format("We don't have a current price for %s, so it can't be traded right now.", symbol);
             }
-            BigDecimal required = price.multiply(quantity);
+            BigDecimal required = price.multiply(quantity)
+                .setScale(2, RoundingMode.HALF_UP);
             if (cash.compareTo(required) < 0) {
                 return String.format(
                     "Not enough cash. This order costs about %s and you have %s available.",
@@ -375,7 +438,7 @@ public class TradeOrderService {
 
     /**
      * Cancel a pending order.
-     * Only allows cancellation of SUBMITTED orders.
+    * Only allows cancellation of ACCEPTED orders.
      * 
      * @param orderId The ID of the order to cancel
      * @param customerId The customer ID (for ownership verification)
@@ -386,13 +449,16 @@ public class TradeOrderService {
         TradeOrder order = tradeOrderRepository.findById(orderId)
             .orElseThrow(() -> new IllegalArgumentException("Order not found"));
 
+        // Serialize cancellation with execution and re-read the current status.
+        entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
+
         // Verify ownership
         if (!order.getPortfolio().getCustomer().getUserId().equals(customerId)) {
             throw new IllegalArgumentException("Unauthorized access to order");
         }
 
         // Validate order can be cancelled
-        if (!OrderStatus.SUBMITTED.equals(order.getOrderStatus())) {
+        if (!OrderStatus.ACCEPTED.equals(order.getOrderStatus())) {
             throw new IllegalArgumentException(
                 String.format("Cannot cancel order in %s status", order.getOrderStatus())
             );
@@ -401,9 +467,114 @@ public class TradeOrderService {
         // Cancel the order
         order.setOrderStatus(OrderStatus.CANCELLED);
         order.setCancelledAt(OffsetDateTime.now());
-        tradeOrderRepository.save(order);
+        TradeOrder savedOrder = tradeOrderRepository.save(order);
 
-        return mapToOrderResponse(order);
+        auditService.recordEvent(
+                AuditEventType.ORDER_CANCELLED,
+                order.getPortfolio().getCustomer().getUser(),
+                savedOrder,
+                null,
+                null,
+                null,
+                cancellationAuditDetails(customerId, savedOrder)
+        );
+
+        return mapToOrderResponse(savedOrder);
+    }
+
+    @Transactional
+    public boolean expireDayOrder(Long orderId) {
+        TradeOrder order = tradeOrderRepository.findById(orderId).orElse(null);
+        if (order != null) {
+            entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
+        }
+        if (order == null || !OrderStatus.ACCEPTED.equals(order.getOrderStatus())
+                || !TimeInForce.DAY.equals(order.getTimeInForce())) {
+            return false;
+        }
+
+        if (order.getInstrument().getMarket() == null) {
+            return false;
+        }
+        // A DAY order lasts until the first real close after it was accepted. Only the market's
+        // actual hours decide this: the testing override can hold a market open for trading, but
+        // never extends or shortens an order's day. Checking the order's own session (rather than
+        // "is it after the close now") also expires orders whose close passed while the app was down.
+        OffsetDateTime acceptedAt = order.getAcceptedAt() != null ? order.getAcceptedAt() : order.getSubmittedAt();
+        if (acceptedAt == null) {
+            return false;
+        }
+        OffsetDateTime sessionClose = marketHoursService.firstCloseAfter(order.getInstrument().getMarket(), acceptedAt);
+        if (sessionClose == null || OffsetDateTime.now().isBefore(sessionClose)) {
+            return false;
+        }
+
+        order.setOrderStatus(OrderStatus.EXPIRED);
+        order.setExpiredAt(OffsetDateTime.now());
+        TradeOrder savedOrder = tradeOrderRepository.save(order);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("orderId", savedOrder.getOrderId());
+        details.put("previousStatus", OrderStatus.ACCEPTED.name());
+        details.put("newStatus", OrderStatus.EXPIRED.name());
+        details.put("expiredAt", savedOrder.getExpiredAt());
+        auditService.recordEvent(
+            AuditEventType.ORDER_EXPIRED,
+            savedOrder.getPortfolio().getCustomer().getUser(),
+            savedOrder,
+            null,
+            null,
+            null,
+            details
+        );
+        return true;
+    }
+
+    private Map<String, Object> orderAuditDetails(
+            Long customerId,
+            TradeOrder order
+    ) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("customerId", customerId);
+        details.put("orderId", order.getOrderId());
+        details.put("portfolioId", order.getPortfolio().getPortfolioId());
+        details.put("instrumentId", order.getInstrument().getInstrumentId());
+        details.put("symbol", order.getInstrument().getSymbol());
+        details.put("action", order.getOrderAction().name());
+        details.put("orderType", order.getOrderType().name());
+        details.put("timeInForce", order.getTimeInForce().name());
+        details.put("quantity", order.getQuantity());
+        details.put("referencePriceUsd", order.getReferencePriceUsd());
+        details.put("submittedAt", order.getSubmittedAt());
+
+        if (order.getLimitPriceUsd() != null) {
+            details.put("limitPriceUsd", order.getLimitPriceUsd());
+        }
+
+        return details;
+    }
+
+    private Map<String, Object> cancellationAuditDetails(
+            Long customerId,
+            TradeOrder order
+    ) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("customerId", customerId);
+        details.put("orderId", order.getOrderId());
+        details.put("previousStatus", OrderStatus.ACCEPTED.name());
+        details.put("newStatus", order.getOrderStatus().name());
+        details.put("cancelledAt", order.getCancelledAt());
+        return details;
+    }
+
+    private Map<String, Object> acceptanceAuditDetails(
+            Long customerId,
+            TradeOrder order
+    ) {
+        Map<String, Object> details = orderAuditDetails(customerId, order);
+        details.put("previousStatus", OrderStatus.SUBMITTED.name());
+        details.put("newStatus", order.getOrderStatus().name());
+        details.put("acceptedAt", order.getAcceptedAt());
+        return details;
     }
 
     /**
@@ -421,7 +592,9 @@ public class TradeOrderService {
         response.setQuantity(order.getQuantity());
         response.setLimitPrice(order.getLimitPriceUsd());
         response.setSubmittedAt(order.getSubmittedAt());
+        response.setAcceptedAt(order.getAcceptedAt());
         response.setFilledAt(order.getFilledAt());
+        response.setExpiredAt(order.getExpiredAt());
         response.setRejectedAt(order.getRejectedAt());
         response.setRejectionReason(order.getRejectionReason());
         response.setTimeInForce(order.getTimeInForce().name());

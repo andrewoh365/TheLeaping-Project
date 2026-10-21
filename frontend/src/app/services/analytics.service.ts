@@ -14,7 +14,14 @@ export type OrderStatus =
   | 'ACCEPTED'
   | 'FILLED'
   | 'REJECTED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'EXPIRED';
+
+export type ClientSegment =
+  | 'INACTIVE'
+  | 'OCCASIONAL'
+  | 'REGULAR'
+  | 'FREQUENT';
 
 export interface DashboardFilters {
   dateFrom?: string;
@@ -22,6 +29,7 @@ export interface DashboardFilters {
   assetType?: AssetType;
   market?: string;
   orderStatus?: OrderStatus;
+  clientSegment?: ClientSegment;
 }
 
 export interface DashboardSummary {
@@ -67,6 +75,14 @@ export interface RejectionReason {
   count: number;
 }
 
+export interface ClientSegmentBreakdown {
+  segment: ClientSegment;
+  total_clients: number;
+  active_clients: number;
+  order_count: number;
+  trading_volume_usd: number;
+}
+
 export interface DashboardResponse {
   summary: DashboardSummary;
   trading_volume_over_time: TradingVolumeTrend;
@@ -74,6 +90,7 @@ export interface DashboardResponse {
   most_active_instruments: InstrumentActivity[];
   client_activity_trend: ClientActivityTrend;
   top_rejection_reasons: RejectionReason[];
+  client_segment_breakdown: ClientSegmentBreakdown[];
 }
 
 @Injectable({
@@ -124,6 +141,13 @@ export class AnalyticsService {
       params = params.set(
         'order_status',
         filters.orderStatus
+      );
+    }
+
+    if (filters.clientSegment) {
+      params = params.set(
+        'client_segment',
+        filters.clientSegment
       );
     }
 

@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.OffsetDateTime;
 
 public interface TradeOrderRepository extends JpaRepository<TradeOrder, Long> {
     List<TradeOrder> findByPortfolioAndOrderStatus(Portfolio portfolio, OrderStatus orderStatus);
@@ -24,6 +25,32 @@ public interface TradeOrderRepository extends JpaRepository<TradeOrder, Long> {
             Long userId,
             Pageable pageable
     );
+
+        @Query("""
+                        SELECT o.orderId FROM TradeOrder o
+                        WHERE o.orderStatus = com.leaping.portfolio_app.trade.enums.OrderStatus.ACCEPTED
+                            AND (
+                                        o.orderType = com.leaping.portfolio_app.trade.enums.OrderType.LIMIT
+                                        OR (
+                                                o.orderType = com.leaping.portfolio_app.trade.enums.OrderType.MARKET
+                                                AND o.acceptedAt > :acceptedAfter
+                                                AND o.acceptedAt < :acceptedBefore
+                                        )
+                            )
+                        ORDER BY o.acceptedAt
+                        """)
+        List<Long> findOrdersAwaitingExecution(
+            @Param("acceptedAfter") OffsetDateTime acceptedAfter,
+            @Param("acceptedBefore") OffsetDateTime acceptedBefore
+        );
+
+        @Query("""
+                        SELECT o.orderId FROM TradeOrder o
+                        WHERE o.orderStatus = com.leaping.portfolio_app.trade.enums.OrderStatus.ACCEPTED
+                            AND o.timeInForce = com.leaping.portfolio_app.trade.enums.TimeInForce.DAY
+                        ORDER BY o.acceptedAt
+                        """)
+        List<Long> findAcceptedDayOrderIds();
 
     @Query(value = """
             SELECT o.*

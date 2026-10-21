@@ -24,7 +24,7 @@ export interface InstrumentExpandedData {
   timezone?: string;
   openTime?: string;
   closeTime?: string;
-  isTradable: boolean;
+  isTradeable: boolean;
 }
 
 export interface InstrumentTradeAction {
@@ -52,6 +52,7 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
   @ViewChild('priceChart') priceChartRef?: ElementRef;
   chartConfig?: ChartConfig;
   selectedPrice: number | null = null;
+  displayCurrencyCode = 'USD';
   isLoading = false;
   chart?: Chart;
   private chartPrices: PricePointDto[] = [];
@@ -175,6 +176,7 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
         if (latestPrice) {
           this.data.price = latestPrice.price;
           this.data.lastUpdated = latestPrice.timestamp;
+          this.displayCurrencyCode = latestPrice.currencyCode;
         }
         this.chartConfig = this.transformToChartData(sampledPrices);
         this.isLoading = false;
@@ -267,7 +269,7 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
     return {
       labels: prices.map(p => this.formatChartLabel(p.timestamp)),
       datasets: [{
-        label: `${this.data.symbol} Price (${this.data.priceCurrencyCode})`,
+        label: `${this.data.symbol} Price (${this.displayCurrencyCode})`,
         data: prices.map(p => p.price),
         borderColor: '#26d07c',
         backgroundColor: 'rgba(0, 171, 104, 0.05)',

@@ -20,6 +20,7 @@ import {
   MarketMovers,
   MarketNews,
   MarketService,
+  MarketOverrideStatus,
   MarketStatusResponse,
   NewsItem,
   PricePointResponse
@@ -140,6 +141,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   isChartLoading = false;
   dashboardError = '';
   marketStatus: MarketStatusResponse | null = null;
+  /** After-hours testing switch; null until loaded, and only shown where the backend allows it. */
+  marketOverride: MarketOverrideStatus | null = null;
+  marketOverrideSaving = false;
   portfolio: PortfolioResponse | null = null;
   holdings: DashboardHolding[] = [];
   allInstruments: Instrument[] = [];
@@ -165,7 +169,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   totalValueChanged = false;
   private highlightTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Only market/day orders are offered: limit orders are not executed yet.
   orderForm: PlaceOrderRequest = {
     instrument_id: 0,
     order_action: 'BUY',
@@ -275,6 +278,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get marketStatusLabel(): string {
+    if (this.marketStatus?.open && this.marketOverride?.enabled) {
+      return 'MARKET OPEN (OVERRIDE)';
+    }
     return this.marketStatus?.open ? 'MARKET OPEN' : 'MARKET CLOSED';
   }
 
@@ -352,7 +358,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       && !this.orderSubmitInProgress
       && preview.instrument_id === this.ticketInstrument.instrumentId
       && preview.order_action === this.orderForm.order_action
-      && Number(preview.quantity) === Number(this.orderForm.quantity);
+      && Number(preview.quantity) === Number(this.orderForm.quantity)
+      && (this.orderForm.order_type === 'MARKET'
+        || (this.orderForm.limit_price !== null && this.orderForm.limit_price > 0));
   }
 
   get submitButtonLabel(): string {
@@ -369,6 +377,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** Show the preview's blocking reason, except the "enter a quantity" prompt before anything is typed. */
   get ticketWarning(): string {
     if (!this.ticketInstrument || !this.preview || this.preview.can_submit || this.previewLoading) {
+      if (this.orderForm.order_type === 'LIMIT'
+          && this.orderForm.quantity !== null
+          && (!this.orderForm.limit_price || this.orderForm.limit_price <= 0)) {
+        return 'Enter a positive limit price.';
+      }
       return '';
     }
     const noQuantityYet = this.orderForm.quantity === null || this.orderForm.quantity === undefined;
@@ -609,6 +622,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
 
     this.loadDashboard();
+    this.loadMarketOverride();
+    this.startLiveUpdates();
     this.startMarketContextUpdates();
 
     if (this.walkthroughService.isPending()) {
@@ -635,7 +650,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         name: instrument.name,
         instrumentType: instrument.instrumentType,
         priceCurrencyCode: instrument.priceCurrencyCode,
-        isTradable: instrument.isTradeable
+        isTradeable: instrument.isTradeable
       },
       width: '80vw',
       height: '80vh',
@@ -716,7 +731,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'FILLED': return 'Filled';
       case 'REJECTED': return 'Rejected';
       case 'CANCELLED': return 'Cancelled';
-      case 'SUBMITTED': return 'Pending';
+      case 'EXPIRED': return 'Expired';
+      case 'SUBMITTED': return 'Submitted';
+      case 'ACCEPTED': return 'Accepted';
       default: return status.charAt(0) + status.slice(1).toLowerCase();
     }
   }
@@ -728,6 +745,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.activeRange = range;
     this.loadPortfolioHistory();
+  }
+
+  setOrderType(orderType: 'MARKET' | 'LIMIT'): void {
+    this.orderForm.order_type = orderType;
+    this.orderForm.limit_price = orderType === 'MARKET' ? null : this.orderForm.limit_price;
+    if (orderType === 'MARKET') {
+      this.orderForm.time_in_force = 'DAY';
+    }
+    this.requestPreview();
+  }
+
+  setTimeInForce(timeInForce: 'DAY' | 'GTC'): void {
+    this.orderForm.time_in_force = timeInForce;
   }
 
   selectInstrument(instrument: Instrument): void {
@@ -767,6 +797,59 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get tourStep(): WalkthroughStep | null {
     return this.tourStepIndex === null ? null : this.tourSteps[this.tourStepIndex];
+  }
+
+  /** Turn the after-hours override on or off, keeping the menu open so the switch visibly flips. */
+  toggleMarketOverride(event: Event): void {
+    event.stopPropagation();
+    if (!this.marketOverride?.allowed || this.marketOverrideSaving) {
+      return;
+    }
+    this.marketOverrideSaving = true;
+    this.marketService.setMarketOverride(!this.marketOverride.enabled)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.marketOverrideSaving = false;
+        })
+      )
+      .subscribe({
+        next: (status) => {
+          this.marketOverride = status;
+          this.refreshMarketStatus();
+          // The ticket's open/closed state and price may have changed
+          if (this.tradePanelOpen && this.ticketInstrument) {
+            this.requestPreview();
+          }
+        },
+        error: () => {
+          // Leave the switch as it was; the server didn't change anything
+        }
+      });
+  }
+
+  private loadMarketOverride(): void {
+    this.marketService.getMarketOverride()
+      .pipe(
+        catchError(() => of<MarketOverrideStatus | null>(null)),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((status) => {
+        this.marketOverride = status;
+      });
+  }
+
+  private refreshMarketStatus(): void {
+    this.marketService.getMarketStatus('NASDAQ')
+      .pipe(
+        catchError(() => of<MarketStatusResponse | null>(null)),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((status) => {
+        if (status) {
+          this.marketStatus = status;
+        }
+      });
   }
 
   startTour(): void {
@@ -945,7 +1028,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.orderResult = null;
     this.orderSubmitInProgress = true;
 
-    this.tradeService.placeOrder({ ...this.orderForm, order_type: 'MARKET', limit_price: null, time_in_force: 'DAY' })
+    this.tradeService.placeOrder({ ...this.orderForm })
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {

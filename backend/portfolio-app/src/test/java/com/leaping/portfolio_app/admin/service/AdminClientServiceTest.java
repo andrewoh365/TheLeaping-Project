@@ -1,33 +1,45 @@
 package com.leaping.portfolio_app.admin.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import com.leaping.portfolio_app.admin.dto.AdminClientPageResponse;
+import com.leaping.portfolio_app.admin.dto.AdminHoldingPageResponse;
+import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
+import com.leaping.portfolio_app.auth.model.Customer;
+import com.leaping.portfolio_app.auth.model.User;
+import com.leaping.portfolio_app.auth.repository.CustomerRepository;
+import com.leaping.portfolio_app.audit.entity.AuditEvent;
+import com.leaping.portfolio_app.audit.repository.AuditEventRepository;
+import com.leaping.portfolio_app.holdings.HoldingResponse;
+import com.leaping.portfolio_app.holdings.HoldingService;
+import com.leaping.portfolio_app.portfolio.entity.Portfolio;
+import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
 
-import java.util.List;
-import java.util.Optional;
-
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.server.ResponseStatusException;
 
-import com.leaping.portfolio_app.admin.dto.AdminClientPageResponse;
-import com.leaping.portfolio_app.admin.dto.AdminHoldingPageResponse;
-import com.leaping.portfolio_app.auth.model.Customer;
-import com.leaping.portfolio_app.auth.model.User;
-import com.leaping.portfolio_app.auth.repository.CustomerRepository;
-import com.leaping.portfolio_app.holdings.HoldingService;
-import com.leaping.portfolio_app.holdings.HoldingResponse;
-import com.leaping.portfolio_app.portfolio.entity.Portfolio;
-import com.leaping.portfolio_app.portfolio.repository.PortfolioRepository;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AdminClientServiceTest {
@@ -41,9 +53,29 @@ class AdminClientServiceTest {
     @Mock
     private HoldingService holdingService;
 
-    @InjectMocks
-    private AdminClientService adminClientService;
+    @Mock
+    private AuditEventRepository auditEventRepository;
 
+    private AdminClientService adminClientService;
+    private Customer auditCustomer;
+
+    @BeforeEach
+    void setUp() {
+        adminClientService = new AdminClientService(
+                customerRepository,
+                portfolioRepository,
+                holdingService,
+                auditEventRepository
+        );
+
+        auditCustomer = new Customer();
+        auditCustomer.setUserId(7L);
+        User user = new User();
+        user.setId(7L);
+        auditCustomer.setUser(user);
+    }
+
+    // Tests from dev: paginated client search and holdings.
     @Test
     void getClientsUsesRequestedPageAndReturnsMetadata() {
         Customer customer = new Customer();
@@ -58,7 +90,7 @@ class AdminClientServiceTest {
 
         Page<Customer> page = new PageImpl<>(
                 List.of(customer),
-                org.springframework.data.domain.PageRequest.of(1, 100),
+                PageRequest.of(1, 100),
                 201
         );
 
@@ -68,16 +100,14 @@ class AdminClientServiceTest {
                 any(Pageable.class)
         )).thenReturn(page);
 
-        AdminClientPageResponse response =
-                adminClientService.getClients(
-                        " Ava ",
-                        " ACTIVE ",
-                        1,
-                        100
-                );
+        AdminClientPageResponse response = adminClientService.getClients(
+                " Ava ",
+                " ACTIVE ",
+                1,
+                100
+        );
 
-        ArgumentCaptor<Pageable> pageable =
-                ArgumentCaptor.forClass(Pageable.class);
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
         verify(customerRepository).findPage(
                 eq("ava"),
                 eq("active"),
@@ -97,7 +127,7 @@ class AdminClientServiceTest {
     void getClientsClampsInvalidPageSizeAndPageNumber() {
         Page<Customer> page = new PageImpl<>(
                 List.of(),
-                org.springframework.data.domain.PageRequest.of(0, 100),
+                PageRequest.of(0, 100),
                 0
         );
 
@@ -109,8 +139,7 @@ class AdminClientServiceTest {
 
         adminClientService.getClients(null, null, -1, 1000);
 
-        ArgumentCaptor<Pageable> pageable =
-                ArgumentCaptor.forClass(Pageable.class);
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
         verify(customerRepository).findPage(
                 eq(""),
                 eq(""),
@@ -138,19 +167,17 @@ class AdminClientServiceTest {
                 any(Pageable.class)
         )).thenReturn(new PageImpl<>(
                 List.<HoldingResponse>of(),
-                org.springframework.data.domain.PageRequest.of(1, 100),
+                PageRequest.of(1, 100),
                 125
         ));
 
-        AdminHoldingPageResponse response =
-                adminClientService.getClientHoldings(
-                        101L,
-                        1,
-                        500
-                );
+        AdminHoldingPageResponse response = adminClientService.getClientHoldings(
+                101L,
+                1,
+                500
+        );
 
-        ArgumentCaptor<Pageable> pageable =
-                ArgumentCaptor.forClass(Pageable.class);
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
         verify(holdingService).getHoldingsByPortfolio(
                 eq(501L),
                 pageable.capture()
@@ -162,5 +189,77 @@ class AdminClientServiceTest {
         assertEquals(100, response.getSize());
         assertEquals(125, response.getTotalElements());
         assertEquals(2, response.getTotalPages());
+    }
+
+    // Tests from feature/audit: client audit history.
+    @Test
+    void getClientActivityMapsCashAndOrderLinksAndCapsPageSize() {
+        AuditEvent event = mock(AuditEvent.class);
+        when(event.getAuditEventId()).thenReturn(22L);
+        when(event.getEventType()).thenReturn("CASH_BALANCE_CHANGED");
+        when(event.getOccurredAt()).thenReturn(
+                OffsetDateTime.parse("2026-10-14T10:00:00Z")
+        );
+        when(event.getUser()).thenReturn(auditCustomer.getUser());
+        when(event.getEventDetails()).thenReturn(
+                Map.of("amountUsd", new BigDecimal("-25.00"))
+        );
+
+        com.leaping.portfolio_app.portfolio.entity.CashTransaction cash =
+                new com.leaping.portfolio_app.portfolio.entity.CashTransaction();
+        cash.setCashTransactionId(91L);
+        when(event.getCashTransaction()).thenReturn(cash);
+
+        when(customerRepository.findById(7L))
+                .thenReturn(Optional.of(auditCustomer));
+        when(auditEventRepository.findByUser_IdOrderByOccurredAtDescAuditEventIdDesc(
+                eq(7L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(event)));
+
+        Page<AuditEventResponse> result = adminClientService.getClientActivity(7L, 2, 1000);
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(auditEventRepository).findByUser_IdOrderByOccurredAtDescAuditEventIdDesc(
+                eq(7L), pageableCaptor.capture()
+        );
+        assertEquals(2, pageableCaptor.getValue().getPageNumber());
+        assertEquals(100, pageableCaptor.getValue().getPageSize());
+
+        AuditEventResponse response = result.getContent().get(0);
+        assertEquals(22L, response.getAuditEventId());
+        assertEquals("CASH_BALANCE_CHANGED", response.getEventType());
+        assertEquals(7L, response.getUserId());
+        assertEquals(91L, response.getCashTransactionId());
+        assertEquals(new BigDecimal("-25.00"), response.getEventDetails().get("amountUsd"));
+        assertNull(response.getOrderId());
+    }
+
+    @Test
+    void getClientActivityReturnsEmptyPage() {
+        when(customerRepository.findById(7L))
+                .thenReturn(Optional.of(auditCustomer));
+        when(auditEventRepository.findByUser_IdOrderByOccurredAtDescAuditEventIdDesc(
+                eq(7L), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        Page<AuditEventResponse> result = adminClientService.getClientActivity(7L, 0, 25);
+
+        assertEquals(0, result.getTotalElements());
+        assertEquals(0, result.getContent().size());
+    }
+
+    @Test
+    void getClientActivityRejectsMissingClient() {
+        when(customerRepository.findById(404L))
+                .thenReturn(Optional.empty());
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> adminClientService.getClientActivity(404L, 0, 25)
+        );
+
+        assertEquals(404, exception.getStatusCode().value());
+        verify(auditEventRepository, never())
+                .findByUser_IdOrderByOccurredAtDescAuditEventIdDesc(any(), any());
     }
 }

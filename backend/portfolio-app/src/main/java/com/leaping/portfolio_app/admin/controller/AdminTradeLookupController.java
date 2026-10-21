@@ -1,10 +1,13 @@
+
 package com.leaping.portfolio_app.admin.controller;
 
 import com.leaping.portfolio_app.admin.dto.AdminOrderDetailResponse;
 import com.leaping.portfolio_app.admin.dto.AdminOrderPageResponse;
+import com.leaping.portfolio_app.admin.dto.AuditEventResponse;
 import com.leaping.portfolio_app.admin.service.AdminTradeLookupService;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +28,7 @@ public class AdminTradeLookupController {
         this.adminTradeLookupService = adminTradeLookupService;
     }
 
+    // DEV: Paginated order search
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AdminOrderPageResponse> getOrders(
@@ -33,7 +37,6 @@ public class AdminTradeLookupController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "100") int size
     ) {
-
         AdminOrderPageResponse response =
                 adminTradeLookupService.getOrders(
                         search,
@@ -45,6 +48,7 @@ public class AdminTradeLookupController {
         return ResponseEntity.ok(response);
     }
 
+    // DEV: Individual order details
     @GetMapping("/{orderId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AdminOrderDetailResponse> getOrder(
@@ -52,6 +56,19 @@ public class AdminTradeLookupController {
     ) {
         return ResponseEntity.ok(
                 adminTradeLookupService.getOrder(orderId)
+        );
+    }
+
+    // AUDIT: Retrieve audit history for an order
+    @GetMapping("/{orderId}/audit")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<AuditEventResponse>> getOrderAudit(
+            @PathVariable Long orderId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size
+    ) {
+        return ResponseEntity.ok(
+                adminTradeLookupService.getOrderAudit(orderId, page, size)
         );
     }
 }

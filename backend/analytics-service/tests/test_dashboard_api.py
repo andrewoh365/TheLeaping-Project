@@ -9,6 +9,7 @@ from app.main import app
 from app.schemas.dashboard import (
     ClientActivityPoint,
     ClientActivityTrend,
+    ClientSegmentBreakdown,
     DashboardResponse,
     DashboardSummary,
     InstrumentActivity,
@@ -18,6 +19,7 @@ from app.schemas.dashboard import (
     TradingVolumePoint,
     TradingVolumeTrend,
 )
+from app.schemas.filters import ClientSegment
 
 
 client = TestClient(app)
@@ -87,6 +89,36 @@ def _mock_dashboard_response() -> DashboardResponse:
                 reason="INSUFFICIENT_CASH",
                 count=8,
             )
+        ],
+        client_segment_breakdown=[
+            ClientSegmentBreakdown(
+                segment=ClientSegment.INACTIVE,
+                total_clients=4,
+                active_clients=0,
+                order_count=0,
+                trading_volume_usd=0.0,
+            ),
+            ClientSegmentBreakdown(
+                segment=ClientSegment.OCCASIONAL,
+                total_clients=3,
+                active_clients=2,
+                order_count=5,
+                trading_volume_usd=100.25,
+            ),
+            ClientSegmentBreakdown(
+                segment=ClientSegment.REGULAR,
+                total_clients=2,
+                active_clients=1,
+                order_count=12,
+                trading_volume_usd=500.5,
+            ),
+            ClientSegmentBreakdown(
+                segment=ClientSegment.FREQUENT,
+                total_clients=1,
+                active_clients=1,
+                order_count=25,
+                trading_volume_usd=1000.75,
+            ),
         ],
     )
 
@@ -177,6 +209,15 @@ def test_dashboard_endpoint(monkeypatch):
         == "INSUFFICIENT_CASH"
     )
 
+    assert len(body["client_segment_breakdown"]) == 4
+    assert body["client_segment_breakdown"][0] == {
+        "segment": "INACTIVE",
+        "total_clients": 4,
+        "active_clients": 0,
+        "order_count": 0,
+        "trading_volume_usd": 0.0,
+    }
+
 
 def test_dashboard_accepts_valid_filters(monkeypatch):
     captured_filters = {}
@@ -200,6 +241,7 @@ def test_dashboard_accepts_valid_filters(monkeypatch):
             "asset_type": "STOCK",
             "market": "NASDAQ",
             "order_status": "FILLED",
+            "client_segment": "REGULAR",
         },
     )
 
@@ -212,6 +254,7 @@ def test_dashboard_accepts_valid_filters(monkeypatch):
     assert filters.asset_type.value == "STOCK"
     assert filters.market == "NASDAQ"
     assert filters.order_status.value == "FILLED"
+    assert filters.client_segment.value == "REGULAR"
 
 
 def test_dashboard_rejects_invalid_asset_type():
@@ -230,6 +273,17 @@ def test_dashboard_rejects_invalid_order_status():
         "/analytics/dashboard",
         params={
             "order_status": "PENDING",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_dashboard_rejects_invalid_client_segment():
+    response = client.get(
+        "/analytics/dashboard",
+        params={
+            "client_segment": "VERY_ACTIVE",
         },
     )
 

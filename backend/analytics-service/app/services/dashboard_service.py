@@ -4,6 +4,7 @@ from typing import Dict, List
 from app.repositories.analytics_repository import (
     get_active_clients,
     get_client_activity_rows,
+    get_client_segment_breakdown,
     get_fill_rate_counts,
     get_most_active_instruments,
     get_order_outcomes,
@@ -15,6 +16,7 @@ from app.repositories.analytics_repository import (
 from app.schemas.dashboard import (
     ClientActivityPoint,
     ClientActivityTrend,
+    ClientSegmentBreakdown,
     DashboardResponse,
     DashboardSummary,
     InstrumentActivity,
@@ -232,6 +234,26 @@ def _build_rejection_reasons(
     ]
 
 
+def _build_client_segment_breakdown(
+    filters: DashboardFilters,
+) -> List[ClientSegmentBreakdown]:
+    rows = get_client_segment_breakdown(filters)
+
+    return [
+        ClientSegmentBreakdown(
+            segment=row["segment"],
+            total_clients=int(row["total_clients"]),
+            active_clients=int(row["active_clients"]),
+            order_count=int(row["order_count"]),
+            trading_volume_usd=round(
+                float(row["trading_volume_usd"]),
+                2,
+            ),
+        )
+        for row in rows
+    ]
+
+
 def build_dashboard(
     filters: DashboardFilters,
 ) -> DashboardResponse:
@@ -269,6 +291,11 @@ def build_dashboard(
         ),
         top_rejection_reasons=(
             _build_rejection_reasons(
+                effective_filters
+            )
+        ),
+        client_segment_breakdown=(
+            _build_client_segment_breakdown(
                 effective_filters
             )
         ),
