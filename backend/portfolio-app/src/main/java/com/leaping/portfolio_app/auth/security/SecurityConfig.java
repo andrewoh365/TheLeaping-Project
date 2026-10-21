@@ -98,6 +98,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/public/**").permitAll()    // Public endpoints
                     .requestMatchers("/api/market/news", "/api/market/movers").permitAll() // Public dashboard insights
                         .requestMatchers("/auth/**").permitAll()          // Auth endpoints without /api prefix
+                        .requestMatchers("/actuator/health").permitAll()  // Health check for ECS; only this exact path, never /actuator/**
                         .anyRequest().authenticated()                     // Everything else requires authentication
                 )
                 // Add JWT filter BEFORE the standard username/password filter

@@ -33,3 +33,14 @@ server:
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:4200,http://localhost:3000}
 
+# Only endpoint that does not check for permissions. 
+# Will be used by AWS ECS to check health of Spring boot
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
