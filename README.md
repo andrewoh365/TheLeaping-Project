@@ -47,8 +47,8 @@ A full-stack online trading platform application for portfolio management and ma
 	tests: outcome counts reconcile to Total Orders, volume buckets reconcile
 	to Trading Volume, and segment activity reconciles under equivalent filters.
 - Run `./scripts/test.sh` for the standard Spring, analytics, and Angular
-	checks. To enable analytics PostgreSQL integration tests directly, set
-	`ANALYTICS_TEST_DATABASE_URL` to a disposable isolated database.
+	checks. The command creates a disposable PostgreSQL database and runs the
+	analytics SQL integration tests as part of the standard analytics suite.
 - Top-five instrument charts intentionally exclude instruments outside the
 	top five; distinct-client counts across time buckets can also repeat a
 	customer and should not be summed as a global distinct-client total.
@@ -110,10 +110,11 @@ The local lifecycle scripts also apply to an EC2 host running Docker:
 
 `setup.sh` creates missing ignored values for `REPLICATION_PASSWORD`,
 `REPORTING_DB_PASSWORD`, and `ANALYTICS_INTERNAL_TOKEN`, configures the
-primary HBA, provisions roles and the slot, and builds the reporting image.
-`start.sh` starts the preserved primary first, starts the standby, waits for
-recovery, and then starts FastAPI against the `reporting-postgres` network
-alias. The local primary database and FastAPI are published only on loopback
+primary HBA, and builds the reporting image. `start.sh` starts the preserved
+primary, runs Spring Boot/Flyway, then provisions the reporting roles and slot
+before starting the standby and waiting for recovery. FastAPI then runs against
+the `reporting-postgres` network alias. The local primary database and FastAPI
+are published only on loopback
 (`127.0.0.1:5432` and `127.0.0.1:8000`); neither is exposed to the LAN. Spring
 sends the internal token in
 `X-Analytics-Internal-Token`; Angular never receives that token.
