@@ -54,10 +54,144 @@ A full-stack online trading platform application for portfolio management and ma
 	customer and should not be summed as a global distinct-client total.
 - The protected dashboard remains available only to ADMIN and ANALYST users.
 
+### Reporting Isolation
+Spring Boot and Flyway use the primary PostgreSQL database. Analytics follows
+this one-way request path:
+
+```text
+Angular -> Spring Boot -> FastAPI -> PostgreSQL reporting standby
+                                      ^
+                         asynchronous physical streaming replication
+                                      ^
+                         PostgreSQL primary used for trading and writes
+```
+
+The Spring datasource and Flyway datasource remain pointed at the primary. The
+FastAPI service requires `ANALYTICS_DB_HOST`, `ANALYTICS_DB_PORT`,
+`ANALYTICS_DB_NAME`, `ANALYTICS_DB_USERNAME`, and `ANALYTICS_DB_PASSWORD`; it
+does not fall back to `DB_*` credentials or the primary host. FastAPI runs with
+a bounded pool, read-only transactions, and a statement timeout. There is no
+custom table-copy or duplicate trading-data synchronization process: the
+standby is maintained by PostgreSQL physical streaming replication.
+
+The primary creates the `leap_replication` role, the `leap_reporting` reader,
+and the physical slot `leap_reporting_slot`. The replication role has only
+`LOGIN` and `REPLICATION` privileges. The reporting role has `CONNECT`, schema
+`USAGE`, `SELECT` on the analytics tables, and `default_transaction_read_only`
+enabled; it has no create, superuser, or replication privileges. The default
+SELECT grant applies to tables created by the role that runs the provisioner,
+so new migration-owned tables should be reviewed explicitly.
+
+Replication is asynchronous. Analytics can be slightly behind live trading.
+The slot has `max_slot_wal_keep_size=2048MB`; if the standby remains offline
+long enough to exceed retained WAL, it must be rebuilt rather than allowed to
+silently diverge. A reporting outage returns HTTP 503 through Spring and the
+Angular dashboard shows an unavailable message with a retry action. No
+primary fallback is permitted, so trading continues independently while
+reporting is unavailable.
+
+#### Local or EC2 startup
+
+The local lifecycle scripts also apply to an EC2 host running Docker:
+
+```bash
+./scripts/setup.sh
+./scripts/start.sh
+./scripts/status.sh
+```
+
+`setup.sh` creates missing ignored values for `REPLICATION_PASSWORD`,
+`REPORTING_DB_PASSWORD`, and `ANALYTICS_INTERNAL_TOKEN`, configures the
+primary HBA, provisions roles and the slot, and builds the reporting image.
+`start.sh` starts the preserved primary first, starts the standby, waits for
+recovery, and then starts FastAPI against the `reporting-postgres` network
+alias. The local primary database and FastAPI are published only on loopback
+(`127.0.0.1:5432` and `127.0.0.1:8000`); neither is exposed to the LAN. Spring
+sends the internal token in
+`X-Analytics-Internal-Token`; Angular never receives that token.
+An existing primary container created before the loopback hardening may retain
+an older `0.0.0.0:5432` binding; inspect it with `docker port leap-postgres` and
+recreate only the container, retaining `leap-postgres-data`, during an approved
+maintenance window.
+
+#### Docker Compose startup
+
+Compose uses `postgres` as the primary and `postgres-replica` as the private
+standby on `leap-data-network`. The only published application port is the
+frontend port. The replica, FastAPI, and primary PostgreSQL ports are not
+published to the host:
+
+```bash
+docker compose up --build
+```
+
+The Compose `postgres-replication-init` service provisions the primary before
+the replica performs its initial `pg_basebackup`. The primary volume and
+`postgres-replica-data` are separate. Set the following in ignored `.env`
+values, using unique local secrets and never committing them:
+
+```text
+DB_USERNAME
+DB_PASSWORD
+JWT_SECRET
+REPLICATION_PASSWORD
+REPORTING_DB_PASSWORD
+ANALYTICS_INTERNAL_TOKEN
+```
+
+#### Health, lag, and recovery
+
+`/health` is a liveness endpoint. FastAPI `/ready` is reporting-specific and
+returns 503 unless the database is in recovery, the WAL receiver is streaming,
+and received and replayed WAL are caught up at the check. It reports receiver
+state, received/replayed LSNs, replay backlog, and replay timestamp, without
+returning credentials or tokens. Inspect the primary and standby with:
+
+```sql
+SELECT pg_is_in_recovery();
+SELECT * FROM pg_stat_replication;
+SELECT * FROM pg_stat_wal_receiver;
+```
+
+Use `./scripts/status.sh` for the local container state and replication lag.
+Normal `./scripts/stop.sh` and `./scripts/start.sh` preserve both volumes.
+If the standby has a partial cluster or has exceeded the WAL retention window,
+stop the services, remove only the reporting volume after operator review, and
+rebuild it from the primary:
+
+```bash
+./scripts/stop.sh
+docker volume rm leap-reporting-postgres-data
+./scripts/start.sh
+```
+
+The lifecycle scripts refuse to delete or reinitialize an invalid reporting
+volume automatically. `./scripts/reset.sh` preserves both databases by default.
+`./scripts/reset.sh --database` is explicitly destructive: after confirmation
+it deletes both the primary and reporting volumes, then reruns setup and
+Flyway. It must never be used as an automatic replication recovery action.
+
+#### Verification
+
+Run the standard checks with:
+
+```bash
+./scripts/test.sh
+```
+
+This runs the Spring suite against a disposable PostgreSQL database, the
+analytics suite, and an Angular production build. Focused checks can be run
+with `pytest` in `backend/analytics-service`, the focused analytics Maven test
+classes in `backend/portfolio-app`, and `npm run build` in `frontend`. No
+checked-in performance benchmark currently exists. A valid performance
+verification must use an isolated environment and record a no-analytics
+trading baseline plus concurrent analytics p50/p95 latency and primary CPU,
+memory, WAL, and transaction impact; it must not use the project primary.
+
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Backend**: Java 21, Maven 3.6+, MySQL 8.0+
+- **Backend**: Java 21, Maven 3.6+, PostgreSQL 16+
 - **Frontend**: Node.js v18+, npm or yarn
 
 ### Backend Setup (Local Development)
@@ -193,7 +327,7 @@ Trunk-based development works well for a short 12-week project because everyone 
 - Spring Security
 - Spring Data JPA
 - JWT (JSON Web Tokens)
-- MySQL
+- PostgreSQL 16
 
 ## 🚢 Deployment
 

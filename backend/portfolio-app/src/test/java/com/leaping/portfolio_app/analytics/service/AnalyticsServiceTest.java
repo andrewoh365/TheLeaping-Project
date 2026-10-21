@@ -4,7 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -24,6 +27,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -45,13 +49,16 @@ class AnalyticsServiceTest {
     void setUp() {
         service = new AnalyticsService(
                 restClient,
-                "http://analytics.example"
+                "http://analytics.example",
+                "test-internal-token"
         );
 
-        doReturn(request).when(restClient).get();
-        doReturn(request).when(request).uri(any(URI.class));
-        when(request.retrieve()).thenReturn(response);
-        when(response.body(String.class)).thenReturn("{}");
+        lenient().doReturn(request).when(restClient).get();
+        lenient().doReturn(request).when(request)
+                .header(anyString(), anyString());
+        lenient().doReturn(request).when(request).uri(any(URI.class));
+        lenient().when(request.retrieve()).thenReturn(response);
+        lenient().when(response.body(String.class)).thenReturn("{}");
     }
 
     @Test
@@ -69,6 +76,10 @@ class AnalyticsServiceTest {
         MultiValueMap<String, String> query = capturedQuery();
 
         assertEquals("{}", result);
+        verify(request).header(
+                "X-Analytics-Internal-Token",
+                "test-internal-token"
+        );
         assertEquals(
                 List.of("2026-09-01"),
                 query.get("date_from")
@@ -109,6 +120,18 @@ class AnalyticsServiceTest {
 
         assertTrue(query.get("instrument_id") == null);
         assertTrue(query.get("client_segment") == null);
+    }
+
+    @Test
+    void constructorRejectsMissingInternalToken() {
+        assertThrows(
+                IllegalStateException.class,
+                () -> new AnalyticsService(
+                        restClient,
+                        "http://analytics.example",
+                        ""
+                )
+        );
     }
 
     @Test
@@ -181,6 +204,35 @@ class AnalyticsServiceTest {
                 exception.getReason().contains(
                         "Invalid dashboard filter"
                 )
+        );
+    }
+
+    @Test
+    void getDashboard_mapsReportingConnectionFailureTo503() {
+        when(response.body(String.class)).thenThrow(
+                new RestClientException("connection refused")
+        );
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.getDashboard(
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                exception.getStatusCode()
+        );
+        assertEquals(
+                "Analytics reporting is temporarily unavailable",
+                exception.getReason()
         );
     }
 

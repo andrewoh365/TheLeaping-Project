@@ -1,7 +1,8 @@
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.schemas.dashboard import DashboardResponse
 from app.schemas.filters import (
@@ -10,6 +11,7 @@ from app.schemas.filters import (
     DashboardFilters,
     OrderStatus,
 )
+from app.core.security import require_internal_token
 from app.services.dashboard_service import (
     InvalidDateRangeError,
     InstrumentNotFoundError,
@@ -20,6 +22,7 @@ from app.services.dashboard_service import (
 router = APIRouter(
     prefix="/analytics/dashboard",
     tags=["Analytics Dashboard"],
+    dependencies=[Depends(require_internal_token)],
 )
 
 
@@ -62,6 +65,11 @@ def get_dashboard(
 
     try:
         return build_dashboard(filters)
+    except SQLAlchemyError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Analytics reporting is temporarily unavailable",
+        ) from error
     except InvalidDateRangeError as error:
         raise HTTPException(
             status_code=422,

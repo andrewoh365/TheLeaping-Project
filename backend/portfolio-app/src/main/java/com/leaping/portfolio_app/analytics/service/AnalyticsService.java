@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.server.ResponseStatusException;
@@ -15,21 +16,37 @@ public class AnalyticsService {
 
     private final RestClient restClient;
     private final String analyticsBaseUrl;
+    private final String analyticsInternalToken;
 
     @Autowired
     public AnalyticsService(
             @Value("${analytics.service.base-url:http://localhost:8000}")
-            String analyticsBaseUrl
+            String analyticsBaseUrl,
+            @Value("${ANALYTICS_INTERNAL_TOKEN:}")
+            String analyticsInternalToken
     ) {
-        this(RestClient.builder().build(), analyticsBaseUrl);
+        this(
+                RestClient.builder().build(),
+                analyticsBaseUrl,
+                analyticsInternalToken
+        );
     }
 
     AnalyticsService(
             RestClient restClient,
-            String analyticsBaseUrl
+            String analyticsBaseUrl,
+            String analyticsInternalToken
     ) {
+        if (analyticsInternalToken == null
+                || analyticsInternalToken.isBlank()) {
+            throw new IllegalStateException(
+                    "ANALYTICS_INTERNAL_TOKEN must be configured"
+            );
+        }
+
         this.restClient = restClient;
         this.analyticsBaseUrl = analyticsBaseUrl;
+        this.analyticsInternalToken = analyticsInternalToken;
     }
 
     public String getDashboard(
@@ -77,6 +94,10 @@ public class AnalyticsService {
             return restClient
                 .get()
                 .uri(uriBuilder.build().toUri())
+                .header(
+                    "X-Analytics-Internal-Token",
+                    analyticsInternalToken
+                )
                 .retrieve()
                 .body(String.class);
         } catch (RestClientResponseException exception) {
@@ -90,6 +111,12 @@ public class AnalyticsService {
                 reason,
                 exception
             );
+            } catch (RestClientException exception) {
+                throw new ResponseStatusException(
+                    org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                    "Analytics reporting is temporarily unavailable",
+                    exception
+                );
         }
     }
 }

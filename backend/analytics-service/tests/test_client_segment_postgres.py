@@ -4,6 +4,7 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.pool import NullPool
 
 import app.repositories.analytics_repository as repository
@@ -18,6 +19,7 @@ from app.schemas.filters import (
 
 
 UTC = timezone.utc
+REPORTING_READER_PASSWORD = "reporting-reader-test-password"
 
 
 @pytest.fixture()
@@ -80,6 +82,27 @@ def postgres_engine(monkeypatch):
                 total_usd_value NUMERIC(30, 8) NOT NULL,
                 executed_at TIMESTAMPTZ NOT NULL
             );
+            """
+        )
+        connection.exec_driver_sql(
+            """
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM pg_roles WHERE rolname = 'leap_reporting'
+                ) THEN
+                    DROP OWNED BY leap_reporting;
+                END IF;
+            END
+            $$;
+            DROP ROLE IF EXISTS leap_reporting;
+            CREATE ROLE leap_reporting LOGIN NOSUPERUSER NOCREATEDB
+                NOCREATEROLE NOREPLICATION
+                PASSWORD 'reporting-reader-test-password';
+            ALTER ROLE leap_reporting SET default_transaction_read_only = on;
+            GRANT CONNECT ON DATABASE analytics_test TO leap_reporting;
+            GRANT USAGE ON SCHEMA public TO leap_reporting;
+            GRANT SELECT ON ALL TABLES IN SCHEMA public TO leap_reporting;
             """
         )
 
@@ -979,6 +1002,9 @@ def test_dashboard_http_endpoint_uses_real_postgresql_fixture(
 
     response = TestClient(app).get(
         "/analytics/dashboard",
+        headers={
+            "X-Analytics-Internal-Token": "test-analytics-internal-token"
+        },
         params={
             "date_from": "2026-07-03",
             "date_to": "2026-09-30",
@@ -1016,3 +1042,38 @@ def test_dashboard_http_endpoint_uses_real_postgresql_fixture(
             "trading_volume_usd": 30.0,
         }
     ]
+
+
+def test_reporting_reader_role_is_read_only(postgres_engine):
+    with postgres_engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO markets (market_id, market_name)
+                VALUES (20, 'READER-TEST')
+                """
+            )
+        )
+
+    database_url = os.environ["ANALYTICS_TEST_DATABASE_URL"]
+    reader_url = make_url(database_url).set(
+        username="leap_reporting",
+        password=REPORTING_READER_PASSWORD,
+    )
+    reader_engine = create_engine(reader_url, poolclass=NullPool)
+
+    try:
+        with reader_engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT COUNT(*) FROM markets")
+            ).scalar_one() == 1
+
+            with pytest.raises(Exception, match="read-only"):
+                connection.execute(
+                    text(
+                        "INSERT INTO markets (market_id, market_name) "
+                        "VALUES (21, 'SHOULD-FAIL')"
+                    )
+                )
+    finally:
+        reader_engine.dispose()

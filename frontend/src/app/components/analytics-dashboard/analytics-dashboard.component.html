@@ -195,6 +195,12 @@
     class="error-card"
     *ngIf="errorMessage">
     {{ errorMessage }}
+    <button
+      mat-stroked-button
+      type="button"
+      (click)="retryDashboard()">
+      Retry
+    </button>
   </mat-card>
 
   <!-- DASHBOARD CONTENT -->

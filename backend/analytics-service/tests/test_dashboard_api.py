@@ -3,6 +3,7 @@ from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import SQLAlchemyError
 
 import app.api.dashboard as dashboard_api
 import app.main as main_api
@@ -25,7 +26,27 @@ from app.schemas.dashboard import (
 from app.schemas.filters import ClientSegment
 
 
-client = TestClient(app)
+client = TestClient(
+    app,
+    headers={
+        "X-Analytics-Internal-Token": "test-analytics-internal-token"
+    },
+)
+
+
+def test_dashboard_rejects_missing_internal_token():
+    response = TestClient(app).get("/analytics/dashboard")
+
+    assert response.status_code == 401
+
+
+def test_dashboard_rejects_invalid_internal_token():
+    response = TestClient(app).get(
+        "/analytics/dashboard",
+        headers={"X-Analytics-Internal-Token": "wrong-token"},
+    )
+
+    assert response.status_code == 401
 
 
 def _mock_dashboard_response() -> DashboardResponse:
@@ -143,8 +164,18 @@ def test_health_endpoint():
 def test_ready_endpoint_when_database_is_available(monkeypatch):
     monkeypatch.setattr(
         main_api,
-        "test_database_connection",
-        lambda: True,
+        "get_reporting_status",
+        lambda: {
+            "in_recovery": True,
+            "receiver_status": "streaming",
+            "received_lsn": "0/10",
+            "replayed_lsn": "0/10",
+            "replay_pending": False,
+            "last_replay_timestamp": None,
+            "receive_start_lsn": "0/1",
+            "latest_end_lsn": "0/10",
+            "ready": True,
+        },
     )
 
     response = client.get("/ready")
@@ -155,14 +186,25 @@ def test_ready_endpoint_when_database_is_available(monkeypatch):
         "status": "ready",
         "service": "analytics",
         "database": "connected",
+        "reporting": {
+            "in_recovery": True,
+            "receiver_status": "streaming",
+            "received_lsn": "0/10",
+            "replayed_lsn": "0/10",
+            "replay_pending": False,
+            "last_replay_timestamp": None,
+            "receive_start_lsn": "0/1",
+            "latest_end_lsn": "0/10",
+            "ready": True,
+        },
     }
 
 
 def test_ready_endpoint_when_database_is_unavailable(monkeypatch):
     monkeypatch.setattr(
         main_api,
-        "test_database_connection",
-        lambda: False,
+        "get_reporting_status",
+        lambda: (_ for _ in ()).throw(SQLAlchemyError("offline")),
     )
 
     response = client.get("/ready")
@@ -174,6 +216,29 @@ def test_ready_endpoint_when_database_is_unavailable(monkeypatch):
         "service": "analytics",
         "database": "unavailable",
     }
+
+
+def test_ready_endpoint_when_replica_is_not_safe(monkeypatch):
+    monkeypatch.setattr(
+        main_api,
+        "get_reporting_status",
+        lambda: {
+            "in_recovery": False,
+            "receiver_status": "disconnected",
+            "received_lsn": None,
+            "replayed_lsn": None,
+            "replay_pending": False,
+            "last_replay_timestamp": None,
+            "receive_start_lsn": None,
+            "latest_end_lsn": None,
+            "ready": False,
+        },
+    )
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json()["reporting"]["in_recovery"] is False
 
 
 def test_dashboard_endpoint(monkeypatch):
@@ -418,3 +483,20 @@ def test_dashboard_rejects_invalid_effective_date_range(monkeypatch):
     )
 
     assert response.status_code == 422
+
+
+def test_dashboard_returns_503_when_reporting_database_fails(monkeypatch):
+    monkeypatch.setattr(
+        dashboard_api,
+        "build_dashboard",
+        lambda filters: (_ for _ in ()).throw(
+            SQLAlchemyError("database details must not leak")
+        ),
+    )
+
+    response = client.get("/analytics/dashboard")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "Analytics reporting is temporarily unavailable"
+    }

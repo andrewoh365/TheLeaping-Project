@@ -24,6 +24,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/reporting.sh"
 
 
 # ------------------------------------------------------------
@@ -62,6 +64,7 @@ verify_setup() {
 
     load_env
     validate_required_env
+    ensure_reporting_env
 
     if [[ ! -f "${SPRING_LOCAL_CONFIG}" ]]; then
         die "Missing Spring local configuration:
@@ -352,7 +355,7 @@ start_analytics() {
                 --silent \
                 --fail \
                 --max-time 2 \
-                "http://127.0.0.1:${ANALYTICS_PORT}/health" \
+                "http://127.0.0.1:${ANALYTICS_PORT}/ready" \
                 >/dev/null 2>&1; then
 
                 success "Analytics service is already running with the current image"
@@ -391,12 +394,14 @@ start_analytics() {
         -d \
         --rm \
         --name "${ANALYTICS_CONTAINER}" \
-        --network host \
-        -e DB_USERNAME \
-        -e DB_PASSWORD \
-        -e DB_HOST=localhost \
-        -e DB_PORT="${POSTGRES_PORT}" \
-        -e DB_NAME="${LEAP_DB_NAME}" \
+        --network "${REPORTING_NETWORK}" \
+        -p "127.0.0.1:${ANALYTICS_PORT}:8000" \
+        -e ANALYTICS_DB_USERNAME="${REPORTING_DB_USERNAME}" \
+        -e ANALYTICS_DB_PASSWORD="${REPORTING_DB_PASSWORD}" \
+        -e ANALYTICS_DB_HOST=reporting-postgres \
+        -e ANALYTICS_DB_PORT=5432 \
+        -e ANALYTICS_DB_NAME="${LEAP_DB_NAME}" \
+        -e ANALYTICS_INTERNAL_TOKEN="${ANALYTICS_INTERNAL_TOKEN}" \
         "${ANALYTICS_IMAGE}" \
         >/dev/null
 
@@ -404,7 +409,7 @@ start_analytics() {
     info "Waiting for analytics health check"
 
     if ! wait_for_http \
-        "http://127.0.0.1:${ANALYTICS_PORT}/health" \
+        "http://127.0.0.1:${ANALYTICS_PORT}/ready" \
         "Analytics" \
         60; then
 
@@ -544,6 +549,9 @@ print_started_summary() {
     echo "Analytics:"
     echo "  http://localhost:${ANALYTICS_PORT}"
     echo
+    echo "Reporting PostgreSQL:"
+    echo "  internal standby: ${REPORTING_CONTAINER}"
+    echo
     echo "Frontend:"
     echo "  http://localhost:${FRONTEND_PORT}"
     echo
@@ -574,6 +582,7 @@ main() {
     verify_setup
 
     start_postgres
+    start_reporting_standby
     start_spring
     start_analytics
     start_frontend

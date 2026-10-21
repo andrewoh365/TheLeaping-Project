@@ -156,6 +156,10 @@ export class AnalyticsDashboardComponent
         this.loadDashboard();
     }
 
+    retryDashboard(): void {
+        this.loadDashboard();
+    }
+
     get dateRangeInvalid(): boolean {
         return !!this.dateFrom
             && !!this.dateTo
@@ -321,6 +325,13 @@ export class AnalyticsDashboardComponent
             typeof error.error === 'string'
                 ? error.error
                 : error.error?.message;
+
+        if (error.status === 503) {
+            this.errorMessage =
+                'Analytics temporarily unavailable. Please retry when '
+                + 'reporting recovers.';
+            return;
+        }
 
         this.errorMessage =
             `Unable to load analytics data. ` +

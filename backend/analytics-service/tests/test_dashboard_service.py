@@ -66,7 +66,7 @@ def test_effective_date_defaults_use_utc_today(monkeypatch):
 def test_effective_reversed_range_is_rejected():
     with pytest.raises(service.InvalidDateRangeError):
         service._apply_default_date_range(
-            DashboardFilters(date_from=date(2026, 10, 21))
+            DashboardFilters(date_from=date(2099, 10, 21))
         )
 
 

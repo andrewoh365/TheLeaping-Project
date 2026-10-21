@@ -28,6 +28,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/reporting.sh"
 
 
 # ------------------------------------------------------------
@@ -45,6 +47,42 @@ POSTGRES_VOLUME="leap-postgres-data"
 
 STANDARD_SPRING_DB_URL="jdbc:postgresql://localhost:${POSTGRES_PORT}/${POSTGRES_DB_NAME}"
 STANDARD_SPRING_PORT="${SPRING_PORT}"
+
+
+generate_reporting_secret() {
+    od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]'
+}
+
+
+ensure_reporting_credentials() {
+    local variable_name
+    local generated_value
+
+    for variable_name in \
+        REPLICATION_PASSWORD \
+        REPORTING_DB_PASSWORD \
+        ANALYTICS_INTERNAL_TOKEN
+    do
+        if [[ -n "${!variable_name:-}" \
+            && ! "${!variable_name}" =~ ^REPLACE_WITH_ ]]; then
+            continue
+        fi
+
+        generated_value="$(generate_reporting_secret)"
+
+        if grep -q "^${variable_name}=" "${ENV_FILE}"; then
+            sed -i "s/^${variable_name}=.*/${variable_name}=${generated_value}/" \
+                "${ENV_FILE}"
+        else
+            printf '%s=%s\n' "${variable_name}" "${generated_value}" \
+                >> "${ENV_FILE}"
+        fi
+
+        export "${variable_name}=${generated_value}"
+    done
+
+    success "Reporting credentials are configured in .env"
+}
 
 
 # ------------------------------------------------------------
@@ -723,7 +761,7 @@ prepare_postgres() {
         -e POSTGRES_DB="${POSTGRES_DB_NAME}" \
         -e POSTGRES_USER="${DB_USERNAME}" \
         -e POSTGRES_PASSWORD="${DB_PASSWORD}" \
-        -p "${POSTGRES_PORT}:5432" \
+        -p "127.0.0.1:${POSTGRES_PORT}:5432" \
         -v "${POSTGRES_VOLUME}:/var/lib/postgresql/data" \
         "${POSTGRES_IMAGE}" \
         >/dev/null
@@ -851,6 +889,19 @@ prepare_analytics() {
 }
 
 
+prepare_reporting() {
+    section "Reporting standby"
+
+    ensure_reporting_env
+    ensure_reporting_network
+    ensure_local_primary_hba
+    provision_reporting_primary
+    build_reporting_image
+
+    success "Reporting standby infrastructure prepared"
+}
+
+
 # ------------------------------------------------------------
 # Main setup flow
 # ------------------------------------------------------------
@@ -897,7 +948,9 @@ main() {
 
     prepare_env_file
     load_env
+    ensure_reporting_credentials
     validate_required_env
+    ensure_reporting_env
     validate_spring_env_alignment
 
     success ".env found"
@@ -909,6 +962,7 @@ main() {
 
     prepare_postgres
     start_and_verify_postgres
+    prepare_reporting
 
     prepare_frontend
     prepare_spring
