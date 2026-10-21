@@ -63,6 +63,7 @@ def get_reporting_status() -> Dict[str, Any]:
     ready = (
         row.in_recovery is True
         and receiver_status == "streaming"
+        and not replay_pending
     )
 
     return {

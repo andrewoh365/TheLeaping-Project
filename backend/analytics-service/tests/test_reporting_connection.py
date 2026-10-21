@@ -84,7 +84,7 @@ def test_settings_do_not_use_primary_database_variables(monkeypatch):
     assert "primary_user" not in settings.database_url
 
 
-def test_streaming_standby_with_pending_wal_is_ready(monkeypatch):
+def test_streaming_standby_with_pending_wal_is_not_ready(monkeypatch):
     monkeypatch.setattr(
         database_connection,
         "engine",
@@ -96,7 +96,7 @@ def test_streaming_standby_with_pending_wal_is_ready(monkeypatch):
     assert status["received_lsn"] == "0/20"
     assert status["replayed_lsn"] == "0/18"
     assert status["replay_pending"] is True
-    assert status["ready"] is True
+    assert status["ready"] is False
 
 
 def test_streaming_standby_with_zero_pending_wal_is_ready(monkeypatch):
