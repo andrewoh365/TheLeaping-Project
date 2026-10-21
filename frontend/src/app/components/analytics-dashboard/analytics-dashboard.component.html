@@ -161,7 +161,7 @@
           mat-flat-button
           color="primary"
           type="button"
-          [disabled]="dateRangeInvalid"
+          [disabled]="dateRangeInvalid || instrumentSelectionPending"
           (click)="applyFilters()">
           Apply
         </button>
@@ -180,6 +180,14 @@
         role="alert"
         *ngIf="dateRangeInvalid">
         The From date cannot be after the To date.
+      </div>
+
+      <div
+        class="filter-validation-message"
+        role="alert"
+        *ngIf="instrumentSelectionPending">
+        Choose an instrument from the list, or clear the search to include
+        all instruments.
       </div>
     </div>
   </mat-card>

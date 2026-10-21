@@ -96,6 +96,9 @@ export class AnalyticsDashboardComponent
     rejectionsChartRef?: ElementRef<HTMLCanvasElement>;
 
     dashboard: DashboardResponse | null = null;
+    // Filters that produced the current dashboard, as opposed to the
+    // form values the user may have changed without applying.
+    private dashboardFilters: DashboardFilters = {};
 
     loading = false;
     errorMessage = '';
@@ -164,6 +167,13 @@ export class AnalyticsDashboardComponent
         return !!this.dateFrom
             && !!this.dateTo
             && this.dateFrom > this.dateTo;
+    }
+
+    // Typed search text only filters once an option is picked; applying
+    // with unmatched text would silently show all instruments.
+    get instrumentSelectionPending(): boolean {
+        return !!this.instrumentSearch.trim()
+            && this.selectedInstrumentId === null;
     }
 
     resetFilters(): void {
@@ -291,6 +301,7 @@ export class AnalyticsDashboardComponent
                     this.loading = true;
                     this.errorMessage = '';
                     this.dashboard = null;
+                    this.dashboardFilters = filters;
                     this.destroyCharts();
 
                     return this.analyticsService
@@ -396,7 +407,9 @@ export class AnalyticsDashboardComponent
     }
 
     rejectionEmptyMessage(): string {
-        if (this.orderStatus && this.orderStatus !== 'REJECTED') {
+        const orderStatus = this.dashboardFilters.orderStatus;
+
+        if (orderStatus && orderStatus !== 'REJECTED') {
             return 'Rejection reasons are not applicable to the selected '
                 + 'order status.';
         }
