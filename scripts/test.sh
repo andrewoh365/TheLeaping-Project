@@ -305,6 +305,21 @@ run_spring_tests() {
 
 
 # ------------------------------------------------------------
+# Replica credential lifecycle tests
+# ------------------------------------------------------------
+
+run_replica_credential_tests() {
+    section "Replica credential lifecycle"
+
+    info "Testing ephemeral passfile creation and password rotation"
+
+    bash "${REPO_ROOT}/infrastructure/postgres/replica/entrypoint_test.sh"
+
+    success "Replica credential lifecycle checks passed"
+}
+
+
+# ------------------------------------------------------------
 # Analytics tests
 # ------------------------------------------------------------
 
@@ -405,6 +420,7 @@ main() {
     ensure_frontend_not_running
 
     run_spring_tests
+    run_replica_credential_tests
     run_analytics_tests
     run_frontend_checks
 

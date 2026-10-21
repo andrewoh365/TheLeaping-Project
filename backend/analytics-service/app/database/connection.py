@@ -39,15 +39,12 @@ def get_reporting_status() -> Dict[str, Any]:
                     CASE
                         WHEN pg_last_wal_receive_lsn() IS NULL
                             OR pg_last_wal_replay_lsn() IS NULL
-                            THEN NULL
-                        ELSE GREATEST(
-                            pg_wal_lsn_diff(
-                                pg_last_wal_receive_lsn(),
-                                pg_last_wal_replay_lsn()
-                            ),
-                            0
-                        )
-                    END AS replay_lag_bytes
+                            THEN FALSE
+                        ELSE pg_wal_lsn_diff(
+                            pg_last_wal_receive_lsn(),
+                            pg_last_wal_replay_lsn()
+                        ) > 0
+                    END AS replay_pending
                 FROM (SELECT 1) AS connection_check
                 LEFT JOIN LATERAL (
                     SELECT
@@ -62,19 +59,11 @@ def get_reporting_status() -> Dict[str, Any]:
         ).one()
 
     receiver_status = row.receiver_status or "disconnected"
-    replay_lag_bytes = (
-        int(row.replay_lag_bytes)
-        if row.replay_lag_bytes is not None
-        else None
-    )
-    replay_pending = bool(replay_lag_bytes)
-    # A short replay backlog is normal under steady writes; only a backlog
-    # beyond the configured threshold makes reporting data too stale to serve.
+    replay_pending = bool(row.replay_pending)
     ready = (
         row.in_recovery is True
         and receiver_status == "streaming"
-        and replay_lag_bytes is not None
-        and replay_lag_bytes <= settings.max_replay_lag_bytes
+        and not replay_pending
     )
 
     return {
@@ -83,7 +72,6 @@ def get_reporting_status() -> Dict[str, Any]:
         "received_lsn": row.received_lsn,
         "replayed_lsn": row.replayed_lsn,
         "replay_pending": replay_pending,
-        "replay_lag_bytes": replay_lag_bytes,
         "last_replay_timestamp": (
             row.last_replay_timestamp.isoformat()
             if row.last_replay_timestamp is not None
