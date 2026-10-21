@@ -154,27 +154,6 @@
         </mat-select>
       </mat-form-field>
 
-      <!-- CLIENT SEGMENT -->
-      <mat-form-field appearance="outline">
-        <mat-label>Client Segment</mat-label>
-
-        <mat-select [(ngModel)]="clientSegment">
-          <mat-option value="">All</mat-option>
-          <mat-option value="INACTIVE">
-            Inactive (0 orders)
-          </mat-option>
-          <mat-option value="OCCASIONAL">
-            Occasional (1–9 orders)
-          </mat-option>
-          <mat-option value="REGULAR">
-            Regular (10–19 orders)
-          </mat-option>
-          <mat-option value="FREQUENT">
-            Frequent (20+ orders)
-          </mat-option>
-        </mat-select>
-      </mat-form-field>
-
       <!-- FILTER BUTTONS -->
       <div class="filter-actions">
 
@@ -485,60 +464,6 @@
         <ng-template #segmentBreakdownEmpty>
           <div class="segment-empty-state">
             No matching activity for these filters.
-          </div>
-        </ng-template>
-      </mat-card>
-
-      <!-- CLIENT SEGMENT BREAKDOWN -->
-      <mat-card class="chart-card chart-wide segment-breakdown-card">
-        <h2>Client Segment Breakdown</h2>
-
-        <p class="segment-description">
-          Segments are based on 90 days of orders ending on the report's To
-          date, or today by default.
-        </p>
-
-        <ng-container
-          *ngIf="dashboard.client_segment_breakdown.length > 0;
-          else segmentBreakdownEmpty">
-          <div class="chart-container segment-chart-container">
-            <canvas #segmentsChart></canvas>
-          </div>
-
-          <div class="segment-table-wrapper">
-            <table class="segment-table">
-              <thead>
-                <tr>
-                  <th scope="col">Segment</th>
-                  <th scope="col">Clients</th>
-                  <th scope="col">Active Clients</th>
-                  <th scope="col">Orders</th>
-                  <th scope="col">Trading Volume (USD)</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                <tr
-                  *ngFor="let segment of dashboard.client_segment_breakdown">
-                  <td>{{ segment.segment }}</td>
-                  <td>{{ segment.total_clients | number }}</td>
-                  <td>{{ segment.active_clients | number }}</td>
-                  <td>{{ segment.order_count | number }}</td>
-                  <td>
-                    {{
-                      segment.trading_volume_usd
-                        | currency:'USD':'symbol':'1.0-2'
-                    }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </ng-container>
-
-        <ng-template #segmentBreakdownEmpty>
-          <div class="segment-empty-state">
-            No client segment data is available for the selected filters.
           </div>
         </ng-template>
       </mat-card>
