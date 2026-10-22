@@ -96,10 +96,15 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/auth/**").permitAll()      // All auth endpoints are public
+                        .requestMatchers( "/api/auth/login",
+                        "/api/auth/register",
+                        "/api/auth/refresh",
+                        "/api/auth/logout",
+                        "/api/auth/health").permitAll()      // All auth endpoints are public
                         .requestMatchers("/api/public/**").permitAll()    // Public endpoints
-                    .requestMatchers("/api/market/news", "/api/market/movers").permitAll() // Public dashboard insights
+                        .requestMatchers("/api/market/news", "/api/market/movers").permitAll() // Public dashboard insights
                         .requestMatchers("/auth/**").permitAll()          // Auth endpoints without /api prefix
+                        .requestMatchers("/api/market/instruments/price/history").permitAll()
                         // Error dispatches carry no JWT; without this, a 404 or 503
                         // from a controller is rewritten to 401 and looks like an
                         // expired session to the frontend.

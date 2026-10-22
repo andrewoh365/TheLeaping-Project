@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, BehaviorSubject, of } from 'rxjs';
+import { Observable, BehaviorSubject, of, throwError } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 
 export type UserRole =
@@ -13,6 +13,8 @@ export interface AuthResponse {
   refreshToken?: string;
   expiresIn?: number;
   email?: string;
+  firstName?: string;
+  lastName?: string;
   role?: UserRole;
   message?: string;
   success?: boolean;
@@ -94,12 +96,7 @@ export class AuthService {
         body
       )
       .pipe(
-        tap(response => {
-          this.storeToken(
-            response.token,
-            response.refreshToken
-          );
-        }),
+        tap(response => this.initializeSession(response, email)),
 
         catchError(error => {
           console.error(
@@ -132,35 +129,7 @@ export class AuthService {
       )
       .pipe(
         tap(response => {
-
-          this.storeToken(
-            response.token,
-            response.refreshToken
-          );
-
-          this.isAuthenticatedSubject
-            .next(true);
-
-          /*
-           * Login gives us enough information
-           * to establish authentication and role.
-           *
-           * Full user details are loaded separately
-           * from GET /api/auth/me.
-           */
-          const user: User = {
-            email:
-              response.email ?? email,
-
-            ...(response.role
-              ? { role: response.role }
-              : {})
-          };
-
-          this.currentUserSubject
-            .next(user);
-
-          this.storeUser(user);
+          this.initializeSession(response, email);
         }),
 
         catchError(error => {
@@ -334,6 +303,32 @@ export class AuthService {
   }
 
   /**
+   * Establish the authenticated session and load the user's full profile.
+   */
+  private initializeSession(
+    response: AuthResponse,
+    fallbackEmail: string
+  ): void {
+    this.storeToken(
+      response.token,
+      response.refreshToken
+    );
+
+    this.isAuthenticatedSubject.next(true);
+
+    const user: User = {
+      email: response.email ?? fallbackEmail,
+      ...(response.firstName ? { firstName: response.firstName } : {}),
+      ...(response.lastName ? { lastName: response.lastName } : {}),
+      ...(response.role ? { role: response.role } : {})
+    };
+
+    this.currentUserSubject.next(user);
+    this.storeUser(user);
+    this.fetchUserDetails();
+  }
+
+  /**
    * Check whether current user has
    * one of the supplied roles.
    */
@@ -365,8 +360,10 @@ export class AuthService {
 
       this.logout();
 
-      throw new Error(
-        'No refresh token available'
+      return throwError(
+        () => new Error(
+          'No refresh token available'
+        )
       );
     }
 
@@ -392,8 +389,10 @@ export class AuthService {
 
           this.logout();
 
-          throw new Error(
-            'Token refresh failed'
+          return throwError(
+            () => new Error(
+              'Token refresh failed'
+            )
           );
         })
       );
@@ -446,6 +445,10 @@ export class AuthService {
     );
 
     localStorage.removeItem(
+      'token'
+    );
+
+    localStorage.removeItem(
       this.REFRESH_TOKEN_KEY
     );
 
@@ -474,10 +477,13 @@ export class AuthService {
       const payload =
         this.parseJwt(token);
 
-      const expiresIn =
-        payload.exp * 1000;
+      const expiresAt =
+        typeof payload.exp === 'number'
+          ? payload.exp * 1000
+          : NaN;
 
-      return expiresIn > Date.now();
+      return Number.isFinite(expiresAt) &&
+        expiresAt > Date.now();
 
     } catch {
 
@@ -555,9 +561,20 @@ export class AuthService {
         this.USER_KEY
       );
 
-    return userStr
-      ? JSON.parse(userStr)
-      : null;
+    if (!userStr) {
+      return null;
+    }
+
+    try {
+      const user = JSON.parse(userStr) as User;
+
+      return user && typeof user.email === 'string'
+        ? user
+        : null;
+    } catch {
+      localStorage.removeItem(this.USER_KEY);
+      return null;
+    }
   }
 
   /**
