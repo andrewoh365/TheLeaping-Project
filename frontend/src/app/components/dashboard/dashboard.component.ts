@@ -749,6 +749,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.dialog.open(InstrumentExpandedComponent, {
       id: 'instrument-expanded-dialog',
+      panelClass: 'instrument-dialog',
       data: {
         instrumentId: Number(instrument.instrumentId),
         symbol: instrument.symbol,
@@ -758,9 +759,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         priceCurrencyCode: instrument.priceCurrencyCode,
         isTradeable: instrument.isTradeable
       },
-      width: '80vw',
-      height: '80vh',
-      maxWidth: '95vw',
+      width: '980px',
+      maxWidth: '94vw',
+      maxHeight: '90vh',
       autoFocus: false,
       restoreFocus: true
     }).afterClosed()

@@ -399,6 +399,13 @@ body {
   margin: 0 !important;
 }
 
+.instrument-dialog .mat-mdc-dialog-surface {
+  padding: 0;
+  border: 1px solid #3a3a3a;
+  overflow: hidden;
+  background-color: #1a1a1a !important;
+}
+
 .mat-mdc-dialog-content {
   background-color: var(--background-color) !important;
   color: var(--text-color) !important;

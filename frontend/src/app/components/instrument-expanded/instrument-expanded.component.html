@@ -1,62 +1,103 @@
-<div class="instrument-expanded-dialog">
-    <mat-dialog-actions align="end">
-        <button mat-button mat-dialog-close type="button" (click)="onClose()">X</button>
-    </mat-dialog-actions>
-   <h2 class="instrument-title">{{ data.name }}</h2>
-       <mat-dialog-actions class="instrument-trade-actions">
-        <button mat-stroked-button color="seller" type="button" (click)="startTrade('SELL')" [disabled]="!data.isTradeable">Sell</button>
-        <button mat-flat-button color="buyer" type="button" (click)="startTrade('BUY')" [disabled]="!data.isTradeable">Buy</button>
-    </mat-dialog-actions>
-    <mat-dialog-content>
-        <div class="chart-range-controls" role="group" aria-label="Chart date range">
-            <button
-                type="button"
-                *ngFor="let range of chartRanges"
-                [class.active]="activeChartRange === range"
-                [attr.aria-pressed]="activeChartRange === range"
-                (click)="setChartRange(range)"
-            >{{ range }}</button>
-        </div>
-        <div class="chart-container" *ngIf="!isLoading && chartConfig">
-            <canvas #priceChart></canvas>
-        </div>
-        <div class="instrument-details">
-            <div class="detail-row">
-            <span class="label">Symbol:</span>
-            <span class="value">{{ data.symbol }}</span>
-            </div>
-            <div class="detail-row">
-            <span class="label">Type:</span>
-            <span class="value">{{ data.instrumentType }}</span>
-            </div>
-            <div class="detail-row">
-            <span class="label">Price:</span>
-            <span class="value">
-                {{ data.price !== null ? (data.price | currency:displayCurrencyCode) : 'Unavailable' }}
-            </span>
-            </div>
-            <div class="detail-row">
-            <span class="label">Market:</span>
-            <span class="value">{{ data.marketName }}</span>
-            </div>
-            <div class="detail-row">
-            <span class="label">Country:</span>
-            <span class="value">{{ data.country }}</span>
-            </div>
-            <div class="detail-row">
-            <span class="label">Last Updated:</span>
-            <span class="value">{{ data.lastUpdated ? (data.lastUpdated | date:'MMM d, y, h:mm a') : 'Unavailable' }}</span>
-            </div>
-            <div class="detail-row">
-            <span class="label">Open Time:</span>
-            <span class="value">{{ data.openTime }}</span>
-            </div>
-            <div class="detail-row">
-            <span class="label">Close Time:</span>
-            <span class="value">{{ data.closeTime }}</span>
-            </div>
+<section class="instrument-expanded-dialog">
+  <header class="instrument-header">
+    <div class="identity">
+      <p class="symbol">{{ data.symbol }}</p>
+      <h2>{{ data.name }}</h2>
+      <p class="meta">
+        <span>{{ data.instrumentType || 'Instrument' }}</span>
+        <span *ngIf="data.marketName">{{ data.marketName }}</span>
+        <span *ngIf="data.country">{{ data.country }}</span>
+      </p>
+    </div>
+    <button type="button" class="close-button" (click)="onClose()" aria-label="Close">
+      <span aria-hidden="true">&times;</span>
+    </button>
+  </header>
 
-        </div>
-    </mat-dialog-content>
+  <div class="price-row">
+    <div class="price-block">
+      <p class="price">{{ data.price !== null && data.price !== undefined ? (data.price | currency:'USD':'symbol':'1.2-2') : 'Price unavailable' }}</p>
+      <p class="change" *ngIf="rangeChangePercent !== null" [class.down]="rangeFell">
+        {{ formatSignedMoney(rangeChange) }}
+        <span>({{ formatSignedPercent(rangeChangePercent) }} {{ rangeCaption }})</span>
+      </p>
+      <p class="updated">
+        {{ data.lastUpdated ? ('Updated ' + (data.lastUpdated | date:'MMM d, y, h:mm a')) : 'Waiting for the latest price' }}
+      </p>
+    </div>
+    <div class="trade-actions">
+      <button type="button" class="trade-button buy" (click)="startTrade('BUY')" [disabled]="!data.isTradeable">Buy</button>
+      <button type="button" class="trade-button sell" (click)="startTrade('SELL')" [disabled]="!data.isTradeable">Sell</button>
+    </div>
+  </div>
 
-</div>
+  <section class="panel">
+    <div class="chart-header">
+      <div>
+        <p class="chart-title">Price</p>
+        <p class="chart-subtitle">Dollar price over the selected period</p>
+      </div>
+      <div class="time-toggles" role="group" aria-label="Chart date range">
+        <button
+          type="button"
+          *ngFor="let range of chartRanges"
+          [class.active]="activeChartRange === range"
+          [attr.aria-pressed]="activeChartRange === range"
+          (click)="setChartRange(range)"
+        >{{ range }}</button>
+      </div>
+    </div>
+
+    <div class="chart-surface">
+      <p class="chart-loading" *ngIf="isLoading">Loading price history...</p>
+      <p class="chart-empty" *ngIf="!isLoading && !hasChart">Not enough price history to chart this period yet.</p>
+      <div class="chart-plot" *ngIf="hasChart">
+        <div class="chart-canvas">
+          <svg
+            viewBox="0 0 1000 260"
+            preserveAspectRatio="none"
+            role="img"
+            [attr.aria-label]="data.symbol + ' price over ' + activeChartRange + (rangeFell ? ', down' : ', up or flat')"
+            (click)="selectChartPoint($event)"
+          >
+            <g class="grid-lines">
+              <line *ngFor="let tick of yTicks" x1="0" x2="1000" [attr.y1]="tick.y" [attr.y2]="tick.y"></line>
+            </g>
+            <path class="chart-area" [class.falling]="rangeFell" [attr.d]="areaPath"></path>
+            <path class="chart-line" [class.falling]="rangeFell" [attr.d]="linePath"></path>
+            <line *ngIf="markerX !== null" class="marker" [attr.x1]="markerX" [attr.x2]="markerX" y1="0" y2="260"></line>
+          </svg>
+          <div class="chart-x-axis" aria-hidden="true">
+            <span *ngFor="let tick of xTicks" [style.left.%]="tick.position * 100">{{ tick.label }}</span>
+          </div>
+        </div>
+        <div class="chart-y-axis" aria-hidden="true">
+          <span *ngFor="let tick of yTicks" [style.top.%]="tick.position * 100">{{ tick.label }}</span>
+        </div>
+      </div>
+      <p class="selected-price" *ngIf="selectedPrice !== null">
+        {{ selectedLabel }}
+        <strong>{{ selectedPrice | currency:'USD':'symbol':'1.2-2' }}</strong>
+      </p>
+    </div>
+  </section>
+
+  <dl class="facts">
+    <div>
+      <dt>Session</dt>
+      <dd>{{ sessionLabel }}</dd>
+    </div>
+    <div>
+      <dt>Timezone</dt>
+      <dd>{{ data.timezone || '—' }}</dd>
+    </div>
+    <div>
+      <dt>Trading</dt>
+      <dd [class.down]="!data.isTradeable">{{ data.isTradeable ? 'Available' : 'Not available' }}</dd>
+    </div>
+    <div>
+      <dt>Status</dt>
+      <dd>{{ data.isActive ? 'Active' : 'Inactive' }}</dd>
+    </div>
+  </dl>
+</section>
