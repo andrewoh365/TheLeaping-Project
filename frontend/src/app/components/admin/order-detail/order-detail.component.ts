@@ -15,6 +15,7 @@ import {
 } from "../../../services/admin.service";
 
 import { InternalLayoutComponent } from "../../internal-layout/internal-layout.component";
+import { minimumLoadingTime } from "../../internal-layout/minimum-loading-time";
 
 @Component({
   selector: "app-order-detail",
@@ -85,7 +86,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
     this.adminService
       .getOrder(orderId)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (order) => {
           this.order = order;
@@ -191,7 +192,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
     this.adminService
       .getOrderAudit(orderId)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (page) => {
           this.auditEvents = page.content;
@@ -224,7 +225,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
     this.adminService
       .getOrderAudit(this.auditOrderId, this.auditPage + 1)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (page) => {
           this.auditEvents = [...this.auditEvents, ...page.content];

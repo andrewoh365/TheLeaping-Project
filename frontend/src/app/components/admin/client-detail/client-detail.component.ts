@@ -16,6 +16,7 @@ import {
 } from "../../../services/admin.service";
 import { InternalLayoutComponent } from "../../internal-layout/internal-layout.component";
 import { OpsPagerComponent } from "../../internal-layout/ops-pager.component";
+import { minimumLoadingTime } from "../../internal-layout/minimum-loading-time";
 type ClientDetailTab = "overview" | "holdings" | "orders" | "activity";
 // Audit detail keys whose values are backend enums (e.g. PARTIALLY_FILLED).
 const ENUM_DETAIL_KEYS = new Set([
@@ -310,7 +311,7 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
     this.clientErrorRetryable = false;
     this.adminService
       .getClient(clientId)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (client) => {
           this.client = client;
@@ -341,7 +342,7 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
         this.holdingsPageIndex,
         this.holdingsPageSize,
       )
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (response: AdminHoldingPage) => {
           const lastPage = Math.max(0, Math.ceil(response.totalElements / response.size) - 1);
@@ -375,7 +376,7 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
     this.ordersErrorMessage = "";
     this.adminService
       .getClientOrders(clientId, this.ordersPageIndex, this.ordersPageSize)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (response: AdminOrderPage) => {
           const lastPage = Math.max(0, Math.ceil(response.totalElements / response.size) - 1);
@@ -409,7 +410,7 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
     this.activityErrorMessage = "";
     this.adminService
       .getClientActivity(clientId, page, this.activityPageSize)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (activityPage) => {
           this.activity = append

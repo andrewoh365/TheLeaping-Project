@@ -18,6 +18,7 @@ import {
 
 import { InternalLayoutComponent } from "../../internal-layout/internal-layout.component";
 import { OpsPagerComponent } from "../../internal-layout/ops-pager.component";
+import { minimumLoadingTime } from "../../internal-layout/minimum-loading-time";
 
 interface OrderStatusOption {
   label: string;
@@ -151,7 +152,7 @@ export class TradeLookupComponent implements OnInit, OnDestroy {
         this.pageIndex,
         this.pageSize,
       )
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (response: AdminOrderPage) => {
           const lastPage = Math.max(0, Math.ceil(response.totalElements / response.size) - 1);

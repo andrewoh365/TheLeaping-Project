@@ -50,6 +50,7 @@ import {
 } from '../../services/analytics.service';
 
 import { InternalLayoutComponent } from '../internal-layout/internal-layout.component';
+import { minimumLoadingTime } from '../internal-layout/minimum-loading-time';
 
 Chart.register(...registerables);
 
@@ -717,6 +718,7 @@ export class AnalyticsDashboardComponent
                     return this.analyticsService
                         .getDashboard(filters)
                         .pipe(
+                            minimumLoadingTime(),
                             catchError(error => {
                                 this.handleDashboardError(error);
                                 return EMPTY;
