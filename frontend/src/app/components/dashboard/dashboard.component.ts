@@ -695,7 +695,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
 
     this.loadDashboard();
-    this.loadMarketOverride();
+    // The override endpoint is admin-only; customers would only get a 403.
+    if (this.authService.hasRole('ADMIN')) {
+      this.loadMarketOverride();
+    }
     this.startLiveUpdates();
     this.startMarketContextUpdates();
 

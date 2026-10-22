@@ -27,9 +27,11 @@ export class JwtInterceptor implements HttpInterceptor {
 
     return next.handle(request).pipe(
       catchError((error: HttpErrorResponse) => {
-        // Some backends return 403 for expired/invalid JWTs.
+        // The backend returns 401 for missing, invalid or expired tokens and
+        // 403 when an authenticated user lacks the role for a route. Only a
+        // 401 means the session needs refreshing.
         if (
-          (error.status === 401 || error.status === 403)
+          error.status === 401
           && !this.isRefreshUrl(request.url)
           && !this.isLogoutUrl(request.url)
           && !this.isExcludedUrl(request.url)
@@ -51,6 +53,12 @@ export class JwtInterceptor implements HttpInterceptor {
 
   private handleAuthError(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
     return this.authService.refreshToken().pipe(
+      // Only a failed refresh ends the session; an error from the retried
+      // request itself (e.g. a 403) is passed back to the caller.
+      catchError((err) => {
+        this.forceReauth();
+        return throwError(() => err);
+      }),
       switchMap(() => {
         const token = this.authService.getToken();
         if (token) {
@@ -58,10 +66,6 @@ export class JwtInterceptor implements HttpInterceptor {
         }
         this.forceReauth();
         return throwError(() => new Error('Token refresh failed'));
-      }),
-      catchError((err) => {
-        this.forceReauth();
-        return throwError(() => err);
       })
     );
   }
