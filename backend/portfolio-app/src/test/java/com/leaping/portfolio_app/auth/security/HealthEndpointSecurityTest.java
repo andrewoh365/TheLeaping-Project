@@ -60,9 +60,9 @@ class HealthEndpointSecurityTest {
     @Test
     void otherActuatorPathsRequireLogin() throws Exception {
         mockMvc.perform(get("/actuator/env"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/actuator/health/db"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
