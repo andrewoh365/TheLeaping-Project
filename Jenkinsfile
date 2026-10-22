@@ -87,6 +87,73 @@ pipeline {
             }
         }
 
+        stage('Spring Boot health check') {
+            environment {
+                // Same test-only secret as the Spring Boot tests stage. Not a real secret.
+                JWT_SECRET = 'LEAP_TEST_ONLY_JWT_SECRET_2026_DO_NOT_USE_OUTSIDE_AUTOMATED_TESTS_12345678901234567890'
+            }
+            steps {
+                // Starts the image just built against a throwaway PostgreSQL and waits for
+                // /actuator/health to report UP, the same check ECS will run. Catches startup
+                // problems the unit tests miss, like a deadlock during the price backfill.
+                sh '''
+                    NET="leap-ci-$IMAGE_TAG"
+                    docker network create "$NET"
+                    docker run -d --name "$NET-db" --network "$NET" \
+                        -e POSTGRES_DB=leaping_db \
+                        -e POSTGRES_USER=leap_ci \
+                        -e POSTGRES_PASSWORD=leap_ci_password \
+                        postgres:16
+
+                    # Wait up to 30 seconds for the database to accept connections
+                    for i in $(seq 1 30); do
+                        docker exec "$NET-db" pg_isready -U leap_ci -d leaping_db && break
+                        sleep 1
+                    done
+
+                    # Price updates run every second here (normally every 30) so one always
+                    # overlaps the startup backfill. A lock-order bug between the two then
+                    # fails this check every time instead of only when the timing lines up.
+                    docker run -d --name "$NET-app" --network "$NET" \
+                        -e SPRING_DATASOURCE_URL="jdbc:postgresql://$NET-db:5432/leaping_db" \
+                        -e DB_USERNAME=leap_ci \
+                        -e DB_PASSWORD=leap_ci_password \
+                        -e JWT_SECRET \
+                        -e MARKET_PRICING_REFRESHMS=1000 \
+                        leap-portfolio-app:$IMAGE_TAG
+
+                    # Up to 3 minutes, the startup grace period planned for ECS
+                    for i in $(seq 1 36); do
+                        if [ "$(docker inspect -f '{{.State.Running}}' "$NET-app")" != "true" ]; then
+                            echo "Spring stopped during startup. Last log lines:"
+                            docker logs --tail 80 "$NET-app"
+                            exit 1
+                        fi
+                        if docker exec "$NET-app" wget -qO- http://localhost:8080/actuator/health; then
+                            echo
+                            echo "Spring reported UP after about $((i * 5)) seconds"
+                            exit 0
+                        fi
+                        sleep 5
+                    done
+
+                    echo "Spring did not report UP within 3 minutes. Last log lines:"
+                    docker logs --tail 80 "$NET-app"
+                    exit 1
+                '''
+            }
+            post {
+                always {
+                    // Remove the throwaway containers and network, whether the check passed or failed
+                    sh '''
+                        NET="leap-ci-$IMAGE_TAG"
+                        docker rm -f "$NET-app" "$NET-db" || true
+                        docker network rm "$NET" || true
+                    '''
+                }
+            }
+        }
+
         stage('Build frontend image') {
             steps {
                 // Builds from frontend/Dockerfile. This runs the Angular production
