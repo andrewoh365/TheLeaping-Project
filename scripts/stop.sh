@@ -21,6 +21,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/reporting.sh"
 
 
 # ------------------------------------------------------------
@@ -284,6 +286,7 @@ main() {
 
     stop_frontend
     stop_analytics
+    stop_reporting_standby
     stop_spring
     stop_postgres
 

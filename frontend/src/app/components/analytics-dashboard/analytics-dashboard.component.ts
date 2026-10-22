@@ -12,11 +12,14 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
 import { MatButtonModule } from '@angular/material/button';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import {
     Chart,
@@ -24,10 +27,18 @@ import {
     registerables
 } from 'chart.js';
 
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { EMPTY, Subject } from 'rxjs';
+import {
+    catchError,
+    switchMap,
+    takeUntil
+} from 'rxjs/operators';
 
 import { AuthService } from '../../services/auth.service';
+import {
+    Instrument,
+    InstrumentService
+} from '../../services/instrumentService';
 
 import {
     AnalyticsService,
@@ -50,11 +61,14 @@ Chart.register(...registerables);
         CommonModule,
         FormsModule,
         MatButtonModule,
+        MatAutocompleteModule,
         MatCardModule,
         MatFormFieldModule,
+        MatIconModule,
         MatInputModule,
         MatProgressSpinnerModule,
         MatSelectModule,
+        MatTooltipModule,
         InternalNavComponent
     ],
     templateUrl: './analytics-dashboard.component.html',
@@ -82,6 +96,9 @@ export class AnalyticsDashboardComponent
     rejectionsChartRef?: ElementRef<HTMLCanvasElement>;
 
     dashboard: DashboardResponse | null = null;
+    // Filters that produced the current dashboard, as opposed to the
+    // form values the user may have changed without applying.
+    private dashboardFilters: DashboardFilters = {};
 
     loading = false;
     errorMessage = '';
@@ -94,8 +111,14 @@ export class AnalyticsDashboardComponent
 
     assetType: AssetType | '' = '';
     market = '';
+    instrumentSearch = '';
+    selectedInstrumentId: number | null = null;
+    selectedInstrument: Instrument | null = null;
     orderStatus: OrderStatus | '' = '';
     clientSegment: ClientSegment | '' = '';
+
+    allInstruments: Instrument[] = [];
+    filteredInstruments: Instrument[] = [];
 
     readonly markets = [
         'NASDAQ',
@@ -107,6 +130,8 @@ export class AnalyticsDashboardComponent
     ];
 
     private readonly destroy$ = new Subject<void>();
+    private readonly dashboardRequests$ =
+        new Subject<DashboardFilters | null>();
 
     private volumeChart?: Chart;
     private outcomesChart?: Chart;
@@ -117,6 +142,7 @@ export class AnalyticsDashboardComponent
 
     constructor(
         private analyticsService: AnalyticsService,
+        private instrumentService: InstrumentService,
         private authService: AuthService,
         private router: Router,
         private changeDetectorRef: ChangeDetectorRef
@@ -124,6 +150,8 @@ export class AnalyticsDashboardComponent
 
     ngOnInit(): void {
         this.isAdmin = this.authService.hasRole('ADMIN');
+        this.setupDashboardRequests();
+        this.loadInstruments();
         this.loadDashboard();
     }
 
@@ -131,15 +159,88 @@ export class AnalyticsDashboardComponent
         this.loadDashboard();
     }
 
+    retryDashboard(): void {
+        this.loadDashboard();
+    }
+
+    get dateRangeInvalid(): boolean {
+        return !!this.dateFrom
+            && !!this.dateTo
+            && this.dateFrom > this.dateTo;
+    }
+
+    // Typed search text only filters once an option is picked; applying
+    // with unmatched text would silently show all instruments.
+    get instrumentSelectionPending(): boolean {
+        return !!this.instrumentSearch.trim()
+            && this.selectedInstrumentId === null;
+    }
+
     resetFilters(): void {
         this.dateFrom = '';
         this.dateTo = '';
         this.assetType = '';
         this.market = '';
+        this.instrumentSearch = '';
+        this.selectedInstrumentId = null;
+        this.selectedInstrument = null;
+        this.filteredInstruments = this.allInstruments;
         this.orderStatus = '';
         this.clientSegment = '';
 
         this.loadDashboard();
+    }
+
+    onInstrumentSearchChange(value: string): void {
+        this.instrumentSearch = value || '';
+
+        const selectedLabel = this.selectedInstrument
+            ? this.instrumentLabel(this.selectedInstrument)
+            : '';
+
+        if (
+            this.selectedInstrumentId !== null
+            && this.instrumentSearch !== selectedLabel
+        ) {
+            this.selectedInstrumentId = null;
+            this.selectedInstrument = null;
+        }
+
+        this.filteredInstruments = this.filterInstruments(
+            this.instrumentSearch
+        );
+    }
+
+    onInstrumentSelected(instrumentId: string | number): void {
+        if (instrumentId === '') {
+            this.clearInstrumentSelection();
+            return;
+        }
+
+        const instrument = this.allInstruments.find(
+            candidate => String(candidate.instrumentId) === String(instrumentId)
+        );
+
+        if (!instrument) {
+            return;
+        }
+
+        const normalizedId = Number(instrument.instrumentId);
+        if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
+            return;
+        }
+
+        this.selectedInstrumentId = normalizedId;
+        this.selectedInstrument = instrument;
+        this.instrumentSearch = this.instrumentLabel(instrument);
+        this.filteredInstruments = [instrument];
+    }
+
+    clearInstrumentSelection(): void {
+        this.instrumentSearch = '';
+        this.selectedInstrumentId = null;
+        this.selectedInstrument = null;
+        this.filteredInstruments = this.allInstruments;
     }
 
     logout(): void {
@@ -148,10 +249,15 @@ export class AnalyticsDashboardComponent
     }
 
     private loadDashboard(): void {
-        this.loading = true;
-        this.errorMessage = '';
-
         const filters: DashboardFilters = {};
+
+        if (this.dateRangeInvalid) {
+            this.dashboardRequests$.next(null);
+            this.clearDashboardState();
+            this.errorMessage =
+                'The From date cannot be after the To date.';
+            return;
+        }
 
         if (this.dateFrom) {
             filters.dateFrom = this.dateFrom;
@@ -169,6 +275,10 @@ export class AnalyticsDashboardComponent
             filters.market = this.market.trim();
         }
 
+        if (this.selectedInstrumentId !== null) {
+            filters.instrumentId = this.selectedInstrumentId;
+        }
+
         if (this.orderStatus) {
             filters.orderStatus = this.orderStatus;
         }
@@ -177,37 +287,186 @@ export class AnalyticsDashboardComponent
             filters.clientSegment = this.clientSegment;
         }
 
-        this.analyticsService
-            .getDashboard(filters)
+        this.dashboardRequests$.next(filters);
+    }
+
+    private setupDashboardRequests(): void {
+        this.dashboardRequests$
+            .pipe(
+                switchMap(filters => {
+                    if (filters === null) {
+                        return EMPTY;
+                    }
+
+                    this.loading = true;
+                    this.errorMessage = '';
+                    this.dashboard = null;
+                    this.dashboardFilters = filters;
+                    this.destroyCharts();
+
+                    return this.analyticsService
+                        .getDashboard(filters)
+                        .pipe(
+                            catchError(error => {
+                                this.handleDashboardError(error);
+                                return EMPTY;
+                            })
+                        );
+                }),
+                takeUntil(this.destroy$)
+            )
+            .subscribe(response => {
+                this.dashboard = response;
+                this.loading = false;
+
+                this.changeDetectorRef.detectChanges();
+                this.renderCharts();
+            });
+    }
+
+    private handleDashboardError(error: any): void {
+        console.error(
+            'Failed to load analytics dashboard:',
+            error
+        );
+
+        this.loading = false;
+
+        const backendMessage =
+            typeof error.error === 'string'
+                ? error.error
+                : error.error?.message;
+
+        if (error.status === 503) {
+            this.errorMessage =
+                'Analytics temporarily unavailable. Please retry when '
+                + 'reporting recovers.';
+            return;
+        }
+
+        this.errorMessage =
+            `Unable to load analytics data. ` +
+            `HTTP ${error.status || 0}` +
+            (backendMessage ? ` - ${backendMessage}` : '');
+    }
+
+    private clearDashboardState(): void {
+        this.loading = false;
+        this.dashboard = null;
+        this.destroyCharts();
+    }
+
+    private loadInstruments(): void {
+        this.instrumentService
+            .getAllInstruments()
             .pipe(takeUntil(this.destroy$))
             .subscribe({
-                next: response => {
-                    this.dashboard = response;
-                    this.loading = false;
-
-                    this.changeDetectorRef.detectChanges();
-                    this.renderCharts();
+                next: instruments => {
+                    this.allInstruments = instruments;
+                    this.filteredInstruments = instruments;
                 },
-
                 error: error => {
                     console.error(
-                        'Failed to load analytics dashboard:',
+                        'Failed to load instruments for analytics:',
                         error
                     );
-
-                    this.loading = false;
-
-                    const backendMessage =
-                        typeof error.error === 'string'
-                            ? error.error
-                            : error.error?.message;
-
-                    this.errorMessage =
-                        `Unable to load analytics data. ` +
-                        `HTTP ${error.status || 0}` +
-                        (backendMessage ? ` - ${backendMessage}` : '');
+                    this.allInstruments = [];
+                    this.filteredInstruments = [];
                 }
             });
+    }
+
+    private filterInstruments(query: string): Instrument[] {
+        const normalizedQuery = query.trim().toLowerCase();
+
+        if (!normalizedQuery) {
+            return this.allInstruments;
+        }
+
+        return this.allInstruments.filter(instrument =>
+            instrument.symbol.toLowerCase().includes(normalizedQuery)
+            || instrument.name.toLowerCase().includes(normalizedQuery)
+        );
+    }
+
+    private instrumentLabel(instrument: Instrument): string {
+        return `${instrument.symbol} - ${instrument.name} `
+            + `(ID ${instrument.instrumentId})`;
+    }
+
+    formatReportingPeriod(): string {
+        const period = this.dashboard?.reporting_period;
+        if (!period) {
+            return '';
+        }
+
+        const dateFrom = this.formatCalendarDate(period.date_from);
+        const dateTo = this.formatCalendarDate(period.date_to);
+
+        return `${dateFrom} - ${dateTo} (${period.timezone})`;
+    }
+
+    rejectionEmptyMessage(): string {
+        const orderStatus = this.dashboardFilters.orderStatus;
+
+        if (orderStatus && orderStatus !== 'REJECTED') {
+            return 'Rejection reasons are not applicable to the selected '
+                + 'order status.';
+        }
+
+        return 'No matching activity for these filters.';
+    }
+
+    private formatCalendarDate(value: string): string {
+        const [year, month, day] = value
+            .split('-')
+            .map(Number);
+
+        return new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            timeZone: 'UTC'
+        }).format(new Date(Date.UTC(year, month - 1, day)));
+    }
+
+    hasTradingVolumeActivity(): boolean {
+        return this.dashboard?.trading_volume_over_time.points.some(
+            point => point.volume_usd > 0
+        ) ?? false;
+    }
+
+    hasOrderOutcomeActivity(): boolean {
+        return this.dashboard?.order_outcomes.some(
+            outcome => outcome.count > 0
+        ) ?? false;
+    }
+
+    hasInstrumentActivity(): boolean {
+        return this.dashboard?.most_active_instruments.some(
+            instrument => instrument.order_count > 0
+        ) ?? false;
+    }
+
+    hasClientActivity(): boolean {
+        return this.dashboard?.client_activity_trend.points.some(
+            point => point.active_clients > 0
+        ) ?? false;
+    }
+
+    hasRejectionActivity(): boolean {
+        return this.dashboard?.top_rejection_reasons.some(
+            reason => reason.count > 0
+        ) ?? false;
+    }
+
+    hasSegmentActivity(): boolean {
+        return this.dashboard?.client_segment_breakdown.some(
+            segment =>
+                segment.active_clients > 0
+                || segment.order_count > 0
+                || segment.trading_volume_usd > 0
+        ) ?? false;
     }
 
     private renderCharts(): void {
@@ -446,6 +705,7 @@ export class AnalyticsDashboardComponent
     ngOnDestroy(): void {
         this.destroyCharts();
 
+        this.dashboardRequests$.complete();
         this.destroy$.next();
         this.destroy$.complete();
     }

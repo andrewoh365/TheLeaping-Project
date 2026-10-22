@@ -2,7 +2,7 @@ from fastapi import FastAPI, Response, status
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.dashboard import router as dashboard_router
-from app.database.connection import test_database_connection
+from app.database.connection import get_reporting_status
 
 
 app = FastAPI(
@@ -22,23 +22,29 @@ def health_check():
 @app.get("/ready")
 def readiness_check(response: Response):
     try:
-        database_ready = test_database_connection()
+        reporting = get_reporting_status()
     except SQLAlchemyError:
-        database_ready = False
+        reporting = None
 
-    if not database_ready:
+    if reporting is None or not reporting["ready"]:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
-        return {
+        body = {
             "status": "not_ready",
             "service": "analytics",
-            "database": "unavailable",
+            "database": "unavailable" if reporting is None else "connected",
         }
+
+        if reporting is not None:
+            body["reporting"] = reporting
+
+        return body
 
     return {
         "status": "ready",
         "service": "analytics",
         "database": "connected",
+        "reporting": reporting,
     }
 
 

@@ -42,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
                 "market.simulation.respect-market-hours=false",
                 "market.simulation.tick-ms=100",
                 "market.pricing.refresh-ms=100",
+                "market.pricing.startup-backfill-enabled=true",
                 "market.pricing.history-days=30",
                 "jwt.secret=ThisIsATestOnlyJwtSecretKeyWithAtLeast64CharactersForHS512SigningAlgo"
         }

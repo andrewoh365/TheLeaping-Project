@@ -24,11 +24,14 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/reporting.sh"
 
 
 RESET_DATABASE=false
 
 POSTGRES_VOLUME="leap-postgres-data"
+REPORTING_VOLUME="leap-reporting-postgres-data"
 
 
 # ------------------------------------------------------------
@@ -95,6 +98,14 @@ clean_runtime_state() {
             success "No stale analytics container found"
         fi
 
+        if docker_container_exists "${REPORTING_CONTAINER}"; then
+            info "Removing stale reporting standby container"
+            docker rm -f "${REPORTING_CONTAINER}" >/dev/null 2>&1 || true
+            success "Reporting standby container cleaned"
+        else
+            success "No stale reporting standby container found"
+        fi
+
     else
         warn "Docker is not currently available; Docker cleanup was skipped"
     fi
@@ -112,6 +123,8 @@ confirm_database_reset() {
     echo "============================================================"
     echo
     echo "This will permanently delete the LOCAL LEAP PostgreSQL data."
+    echo
+    echo "It will also delete the reporting standby volume and require a fresh pg_basebackup."
     echo
     echo "Flyway will recreate the schema when Spring starts again."
     echo
@@ -164,6 +177,14 @@ reset_database() {
         success "PostgreSQL data deleted"
     else
         success "No LEAP PostgreSQL data volume found"
+    fi
+
+    if docker volume inspect "${REPORTING_VOLUME}" >/dev/null 2>&1; then
+        info "Removing reporting standby data volume"
+        docker volume rm "${REPORTING_VOLUME}" >/dev/null
+        success "Reporting standby data deleted"
+    else
+        success "No reporting standby data volume found"
     fi
 
 
