@@ -360,6 +360,8 @@ export class AnalyticsDashboardComponent
 
     allInstruments: Instrument[] = [];
     filteredInstruments: Instrument[] = [];
+    instrumentsLoading = false;
+    instrumentsErrorMessage = '';
 
     // Instrument combobox state.
     instrumentOptionsOpen = false;
@@ -532,6 +534,7 @@ export class AnalyticsDashboardComponent
         this.selectedInstrumentId = null;
         this.selectedInstrument = null;
         this.filteredInstruments = this.allInstruments;
+        this.activeInstrumentIndex = this.instrumentOptionsOpen ? 0 : -1;
     }
 
     // Typing filters the list and highlights the first match so Enter
@@ -662,6 +665,10 @@ export class AnalyticsDashboardComponent
             return;
         }
 
+        if (this.instrumentSelectionPending) {
+            return;
+        }
+
         if (this.dateFrom) {
             filters.dateFrom = this.dateFrom;
         }
@@ -787,14 +794,25 @@ export class AnalyticsDashboardComponent
         this.destroyCharts();
     }
 
-    private loadInstruments(): void {
+    loadInstruments(): void {
+        if (this.instrumentsLoading) {
+            return;
+        }
+        this.instrumentsLoading = true;
+        this.instrumentsErrorMessage = '';
         this.instrumentService
             .getAllInstruments()
             .pipe(takeUntil(this.destroy$))
             .subscribe({
                 next: (instruments: Instrument[]) => {
                     this.allInstruments = instruments;
-                    this.filteredInstruments = instruments;
+                    this.filteredInstruments = this.filterInstruments(
+                        this.instrumentSearch
+                    );
+                    this.instrumentsLoading = false;
+                    this.activeInstrumentIndex = this.instrumentOptionsOpen
+                        && this.instrumentSearch.trim()
+                        && this.filteredInstruments.length > 0 ? 1 : -1;
                 },
                 error: (error: unknown) => {
                     console.error(
@@ -803,6 +821,10 @@ export class AnalyticsDashboardComponent
                     );
                     this.allInstruments = [];
                     this.filteredInstruments = [];
+                    this.instrumentsLoading = false;
+                    this.activeInstrumentIndex = -1;
+                    this.instrumentsErrorMessage =
+                        'Unable to load instruments. Retry to search the catalogue.';
                 }
             });
     }

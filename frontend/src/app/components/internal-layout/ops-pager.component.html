@@ -38,17 +38,17 @@
         aria-label="Previous page"
         title="Previous page"
         [disabled]="disabled || !hasPrevious"
-        (click)="goTo(pageIndex - 1)">
+        (click)="goTo(currentPageIndex - 1)">
         <mat-icon>chevron_left</mat-icon>
       </button>
-      <span class="ops-pager-page">Page {{ pageIndex + 1 | number }} of {{ pageCount | number }}</span>
+      <span class="ops-pager-page">Page {{ currentPageIndex + 1 | number }} of {{ pageCount | number }}</span>
       <button
         type="button"
         class="ops-icon-btn"
         aria-label="Next page"
         title="Next page"
         [disabled]="disabled || !hasNext"
-        (click)="goTo(pageIndex + 1)">
+        (click)="goTo(currentPageIndex + 1)">
         <mat-icon>chevron_right</mat-icon>
       </button>
       <button

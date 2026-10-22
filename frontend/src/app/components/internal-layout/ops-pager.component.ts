@@ -30,24 +30,28 @@ export class OpsPagerComponent {
 
   @Output() page = new EventEmitter<PageEvent>();
 
+  get currentPageIndex(): number {
+    return Math.min(Math.max(this.pageIndex, 0), this.pageCount - 1);
+  }
+
   get pageCount(): number {
     return Math.max(1, Math.ceil(this.length / this.pageSize));
   }
 
   get rangeStart(): number {
-    return this.length === 0 ? 0 : this.pageIndex * this.pageSize + 1;
+    return this.length === 0 ? 0 : this.currentPageIndex * this.pageSize + 1;
   }
 
   get rangeEnd(): number {
-    return Math.min(this.length, (this.pageIndex + 1) * this.pageSize);
+    return Math.min(this.length, (this.currentPageIndex + 1) * this.pageSize);
   }
 
   get hasPrevious(): boolean {
-    return this.pageIndex > 0;
+    return this.currentPageIndex > 0;
   }
 
   get hasNext(): boolean {
-    return this.pageIndex + 1 < this.pageCount;
+    return this.currentPageIndex + 1 < this.pageCount;
   }
 
   goTo(pageIndex: number): void {
@@ -61,12 +65,12 @@ export class OpsPagerComponent {
 
   changePageSize(value: string): void {
     const pageSize = Number(value);
-    if (this.disabled || !pageSize || pageSize === this.pageSize) {
+    if (this.disabled || !Number.isInteger(pageSize) || pageSize <= 0 || pageSize === this.pageSize) {
       return;
     }
 
     // Keep the first visible row on screen after the size change.
-    const firstRow = this.pageIndex * this.pageSize;
+    const firstRow = this.currentPageIndex * this.pageSize;
     this.emit(Math.floor(firstRow / pageSize), pageSize);
   }
 

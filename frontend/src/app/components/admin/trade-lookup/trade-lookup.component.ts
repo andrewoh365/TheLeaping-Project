@@ -53,6 +53,7 @@ export class TradeLookupComponent implements OnInit, OnDestroy {
   readonly skeletonRows = [1, 2, 3, 4, 5, 6];
 
   search = "";
+  private appliedSearch = "";
   status = "";
 
   loading = false;
@@ -72,7 +73,7 @@ export class TradeLookupComponent implements OnInit, OnDestroy {
   ) {}
 
   get hasActiveFilters(): boolean {
-    return this.search.trim().length > 0 || this.status !== "";
+    return this.appliedSearch.length > 0 || this.status !== "";
   }
 
   ngOnInit(): void {
@@ -80,6 +81,7 @@ export class TradeLookupComponent implements OnInit, OnDestroy {
   }
 
   applyFilters(): void {
+    this.appliedSearch = this.search.trim();
     this.pageIndex = 0;
     this.loadOrders();
   }
@@ -101,9 +103,7 @@ export class TradeLookupComponent implements OnInit, OnDestroy {
   resetFilters(): void {
     this.search = "";
     this.status = "";
-    this.pageIndex = 0;
-
-    this.loadOrders();
+    this.applyFilters();
   }
 
   retry(): void {
@@ -145,7 +145,7 @@ export class TradeLookupComponent implements OnInit, OnDestroy {
     this.ordersRequest = this.adminService
       .getOrders(
         {
-          search: this.search,
+          search: this.appliedSearch,
           status: this.status,
         },
         this.pageIndex,
@@ -154,8 +154,14 @@ export class TradeLookupComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response: AdminOrderPage) => {
+          const lastPage = Math.max(0, Math.ceil(response.totalElements / response.size) - 1);
+          if (response.totalElements > 0 && response.page > lastPage) {
+            this.pageIndex = lastPage;
+            this.loadOrders();
+            return;
+          }
           this.orders = response.orders;
-          this.pageIndex = response.page;
+          this.pageIndex = response.totalElements === 0 ? 0 : response.page;
           this.pageSize = response.size;
           this.totalOrders = response.totalElements;
           this.loading = false;

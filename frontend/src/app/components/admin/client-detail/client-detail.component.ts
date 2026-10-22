@@ -344,8 +344,14 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response: AdminHoldingPage) => {
+          const lastPage = Math.max(0, Math.ceil(response.totalElements / response.size) - 1);
+          if (response.totalElements > 0 && response.page > lastPage) {
+            this.holdingsPageIndex = lastPage;
+            this.loadHoldings(clientId);
+            return;
+          }
           this.holdings = response.holdings;
-          this.holdingsPageIndex = response.page;
+          this.holdingsPageIndex = response.totalElements === 0 ? 0 : response.page;
           this.holdingsPageSize = response.size;
           this.totalHoldings = response.totalElements;
           this.holdingsLoading = false;
@@ -372,8 +378,14 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response: AdminOrderPage) => {
+          const lastPage = Math.max(0, Math.ceil(response.totalElements / response.size) - 1);
+          if (response.totalElements > 0 && response.page > lastPage) {
+            this.ordersPageIndex = lastPage;
+            this.loadOrders(clientId);
+            return;
+          }
           this.orders = response.orders;
-          this.ordersPageIndex = response.page;
+          this.ordersPageIndex = response.totalElements === 0 ? 0 : response.page;
           this.ordersPageSize = response.size;
           this.totalOrders = response.totalElements;
           this.ordersLoading = false;

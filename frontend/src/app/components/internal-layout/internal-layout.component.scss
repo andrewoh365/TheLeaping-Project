@@ -303,8 +303,16 @@ app-internal-layout {
     font-size: 24px;
     font-weight: 700;
     line-height: 1.2;
+    font-variant-numeric: tabular-nums;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .ops-stat-value.ops-stat-value--wrap {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .ops-stat-meta {
@@ -1019,6 +1027,14 @@ app-internal-layout {
       font-size: 14px;
       font-weight: 500;
     }
+
+    dd.ops-id {
+      color: var(--ops-text-secondary);
+    }
+
+    dd.ops-muted {
+      color: var(--ops-text-muted);
+    }
   }
 
   /* Label/value rows, like the trade ticket summary */
@@ -1334,6 +1350,40 @@ app-internal-layout {
       flex: 0 0 32px;
       height: 32px;
       border-radius: 9px;
+    }
+  }
+
+  /* Order tables share eight columns: ID, entity, instrument, side,
+     quantity, status, submitted date and the row action. */
+  .ops-skeleton-row.ops-skeleton-row--order {
+    .ops-skeleton {
+      &:first-child {
+        flex: 0 0 72px;
+        height: 14px;
+        border-radius: 6px;
+      }
+
+      &:nth-child(4) {
+        flex: 0 0 48px;
+      }
+
+      &:nth-child(5) {
+        flex: 0 0 80px;
+      }
+
+      &:nth-child(6) {
+        flex: 0 0 72px;
+        height: 22px;
+        border-radius: 999px;
+      }
+
+      &:nth-child(7) {
+        flex: 0 0 96px;
+      }
+
+      &:nth-child(8) {
+        flex: 0 0 16px;
+      }
     }
   }
 

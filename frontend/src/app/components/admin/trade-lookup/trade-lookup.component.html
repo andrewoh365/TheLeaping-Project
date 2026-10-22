@@ -124,16 +124,18 @@
 
       <!-- LOADING -->
       <div
-        class="ops-skeleton-rows trade-skeleton"
+        class="ops-skeleton-rows"
         role="status"
         aria-label="Loading orders"
         *ngIf="loading"
       >
         <div
-          class="ops-skeleton-row"
+          class="ops-skeleton-row ops-skeleton-row--order"
           aria-hidden="true"
           *ngFor="let row of skeletonRows"
         >
+          <span class="ops-skeleton"></span>
+          <span class="ops-skeleton"></span>
           <span class="ops-skeleton"></span>
           <span class="ops-skeleton"></span>
           <span class="ops-skeleton"></span>
@@ -240,9 +242,7 @@
 
               <!-- QUANTITY -->
               <td class="ops-num">
-                <ng-container *ngIf="order.quantity !== null; else emDash">
-                  {{ order.quantity | number: "1.0-8" }}
-                </ng-container>
+                {{ order.quantity ?? "—" }}
               </td>
 
               <!-- STATUS -->
@@ -266,7 +266,7 @@
                   *ngIf="order.submittedAt; else emDash"
                 >
                   <span>{{ order.submittedAt | date: "MMM d, y" }}</span>
-                  <small>{{ order.submittedAt | date: "h:mm a" }}</small>
+                  <small>{{ order.submittedAt | date: "h:mm:ss a" }}</small>
                 </div>
               </td>
 

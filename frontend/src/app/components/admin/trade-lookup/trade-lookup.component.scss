@@ -62,30 +62,6 @@
   }
 }
 
-/* Skeleton row mirrors the table: order, client, instrument, quantity,
-   status pill, chevron */
-.trade-skeleton .ops-skeleton-row .ops-skeleton {
-  &:nth-child(1) {
-    flex: 0 0 72px;
-    height: 14px;
-    border-radius: 6px;
-  }
-
-  &:nth-child(4) {
-    flex: 0 0 80px;
-  }
-
-  &:nth-child(5) {
-    flex: 0 0 72px;
-    height: 22px;
-    border-radius: 999px;
-  }
-
-  &:nth-child(6) {
-    flex: 0 0 16px;
-  }
-}
-
 .trade-empty-action {
   margin-top: 8px;
 }

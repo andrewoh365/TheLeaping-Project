@@ -118,7 +118,7 @@
         </span>
 
         <ng-container *ngIf="client && !loading; else statSkeleton">
-          <strong class="ops-stat-value">
+          <strong class="ops-stat-value ops-stat-value--wrap">
             {{
               client.cashBalanceUsd != null
                 ? (client.cashBalanceUsd | currency: "USD" : "symbol" : "1.2-2")
@@ -144,7 +144,7 @@
         </span>
 
         <ng-container *ngIf="!holdingsLoading; else statSkeleton">
-          <strong class="ops-stat-value">
+          <strong class="ops-stat-value ops-stat-value--wrap">
             {{ holdingsErrorMessage ? "—" : (totalHoldings | number) }}
           </strong>
           <span class="ops-stat-meta">
@@ -168,7 +168,7 @@
         </span>
 
         <ng-container *ngIf="!ordersLoading; else statSkeleton">
-          <strong class="ops-stat-value">
+          <strong class="ops-stat-value ops-stat-value--wrap">
             {{ ordersErrorMessage ? "—" : (totalOrders | number) }}
           </strong>
           <span class="ops-stat-meta">
@@ -187,11 +187,11 @@
 
         <ng-container *ngIf="client && !loading; else statSkeleton">
           <ng-container *ngIf="client.lastLogin; else noLogin">
-            <strong class="ops-stat-value">
+            <strong class="ops-stat-value ops-stat-value--wrap">
               {{ client.lastLogin | date: "MMM d, y" }}
             </strong>
             <span class="ops-stat-meta">
-              at {{ client.lastLogin | date: "h:mm a" }}
+              at {{ client.lastLogin | date: "h:mm:ss a" }}
             </span>
           </ng-container>
 
@@ -314,7 +314,7 @@
               <div>
                 <dt>Portfolio ID</dt>
                 <dd>
-                  <span class="ops-id" *ngIf="client.portfolioId; else emDash">
+                  <span class="ops-id" *ngIf="client.portfolioId != null; else emDash">
                     #{{ client.portfolioId }}
                   </span>
                 </dd>
@@ -343,7 +343,7 @@
                 <dd [class.ops-muted]="!client.lastLogin">
                   {{
                     client.lastLogin
-                      ? (client.lastLogin | date: "MMM d, y, h:mm a")
+                      ? (client.lastLogin | date: "MMM d, y, h:mm:ss a")
                       : "No recorded login"
                   }}
                 </dd>
@@ -472,7 +472,9 @@
                   <!-- MARKET PRICE -->
                   <td class="ops-num">
                     {{
-                      holding.current_price | currency: "USD" : "symbol" : "1.2-2"
+                      holding.current_price != null
+                        ? (holding.current_price | currency: "USD" : "symbol" : "1.2-2")
+                        : "—"
                     }}
                   </td>
 
@@ -486,13 +488,14 @@
                       <span>
                         {{ holding.gain_loss_usd > 0 ? "+" : ""
                         }}{{
-                          holding.gain_loss_usd
-                            | currency: "USD" : "symbol" : "1.2-2"
+                          holding.gain_loss_usd != null
+                            ? (holding.gain_loss_usd | currency: "USD" : "symbol" : "1.2-2")
+                            : "—"
                         }}
                       </span>
                       <small>
                         {{ holding.gain_loss_percent > 0 ? "+" : ""
-                        }}{{ holding.gain_loss_percent | number: "1.2-2" }}%
+                        }}{{ holding.gain_loss_percent != null ? (holding.gain_loss_percent | number: "1.2-2") + '%' : '—' }}
                       </small>
                     </div>
                   </td>
@@ -501,8 +504,9 @@
                   <td class="ops-num">
                     <strong>
                       {{
-                        holding.current_value_usd
-                          | currency: "USD" : "symbol" : "1.2-2"
+                        holding.current_value_usd != null
+                          ? (holding.current_value_usd | currency: "USD" : "symbol" : "1.2-2")
+                          : "—"
                       }}
                     </strong>
                   </td>
@@ -569,16 +573,18 @@
           </div>
 
           <div
-            class="ops-skeleton-rows client-orders-skeleton"
+            class="ops-skeleton-rows"
             role="status"
             aria-label="Loading orders"
             *ngIf="ordersLoading"
           >
             <div
-              class="ops-skeleton-row"
+              class="ops-skeleton-row ops-skeleton-row--order"
               aria-hidden="true"
               *ngFor="let row of skeletonRows"
             >
+              <span class="ops-skeleton"></span>
+              <span class="ops-skeleton"></span>
               <span class="ops-skeleton"></span>
               <span class="ops-skeleton"></span>
               <span class="ops-skeleton"></span>
@@ -688,7 +694,7 @@
                   <td>
                     <div class="client-when" *ngIf="order.submittedAt; else emDash">
                       <span>{{ order.submittedAt | date: "MMM d, y" }}</span>
-                      <small>{{ order.submittedAt | date: "h:mm a" }}</small>
+                      <small>{{ order.submittedAt | date: "h:mm:ss a" }}</small>
                     </div>
                   </td>
 

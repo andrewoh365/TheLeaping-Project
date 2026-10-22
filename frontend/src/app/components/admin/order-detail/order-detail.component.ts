@@ -3,9 +3,7 @@ import { Component, OnDestroy, OnInit } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { ActivatedRoute, Router } from "@angular/router";
 
-import { MatButtonModule } from "@angular/material/button";
-import { MatCardModule } from "@angular/material/card";
-import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
+import { MatIconModule } from "@angular/material/icon";
 
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
@@ -16,22 +14,21 @@ import {
   AdminService,
 } from "../../../services/admin.service";
 
-import { InternalNavComponent } from "../../internal-nav/internal-nav.component";
+import { InternalLayoutComponent } from "../../internal-layout/internal-layout.component";
 
 @Component({
   selector: "app-order-detail",
   standalone: true,
   imports: [
     CommonModule,
-    MatButtonModule,
-    MatCardModule,
-    MatProgressSpinnerModule,
-    InternalNavComponent,
+    MatIconModule,
+    InternalLayoutComponent,
   ],
   templateUrl: "./order-detail.component.html",
   styleUrls: ["./order-detail.component.scss"],
 })
 export class OrderDetailComponent implements OnInit, OnDestroy {
+  orderId: number | null = null;
   order: AdminOrderDetail | null = null;
   auditEvents: AdminAuditEvent[] = [];
   auditTotal = 0;
@@ -62,11 +59,24 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       return;
     }
 
+    this.orderId = orderId;
     this.loadOrder(orderId);
   }
 
   goBack(): void {
     this.router.navigate(["/admin/trade-lookup"]);
+  }
+
+  retryOrder(): void {
+    if (this.orderId !== null && !this.loading) {
+      this.loadOrder(this.orderId);
+    }
+  }
+
+  retryAudit(): void {
+    if (this.auditOrderId !== null && !this.auditLoading) {
+      this.loadAudit(this.auditOrderId);
+    }
   }
 
   private loadOrder(orderId: number): void {

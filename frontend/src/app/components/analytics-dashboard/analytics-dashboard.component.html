@@ -223,8 +223,12 @@
               <li
                 class="options-hint"
                 role="none"
-                *ngIf="filteredInstruments.length === 0">
+                *ngIf="!instrumentsLoading && !instrumentsErrorMessage && filteredInstruments.length === 0">
                 No instruments match this search.
+              </li>
+
+              <li class="options-hint" role="none" *ngIf="instrumentsLoading">
+                Loading instruments…
               </li>
 
               <li
@@ -236,6 +240,10 @@
                 to narrow the list.
               </li>
             </ul>
+          </div>
+          <div class="ops-alert ops-alert--danger" role="alert" *ngIf="instrumentsErrorMessage">
+            <div class="ops-alert-body"><span>{{ instrumentsErrorMessage }}</span></div>
+            <button type="button" class="ops-btn ops-btn--secondary ops-btn--sm" (click)="loadInstruments()">Retry instruments</button>
           </div>
         </div>
 
@@ -354,6 +362,7 @@
       <button
         type="button"
         class="ops-btn ops-btn--secondary ops-btn--sm"
+        [disabled]="dateRangeInvalid || instrumentSelectionPending"
         (click)="retryDashboard()">
         <mat-icon aria-hidden="true">refresh</mat-icon>
         Retry

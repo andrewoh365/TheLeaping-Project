@@ -135,10 +135,6 @@
   }
 }
 
-.ops-dl dd.ops-muted {
-  color: var(--ops-text-muted);
-}
-
 /* ===== Holdings ===== */
 
 .client-cash {
@@ -227,30 +223,6 @@
   small {
     color: var(--ops-text-muted);
     font-size: 12px;
-  }
-}
-
-/* Skeleton row mirrors the table: order, trade, instrument, quantity,
-   status pill, chevron */
-.client-orders-skeleton .ops-skeleton-row .ops-skeleton {
-  &:nth-child(1) {
-    flex: 0 0 64px;
-    height: 14px;
-    border-radius: 6px;
-  }
-
-  &:nth-child(2) {
-    flex: 0 0 64px;
-  }
-
-  &:nth-child(5) {
-    flex: 0 0 72px;
-    height: 22px;
-    border-radius: 999px;
-  }
-
-  &:nth-child(6) {
-    flex: 0 0 16px;
   }
 }
 
