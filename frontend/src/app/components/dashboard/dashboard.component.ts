@@ -155,6 +155,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   marketStatus: MarketStatusResponse | null = null;
   /** After-hours testing switch; null until loaded, and only shown where the backend allows it. */
   marketOverride: MarketOverrideStatus | null = null;
+  private marketOverrideRequested = false;
   marketOverrideSaving = false;
   portfolio: PortfolioResponse | null = null;
   holdings: DashboardHolding[] = [];
@@ -563,6 +564,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((user) => {
         this.currentUser = user;
+        // The override endpoint is admin-only; customers would only get a
+        // 403. The role may arrive after init (e.g. from /auth/me), so check
+        // on every emission but load once.
+        if (user?.role === 'ADMIN' && !this.marketOverrideRequested) {
+          this.marketOverrideRequested = true;
+          this.loadMarketOverride();
+        }
       });
 
     this.searchSubject$
@@ -699,10 +707,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
 
     this.loadDashboard();
-    // The override endpoint is admin-only; customers would only get a 403.
-    if (this.authService.hasRole('ADMIN')) {
-      this.loadMarketOverride();
-    }
     this.startLiveUpdates();
     this.startMarketContextUpdates();
 
@@ -881,10 +885,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const watchlistId = this.activeWatchlistId;
     const instrumentId = Number(instrument.instrumentId);
     this.watchlistAddingInstrumentId = instrumentId;
     this.watchlistError = '';
-    this.watchlistService.addInstrument(this.activeWatchlistId, instrumentId)
+    this.watchlistService.addInstrument(watchlistId, instrumentId)
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {
@@ -893,6 +898,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (addedInstrument) => {
+          // The user may have switched lists; the add still succeeded on the
+          // original list, which reloads from the server when reselected.
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistInstruments = [...this.watchlistInstruments, addedInstrument];
           this.watchlistSearchQuery = '';
           this.watchlistSearchResults = [];
@@ -900,6 +910,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
           this.refreshWatchlistQuotes();
         },
         error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistError = `${instrument.symbol} could not be added. It may already be on this list.`;
         }
       });
@@ -910,9 +923,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const watchlistId = this.activeWatchlistId;
     this.watchlistRemovingInstrumentId = instrument.instrumentId;
     this.watchlistError = '';
-    this.watchlistService.removeInstrument(this.activeWatchlistId, instrument.instrumentId)
+    this.watchlistService.removeInstrument(watchlistId, instrument.instrumentId)
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {
@@ -921,10 +935,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistInstruments = this.watchlistInstruments.filter((item) => item.instrumentId !== instrument.instrumentId);
           this.refreshWatchlistQuotes();
         },
         error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistError = `${instrument.symbol} could not be removed. Please try again.`;
         }
       });
