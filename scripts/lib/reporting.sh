@@ -72,6 +72,62 @@ The network will not be deleted automatically. Inspect it and resolve the confli
     fi
 }
 
+# Docker Compose creates a network with the same name and labels it with its project.
+reporting_network_owned_by_compose() {
+    [[ -n "$(docker network inspect \
+        --format='{{index .Labels "com.docker.compose.project"}}' \
+        "${REPORTING_NETWORK}" 2>/dev/null)" ]]
+}
+
+# Removes the scripts' reporting network after stop.sh has stopped everything, so that
+# Docker Compose can create its own network with the same name. start.sh recreates it.
+remove_reporting_network() {
+    if ! docker network inspect "${REPORTING_NETWORK}" >/dev/null 2>&1; then
+        info "${REPORTING_NETWORK} does not exist"
+        return 0
+    fi
+
+    if reporting_network_owned_by_compose; then
+        info "${REPORTING_NETWORK} belongs to Docker Compose; leaving it in place"
+        return 0
+    fi
+
+    if docker_container_exists "${POSTGRES_CONTAINER}"; then
+        if docker_container_running "${POSTGRES_CONTAINER}"; then
+            warn "${POSTGRES_CONTAINER} is still running; leaving ${REPORTING_NETWORK} in place"
+            return 0
+        fi
+
+        # A container created on this network cannot start without it. setup.sh creates
+        # the primary on Docker's default network, so this only protects other setups.
+        if [[ "$(docker inspect --format='{{.HostConfig.NetworkMode}}' "${POSTGRES_CONTAINER}")" \
+            == "${REPORTING_NETWORK}" ]]; then
+            warn "${POSTGRES_CONTAINER} was created on ${REPORTING_NETWORK}; leaving it in place"
+            return 0
+        fi
+
+        # The primary is kept between runs, so it is disconnected rather than removed.
+        if [[ -n "$(docker inspect \
+            --format="{{if index .NetworkSettings.Networks \"${REPORTING_NETWORK}\"}}yes{{end}}" \
+            "${POSTGRES_CONTAINER}")" ]]; then
+            docker network disconnect "${REPORTING_NETWORK}" "${POSTGRES_CONTAINER}" >/dev/null
+        fi
+    fi
+
+    local attached
+    attached="$(docker ps -a \
+        --filter "network=${REPORTING_NETWORK}" \
+        --format '{{.Names}}')"
+
+    if [[ -n "${attached}" ]]; then
+        warn "${REPORTING_NETWORK} is still used by: ${attached//$'\n'/, }; leaving it in place"
+        return 0
+    fi
+
+    docker network rm "${REPORTING_NETWORK}" >/dev/null
+    success "${REPORTING_NETWORK} removed"
+}
+
 ensure_local_primary_hba() {
     local allow_rule="host replication ${REPLICATION_USER} ${REPORTING_NETWORK_CIDR} scram-sha-256"
     local reject_ipv4="host replication ${REPLICATION_USER} 0.0.0.0/0 reject"
