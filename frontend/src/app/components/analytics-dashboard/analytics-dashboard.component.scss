@@ -1,3 +1,4 @@
+
 .analytics-page {
   display: flex;
   flex-direction: column;
@@ -62,12 +63,38 @@
 
 .filter-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(135px, 1fr)) auto;
+  grid-template-columns: repeat(7, minmax(135px, 1fr)) auto;
   gap: 14px;
   align-items: center;
 
   mat-form-field {
     width: 100%;
+  }
+}
+
+.instrument-filter-field {
+  min-width: 0;
+}
+
+:host ::ng-deep .instrument-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+
+  strong {
+    color: #fafafa;
+    font-size: 14px;
+  }
+
+  span {
+    color: #d5d9e0;
+    font-size: 13px;
+  }
+
+  small {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 11px;
   }
 }
 
@@ -79,6 +106,12 @@
     min-width: 76px;
     height: 48px;
   }
+}
+
+.filter-validation-message {
+  grid-column: 1 / -1;
+  color: #ff9b9b;
+  font-size: 12px;
 }
 
 /* Dark mode styling for form fields in analytics page */
@@ -110,7 +143,7 @@
     }
 
     &.mat-focused .mdc-floating-label {
-      color: #1a4d3a !important;
+      color: var(--primary-accent-color) !important;
     }
   }
 
@@ -158,6 +191,103 @@
   gap: 16px;
   margin-bottom: 24px;
   padding: 0 20px;
+}
+
+.report-context {
+  margin: 0 20px 16px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid var(--primary-accent-color);
+  color: var(--text-color);
+}
+
+.report-period-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+
+  strong {
+    font-weight: 700;
+  }
+
+  button {
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+  }
+
+  mat-icon {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 18px;
+  }
+}
+
+.report-notes {
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.selected-instrument-card {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin: 0 20px 24px;
+  padding: 16px 20px;
+  background: var(--secondary-background-color);
+  color: var(--text-color);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.selected-instrument-heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+
+  strong {
+    margin-top: 4px;
+    font-size: 22px;
+  }
+}
+
+.selected-instrument-label,
+.selected-instrument-details span {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.selected-instrument-details {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 24px;
+  flex: 1;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  strong {
+    overflow: hidden;
+    color: var(--text-color);
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.status-active {
+  color: #76d39b !important;
+}
+
+.status-inactive {
+  color: #ffb36b !important;
 }
 
 .summary-card {
@@ -212,6 +342,18 @@
   height: 320px;
 }
 
+.chart-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  padding: 24px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.65);
+  text-align: center;
+}
+
 .segment-breakdown-card {
   overflow: hidden;
 }
@@ -225,6 +367,11 @@
 
 .segment-chart-container {
   height: 280px;
+  margin-bottom: 20px;
+}
+
+.segment-chart-empty-state {
+  min-height: 280px;
   margin-bottom: 20px;
 }
 
@@ -284,12 +431,21 @@
 }
 
 .error-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   padding: 16px;
   margin: 0 20px 24px 20px;
   background: var(--secondary-background-color);
   color: #ff8383;
   border-radius: 8px;
   border: 1px solid rgba(255, 131, 131, 0.2);
+
+  button {
+    flex: 0 0 auto;
+    color: #ffbaba;
+    border-color: rgba(255, 186, 186, 0.45);
+  }
 }
 
 @media (max-width: 1200px) {
@@ -316,6 +472,27 @@
 
   .filter-card {
     margin: 16px 16px;
+  }
+
+  .selected-instrument-card {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0 16px 24px;
+  }
+
+  .report-context {
+    margin: 0 16px 16px;
+  }
+
+  .report-period-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .selected-instrument-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
   }
 
   .filter-grid,
@@ -353,5 +530,98 @@
 
   .error-card {
     margin: 0 16px 24px 16px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .filter-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .analytics-page {
+    padding: 16px;
+  }
+
+  .analytics-header {
+    align-items: flex-start;
+  }
+
+  .filter-grid,
+  .summary-grid,
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-wide {
+    grid-column: span 1;
+  }
+
+  .filter-actions {
+    flex-wrap: wrap;
+  }
+}
+
+/* Keep analytics controls aligned with the shared application theme. */
+.analytics-page {
+  .analytics-header {
+    background-color: var(--primary-color);
+
+    p {
+      color: var(--muted-text-color);
+    }
+
+    button {
+      border-color: var(--border-color);
+
+      &:hover {
+        background-color: var(--surface-hover-color);
+        border-color: var(--primary-accent-color);
+      }
+    }
+  }
+
+  .filter-card,
+  .summary-card,
+  .chart-card,
+  .error-card {
+    border-color: var(--border-color);
+  }
+
+  .summary-label {
+    color: var(--muted-text-color);
+  }
+
+  .error-card {
+    color: var(--danger-color);
+    border-color: rgba(255, 120, 130, 0.28);
+  }
+
+  ::ng-deep {
+    .mat-mdc-form-field .mdc-text-field,
+    .mat-mdc-form-field .mdc-text-field--filled:not(.mat-mdc-text-field-disabled),
+    input[type='date'] {
+      background-color: var(--secondary-background-color) !important;
+    }
+
+    .mdc-floating-label,
+    .mat-mdc-input-element,
+    .mat-mdc-select-value,
+    input[type='date'] {
+      color: var(--text-color) !important;
+    }
+
+    .mdc-floating-label {
+      color: var(--muted-text-color) !important;
+    }
+
+    .mat-focused .mdc-floating-label {
+      color: var(--primary-accent-color) !important;
+    }
   }
 }

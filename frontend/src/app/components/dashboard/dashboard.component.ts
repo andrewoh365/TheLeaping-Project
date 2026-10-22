@@ -4,14 +4,16 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatCardModule } from '@angular/material/card';
 import { MatDividerModule } from '@angular/material/divider';
-import { Subject, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
+import { MatListModule } from '@angular/material/list';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { Subject, Subscription, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
-import { InstrumentService, Instrument } from '../../services/instrumentService';
+import { InstrumentService, Instrument } from '../../services/instrument.service';
 import {
   MarketMover,
   MarketMovers,
@@ -20,7 +22,8 @@ import {
   MarketOverrideStatus,
   MarketStatusResponse,
   NewsItem,
-  PricePointResponse
+  PricePointResponse,
+  QuoteResponse
 } from '../../services/market.service';
 import {
   CashDirection,
@@ -54,9 +57,23 @@ interface DashboardHolding extends HoldingResponse {
   todaysChangePercent: number | null;
 }
 
+/** One sample of portfolio value, split so the account cards can chart their own slice. */
 interface ChartPoint {
-  label: string;
+  time: number;
   value: number;
+  brokerage: number;
+  crypto: number;
+}
+
+/** An axis label: position is 0-1 along the axis (x: from the left, y: from the top). */
+interface AxisTick {
+  position: number;
+  label: string;
+}
+
+interface Sparkline {
+  path: string;
+  falling: boolean;
 }
 
 interface SummaryCard {
@@ -65,7 +82,13 @@ interface SummaryCard {
   value: number;
   changePercent: number | null;
   tone: 'positive' | 'negative' | 'neutral';
+  sparkline: Sparkline | null;
 }
+
+/** Main chart drawing area, in SVG units. The line is inset so its stroke isn't clipped at the edges. */
+const CHART_WIDTH = 1000;
+const CHART_HEIGHT = 260;
+const CHART_INSET = 10;
 
 /** Outcome of the last order, shown on the ticket in plain language. */
 interface OrderResult {
@@ -89,6 +112,7 @@ const MARKET_CONTEXT_MS = 5 * 60 * 1000;
 const NEWS_COLLAPSED_COUNT = 5;
 /** Matches the backend's per-transaction cap. */
 const MAX_CASH_TRANSFER_USD = 1_000_000;
+import { InstrumentExpandedComponent, InstrumentTradeAction } from '../instrument-expanded/instrument-expanded.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -97,10 +121,12 @@ const MAX_CASH_TRANSFER_USD = 1_000_000;
     CommonModule,
     FormsModule,
     MatToolbarModule,
-    MatButtonModule,
     MatIconModule,
     MatMenuModule,
+    MatCardModule,
     MatDividerModule,
+    MatListModule,
+    MatDialogModule,
     WalkthroughComponent
   ],
   templateUrl: './dashboard.component.html',
@@ -108,12 +134,12 @@ const MAX_CASH_TRANSFER_USD = 1_000_000;
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   private readonly portfolioRanges: Record<RangeKey, { days: number; points: number }> = {
-    '1D': { days: 1, points: 8 },
-    '1W': { days: 7, points: 8 },
-    '1M': { days: 30, points: 10 },
-    '3M': { days: 90, points: 12 },
-    '1Y': { days: 365, points: 12 },
-    'ALL': { days: 730, points: 14 }
+    '1D': { days: 1, points: 49 },     // every 30 min
+    '1W': { days: 7, points: 85 },     // every 2 h
+    '1M': { days: 30, points: 61 },    // every 12 h
+    '3M': { days: 90, points: 91 },    // daily
+    '1Y': { days: 365, points: 105 },  // ~twice a week
+    'ALL': { days: 730, points: 105 }  // ~weekly
   };
 
 
@@ -136,14 +162,42 @@ export class DashboardComponent implements OnInit, OnDestroy {
   marketStatus: MarketStatusResponse | null = null;
   /** After-hours testing switch; null until loaded, and only shown where the backend allows it. */
   marketOverride: MarketOverrideStatus | null = null;
+  private marketOverrideRequested = false;
   marketOverrideSaving = false;
   portfolio: PortfolioResponse | null = null;
   holdings: DashboardHolding[] = [];
   allInstruments: Instrument[] = [];
   chartPoints: ChartPoint[] = [];
+  chartLinePath = '';
+  chartAreaPath = '';
+  chartXTicks: AxisTick[] = [];
+  chartYTicks: AxisTick[] = [];
+  private chartDomain = { min: 0, max: 1 };
+  private brokerageSparkline: Sparkline | null = null;
+  private cryptoSparkline: Sparkline | null = null;
   watchlists: WatchlistResponse[] = [];
   watchlistInstruments: WatchlistInstrumentResponse[] = [];
   activeWatchlistName = 'Watchlist';
+  activeWatchlistId: number | null = null;
+  watchlistQuotes: Record<string, QuoteResponse> = {};
+  // In-flight watchlist requests, cancelled when the user switches lists so a
+  // slow response for the previous list cannot overwrite the current one.
+  private watchlistInstrumentsRequest?: Subscription;
+  private watchlistQuotesRequest?: Subscription;
+  watchlistLoading = false;
+  watchlistQuotesLoading = false;
+  watchlistSaving = false;
+  watchlistError = '';
+  watchlistSearchQuery = '';
+  watchlistSearchResults: Instrument[] = [];
+  watchlistSearchLoading = false;
+  watchlistSearchError = '';
+  showCreateWatchlist = false;
+  newWatchlistName = '';
+  showRenameWatchlist = false;
+  renameWatchlistName = '';
+  watchlistAddingInstrumentId: number | null = null;
+  watchlistRemovingInstrumentId: number | null = null;
   activityOrders: OrderResponse[] = [];
   activityPage = 0;
   activityHasMore = false;
@@ -227,6 +281,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly rangeOptions: RangeKey[] = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
   private destroy$ = new Subject<void>();
   private searchSubject$ = new Subject<string>();
+  private watchlistSearch$ = new Subject<string>();
   private holdingsSearch$ = new Subject<string>();
   private ticketSearch$ = new Subject<string>();
   private previewRequest$ = new Subject<void>();
@@ -239,6 +294,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private router: Router,
     private instrumentService: InstrumentService,
+    private dialog: MatDialog,
     private portfolioService: PortfolioService,
     private marketService: MarketService,
     private watchlistService: WatchlistService,
@@ -247,7 +303,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ) {}
 
   get displayName(): string {
-    const preferredName = this.currentUser?.username?.trim();
+    const preferredName = this.currentUser?.firstName?.trim();
+    const lastName = this.currentUser?.lastName?.trim();
+    if (preferredName && lastName) {
+      return `${preferredName} ${lastName}`;
+    }
     if (preferredName) {
       return preferredName;
     }
@@ -323,6 +383,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get watchlistCount(): number {
     return this.watchlistInstruments.length;
+  }
+
+  get activeWatchlist(): WatchlistResponse | null {
+    return this.watchlists.find((watchlist) => watchlist.watchlistId === this.activeWatchlistId) ?? null;
+  }
+
+  get watchlistSearchMatches(): Instrument[] {
+    const watchedIds = new Set(this.watchlistInstruments.map((instrument) => instrument.instrumentId));
+    return this.watchlistSearchResults.filter((instrument) => !watchedIds.has(Number(instrument.instrumentId)));
+  }
+
+  getWatchlistQuote(symbol: string): QuoteResponse | null {
+    return this.watchlistQuotes[symbol] ?? null;
   }
 
   get filteredHoldings(): DashboardHolding[] {
@@ -483,14 +556,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
         subtitle: 'Cash plus listed holdings',
         value: this.brokerageValue,
         changePercent: listedChange,
-        tone: this.getTone(listedChange)
+        tone: this.getTone(listedChange),
+        sparkline: this.brokerageSparkline
       },
       {
         title: 'Crypto Wallet',
         subtitle: 'Digital asset exposure',
         value: this.cryptoHoldingsValue,
         changePercent: cryptoChange,
-        tone: this.getTone(cryptoChange)
+        tone: this.getTone(cryptoChange),
+        // No crypto held over the period: nothing meaningful to draw
+        sparkline: this.cryptoHoldings.length > 0 ? this.cryptoSparkline : null
       }
     ];
   }
@@ -500,6 +576,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((user) => {
         this.currentUser = user;
+        // The override endpoint is admin-only; customers would only get a
+        // 403. The role may arrive after init (e.g. from /auth/me), so check
+        // on every emission but load once.
+        if (user?.role === 'ADMIN' && !this.marketOverrideRequested) {
+          this.marketOverrideRequested = true;
+          this.loadMarketOverride();
+        }
       });
 
     this.searchSubject$
@@ -512,16 +595,48 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.performSearch(query);
       });
 
-    this.ticketSearch$
+    this.watchlistSearch$
       .pipe(
         debounceTime(250),
         distinctUntilChanged(),
         switchMap((query) => {
           if (!query.trim()) {
+            this.watchlistSearchLoading = false;
+            this.watchlistSearchError = '';
             return of<Instrument[]>([]);
           }
-          this.ticketSearchLoading = true;
+
+          this.watchlistSearchLoading = true;
+          this.watchlistSearchError = '';
           return this.instrumentService.searchInstruments(query).pipe(
+            catchError(() => {
+              this.watchlistSearchError = 'Search is unavailable right now. Try again in a moment.';
+              return of<Instrument[]>([]);
+            }),
+            finalize(() => {
+              this.watchlistSearchLoading = false;
+            })
+          );
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((results) => {
+        this.watchlistSearchResults = results.filter((instrument) => instrument.isActive).slice(0, 6);
+      });
+
+    this.ticketSearch$
+      .pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          const normalizedQuery = query.trim();
+          if (!normalizedQuery) {
+            this.ticketSearchLoading = false;
+            return of<Instrument[]>([]);
+          }
+
+          this.ticketSearchLoading = true;
+          return this.instrumentService.searchInstruments(normalizedQuery).pipe(
             catchError(() => of<Instrument[]>([])),
             finalize(() => {
               this.ticketSearchLoading = false;
@@ -531,7 +646,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         takeUntil(this.destroy$)
       )
       .subscribe((results) => {
-        this.ticketSearchResults = results.filter((instrument) => instrument.isActive).slice(0, 8);
+        this.ticketSearchResults = results;
       });
 
     this.holdingsSearch$
@@ -575,24 +690,24 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // switchMap drops out-of-date previews if the client keeps typing
     this.previewRequest$
       .pipe(
-        debounceTime(250),
+        debounceTime(100),
         switchMap(() => {
           if (!this.ticketInstrument) {
+            this.preview = null;
+            this.previewLoading = false;
             return of<OrderPreview | null>(null);
           }
+
           this.previewLoading = true;
           this.previewError = '';
+
           return this.tradeService.previewOrder(
             this.ticketInstrument.instrumentId,
             this.orderForm.order_action,
             this.orderForm.quantity
           ).pipe(
             catchError((error: HttpErrorResponse) => {
-              if (error.status === 401 || error.status === 403) {
-                this.previewError = 'Your session expired. Please log in again to place trades.';
-              } else {
-                this.previewError = (error?.error as TradeApiError)?.message || 'Could not get a price right now.';
-              }
+              this.previewError = error.error?.message || 'Unable to load the latest trade preview.';
               return of<OrderPreview | null>(null);
             }),
             finalize(() => {
@@ -607,9 +722,54 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
 
     this.loadDashboard();
-    this.loadMarketOverride();
     this.startLiveUpdates();
     this.startMarketContextUpdates();
+
+    if (this.walkthroughService.isPending()) {
+      this.startTour();
+    }
+
+    this.startLiveUpdates();
+  }
+
+  openInstrumentDialog(instrument: Instrument): void {
+    this.searchResults = [];
+
+    const activeDialog = this.dialog.getDialogById('instrument-expanded-dialog');
+    if (activeDialog) {
+      activeDialog.close();
+    }
+
+    this.dialog.open(InstrumentExpandedComponent, {
+      id: 'instrument-expanded-dialog',
+      data: {
+        instrumentId: Number(instrument.instrumentId),
+        symbol: instrument.symbol,
+        isActive: instrument.isActive,
+        name: instrument.name,
+        instrumentType: instrument.instrumentType,
+        priceCurrencyCode: instrument.priceCurrencyCode,
+        isTradeable: instrument.isTradeable
+      },
+      width: '80vw',
+      height: '80vh',
+      maxWidth: '95vw',
+      autoFocus: false,
+      restoreFocus: true
+    }).afterClosed()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((result: InstrumentTradeAction | undefined) => {
+        if (!result) {
+          return;
+        }
+
+        this.orderForm.order_action = result.action;
+        this.setTicketInstrument({
+          instrumentId: Number(result.instrument.instrumentId),
+          symbol: result.instrument.symbol,
+          name: result.instrument.name
+        });
+      });
 
     if (this.walkthroughService.isPending()) {
       this.startTour();
@@ -626,6 +786,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   onSearchInput(): void {
     this.searchSubject$.next(this.searchQuery);
+  }
+
+  onWatchlistSearchInput(): void {
+    this.watchlistSearch$.next(this.watchlistSearchQuery);
   }
 
   onHoldingsFilterInput(): void {
@@ -655,6 +819,196 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (tab === 'activity' && !this.activityLoaded) {
       this.loadActivity(true);
     }
+  }
+
+  selectWatchlist(watchlistId: number | string): void {
+    const selectedId = Number(watchlistId);
+    const selected = this.watchlists.find((watchlist) => watchlist.watchlistId === selectedId);
+    if (!selected || selected.watchlistId === this.activeWatchlistId) {
+      return;
+    }
+
+    this.showRenameWatchlist = false;
+    this.watchlistError = '';
+    this.loadWatchlistInstruments(selected.watchlistId, selected.watchlistName);
+  }
+
+  toggleCreateWatchlist(): void {
+    this.showCreateWatchlist = !this.showCreateWatchlist;
+    this.showRenameWatchlist = false;
+    this.newWatchlistName = '';
+    this.watchlistError = '';
+  }
+
+  createWatchlist(): void {
+    const name = this.newWatchlistName.trim();
+    if (!name || this.watchlistSaving) {
+      return;
+    }
+
+    this.watchlistSaving = true;
+    this.watchlistError = '';
+    this.watchlistService.createWatchlist({ watchlistName: name })
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistSaving = false;
+        })
+      )
+      .subscribe({
+        next: (watchlist) => {
+          this.watchlists = [...this.watchlists, watchlist];
+          this.showCreateWatchlist = false;
+          this.newWatchlistName = '';
+          this.loadWatchlistInstruments(watchlist.watchlistId, watchlist.watchlistName);
+        },
+        error: () => {
+          this.watchlistError = 'Could not create that watchlist. Please try again.';
+        }
+      });
+  }
+
+  startRenameWatchlist(): void {
+    if (!this.activeWatchlist) {
+      return;
+    }
+
+    this.showCreateWatchlist = false;
+    this.showRenameWatchlist = true;
+    this.renameWatchlistName = this.activeWatchlist.watchlistName;
+    this.watchlistError = '';
+  }
+
+  renameWatchlist(): void {
+    const active = this.activeWatchlist;
+    const name = this.renameWatchlistName.trim();
+    if (!active || !name || this.watchlistSaving) {
+      return;
+    }
+
+    this.watchlistSaving = true;
+    this.watchlistError = '';
+    this.watchlistService.renameWatchlist(active.watchlistId, { watchlistName: name })
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistSaving = false;
+        })
+      )
+      .subscribe({
+        next: (watchlist) => {
+          this.watchlists = this.watchlists.map((item) => item.watchlistId === watchlist.watchlistId ? watchlist : item);
+          this.activeWatchlistName = watchlist.watchlistName;
+          this.showRenameWatchlist = false;
+        },
+        error: () => {
+          this.watchlistError = 'Could not rename that watchlist. Please try again.';
+        }
+      });
+  }
+
+  deleteActiveWatchlist(): void {
+    const active = this.activeWatchlist;
+    if (!active || this.watchlistSaving || !window.confirm(`Delete ${active.watchlistName}?`)) {
+      return;
+    }
+
+    this.watchlistSaving = true;
+    this.watchlistError = '';
+    this.watchlistService.deleteWatchlist(active.watchlistId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistSaving = false;
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.watchlists = this.watchlists.filter((item) => item.watchlistId !== active.watchlistId);
+          const nextWatchlist = this.watchlists[0];
+          if (nextWatchlist) {
+            this.loadWatchlistInstruments(nextWatchlist.watchlistId, nextWatchlist.watchlistName);
+          } else {
+            this.activeWatchlistId = null;
+            this.activeWatchlistName = 'Watchlist';
+            this.watchlistInstruments = [];
+            this.watchlistQuotes = {};
+          }
+        },
+        error: () => {
+          this.watchlistError = 'Could not delete that watchlist. Please try again.';
+        }
+      });
+  }
+
+  addWatchlistInstrument(instrument: Instrument): void {
+    if (!this.activeWatchlistId || this.watchlistAddingInstrumentId !== null) {
+      return;
+    }
+
+    const watchlistId = this.activeWatchlistId;
+    const instrumentId = Number(instrument.instrumentId);
+    this.watchlistAddingInstrumentId = instrumentId;
+    this.watchlistError = '';
+    this.watchlistService.addInstrument(watchlistId, instrumentId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistAddingInstrumentId = null;
+        })
+      )
+      .subscribe({
+        next: (addedInstrument) => {
+          // The user may have switched lists; the add still succeeded on the
+          // original list, which reloads from the server when reselected.
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistInstruments = [...this.watchlistInstruments, addedInstrument];
+          this.watchlistSearchQuery = '';
+          this.watchlistSearchResults = [];
+          this.watchlistSearchError = '';
+          this.refreshWatchlistQuotes();
+        },
+        error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistError = `${instrument.symbol} could not be added. It may already be on this list.`;
+        }
+      });
+  }
+
+  removeWatchlistInstrument(instrument: WatchlistInstrumentResponse): void {
+    if (!this.activeWatchlistId || this.watchlistRemovingInstrumentId !== null) {
+      return;
+    }
+
+    const watchlistId = this.activeWatchlistId;
+    this.watchlistRemovingInstrumentId = instrument.instrumentId;
+    this.watchlistError = '';
+    this.watchlistService.removeInstrument(watchlistId, instrument.instrumentId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistRemovingInstrumentId = null;
+        })
+      )
+      .subscribe({
+        next: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistInstruments = this.watchlistInstruments.filter((item) => item.instrumentId !== instrument.instrumentId);
+          this.refreshWatchlistQuotes();
+        },
+        error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistError = `${instrument.symbol} could not be removed. Please try again.`;
+        }
+      });
   }
 
   loadMoreActivity(): void {
@@ -1015,13 +1369,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.requestPreview();
   }
 
-  getPortfolioLinePath(): string {
-    return this.buildLinePath(this.chartPoints.map((point) => point.value), 1000, 260);
-  }
-
-  getPortfolioAreaPath(): string {
-    return this.buildAreaPath(this.chartPoints.map((point) => point.value), 1000, 260);
-  }
 
   getHoldingMarketValue(holding: HoldingResponse): number {
     const marketValue = this.toNumber(holding.marketValueUsd);
@@ -1141,7 +1488,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
           this.dashboardError = 'Unable to load your portfolio data.';
           this.portfolio = null;
           this.holdings = [];
-          this.chartPoints = [];
+          this.setChart([], new Date(), new Date());
           this.chartHasHistory = false;
           return;
         }
@@ -1153,6 +1500,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
         if (watchlists.length > 0) {
           this.loadWatchlistInstruments(watchlists[0].watchlistId, watchlists[0].watchlistName);
+        } else {
+          this.activeWatchlistId = null;
+          this.activeWatchlistName = 'Watchlist';
+          this.watchlistInstruments = [];
+          this.watchlistQuotes = {};
         }
       });
   }
@@ -1188,6 +1540,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .subscribe((portfolio) => {
         if (portfolio) {
           this.applyLivePortfolio(portfolio);
+        }
+        if (this.activeWatchlistId !== null) {
+          this.refreshWatchlistQuotes();
         }
         // Keep the first page of activity current (e.g. orders placed in another tab)
         if (this.activityLoaded && this.activityPage === 0 && this.selectedTab === 'activity') {
@@ -1291,16 +1646,65 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private loadWatchlistInstruments(watchlistId: number, watchlistName: string): void {
+    // Cancel before setting state: finalize() on the old request resets loading.
+    this.watchlistInstrumentsRequest?.unsubscribe();
+    this.watchlistQuotesRequest?.unsubscribe();
+    this.activeWatchlistId = watchlistId;
     this.activeWatchlistName = watchlistName;
-    this.watchlistService.getWatchlistInstruments(watchlistId)
-      .pipe(takeUntil(this.destroy$))
+    this.watchlistLoading = true;
+    this.watchlistError = '';
+    this.watchlistInstrumentsRequest = this.watchlistService.getWatchlistInstruments(watchlistId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistLoading = false;
+        })
+      )
       .subscribe({
         next: (instruments: WatchlistInstrumentResponse[]) => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistInstruments = instruments;
+          this.refreshWatchlistQuotes();
         },
         error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistInstruments = [];
+          this.watchlistQuotes = {};
+          this.watchlistError = 'Could not load this watchlist. Please try again.';
         }
+      });
+  }
+
+  private refreshWatchlistQuotes(): void {
+    this.watchlistQuotesRequest?.unsubscribe();
+    const watchlistId = this.activeWatchlistId;
+    const symbols = this.watchlistInstruments.map((instrument) => instrument.symbol);
+    if (symbols.length === 0) {
+      this.watchlistQuotes = {};
+      return;
+    }
+
+    this.watchlistQuotesLoading = true;
+    this.watchlistQuotesRequest = this.marketService.getQuotes(symbols)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(() => of<QuoteResponse[]>([])),
+        finalize(() => {
+          this.watchlistQuotesLoading = false;
+        })
+      )
+      .subscribe((quotes) => {
+        if (this.activeWatchlistId !== watchlistId) {
+          return;
+        }
+        this.watchlistQuotes = quotes.reduce<Record<string, QuoteResponse>>((lookup, quote) => {
+          lookup[quote.symbol] = quote;
+          return lookup;
+        }, {});
       });
   }
 
@@ -1350,7 +1754,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const holdings = this.holdings.filter((holding) => this.toNumber(holding.quantity) > 0);
 
     if (holdings.length === 0) {
-      this.chartPoints = [];
+      this.setChart([], new Date(), new Date());
       this.chartHasHistory = false;
       return;
     }
@@ -1376,10 +1780,42 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .subscribe((histories: PricePointResponse[][]) => {
         // A line needs at least two real prices; otherwise say so rather than draw a made-up trend
         this.chartHasHistory = histories.some((history) => history.length >= 2);
-        this.chartPoints = this.chartHasHistory
-          ? this.buildChartPoints(holdings, histories, from, to, range.points)
-          : [];
+        this.setChart(
+          this.chartHasHistory ? this.buildChartPoints(holdings, histories, from, to, range.points) : [],
+          from,
+          to
+        );
       });
+  }
+
+  /** Store the samples and derive everything drawn from them once, not on every change detection. */
+  private setChart(points: ChartPoint[], from: Date, to: Date): void {
+    this.chartPoints = points;
+    if (points.length === 0) {
+      this.chartLinePath = '';
+      this.chartAreaPath = '';
+      this.chartXTicks = [];
+      this.chartYTicks = [];
+      this.brokerageSparkline = null;
+      this.cryptoSparkline = null;
+      return;
+    }
+
+    const values = points.map((point) => point.value);
+    const ticks = this.niceTicks(Math.min(...values), Math.max(...values));
+    this.chartDomain = { min: ticks[0], max: ticks[ticks.length - 1] };
+    const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1;
+    this.chartYTicks = ticks.map((tick) => ({
+      position: this.chartY(tick) / CHART_HEIGHT,
+      label: this.formatAxisCurrency(tick, step)
+    }));
+    this.chartXTicks = this.buildTimeTicks(from, to);
+    this.chartLinePath = this.buildLinePath(values);
+    this.chartAreaPath = this.chartLinePath
+      ? `${this.chartLinePath} L ${CHART_WIDTH} ${CHART_HEIGHT} L 0 ${CHART_HEIGHT} Z`
+      : '';
+    this.brokerageSparkline = this.buildSparkline(points.map((point) => point.brokerage));
+    this.cryptoSparkline = this.buildSparkline(points.map((point) => point.crypto));
   }
 
   private buildChartPoints(
@@ -1394,74 +1830,184 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const pointCount = Math.max(points, 2);
     const step = (toMs - fromMs) / (pointCount - 1);
 
-    return Array.from({ length: pointCount }, (_, index) => {
-      const targetTime = fromMs + step * index;
-      const bucketDate = new Date(targetTime);
-      const holdingsValue = holdings.reduce((sum, holding, historyIndex) => {
-        const history = [...histories[historyIndex]].sort((left, right) => {
-          return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
-        });
-        const currentPriceUsd = this.toNumber(holding.currentPriceUsd || holding.averageCostUsd);
-        const price = this.findHistoricalPrice(history, targetTime, currentPriceUsd);
-        return sum + this.toNumber(holding.quantity) * price;
-      }, 0);
-
+    // Sort each history once; sample times only move forward, so each is walked with a cursor
+    const series = holdings.map((holding, index) => {
+      const sorted = [...histories[index]].sort((left, right) => {
+        return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
+      });
+      // History prices arrive in USD (converted on the server)
+      const history = sorted.map((point) => ({ time: new Date(point.timestamp).getTime(), price: this.toNumber(point.price) }));
+      const currentPriceUsd = this.toNumber(holding.currentPriceUsd || holding.averageCostUsd);
       return {
-        label: this.formatRangeLabel(bucketDate),
-        value: this.cashBalance + holdingsValue
+        history,
+        quantity: this.toNumber(holding.quantity),
+        isCrypto: holding.instrumentType === 'CRYPTO',
+        // Before the first known price, carry the current price back
+        price: currentPriceUsd,
+        cursor: 0
+      };
+    });
+
+    return Array.from({ length: pointCount }, (_, index) => {
+      const time = fromMs + step * index;
+      let listed = 0;
+      let crypto = 0;
+      for (const holding of series) {
+        while (holding.cursor < holding.history.length && holding.history[holding.cursor].time <= time) {
+          holding.price = holding.history[holding.cursor].price || holding.price;
+          holding.cursor++;
+        }
+        const value = holding.quantity * holding.price;
+        if (holding.isCrypto) {
+          crypto += value;
+        } else {
+          listed += value;
+        }
+      }
+      return {
+        time,
+        value: this.cashBalance + listed + crypto,
+        brokerage: this.cashBalance + listed,
+        crypto
       };
     });
   }
 
-  private findHistoricalPrice(history: PricePointResponse[], targetTime: number, fallback: number): number {
-    let latestValue = fallback;
-    for (const point of history) {
-      const pointTime = new Date(point.timestamp).getTime();
-      if (pointTime <= targetTime) {
-        latestValue = this.toNumber(point.price) || latestValue;
-        continue;
+  /**
+   * Round axis values that cover [min, max] in about four steps of 1, 2, 2.5 or 5 x 10^n,
+   * e.g. 9,990 / 10,000 / 10,010. A flat series gets a small band around its value.
+   */
+  private niceTicks(min: number, max: number, targetSteps = 4): number[] {
+    if (max - min < 1e-9) {
+      const pad = Math.max(Math.abs(max) * 0.001, 1);
+      min -= pad;
+      max += pad;
+    }
+    const rawStep = (max - min) / targetSteps;
+    const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+    const step = [1, 2, 2.5, 5, 10].map((multiple) => multiple * magnitude).find((candidate) => candidate >= rawStep) ?? 10 * magnitude;
+    const decimals = Math.max(0, -Math.floor(Math.log10(step)) + 1);
+    const first = Math.floor(min / step) * step;
+    const ticks: number[] = [];
+    for (let tick = first; tick < max + step - 1e-9; tick += step) {
+      ticks.push(Number(tick.toFixed(decimals)));
+    }
+    return ticks;
+  }
+
+  /** Dollar axis label with just enough precision to tell neighbouring ticks apart. */
+  private formatAxisCurrency(value: number, step: number): string {
+    const compact = Math.abs(value) >= 100_000;
+    const unit = !compact ? 1 : Math.abs(value) >= 1e9 ? 1e9 : Math.abs(value) >= 1e6 ? 1e6 : 1e3;
+    const digits = Math.min(2, Math.max(0, Math.ceil(-Math.log10(step / unit) - 1e-9)));
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      notation: compact ? 'compact' : 'standard',
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits
+    }).format(value);
+  }
+
+  /**
+   * X-axis labels at calendar boundaries rather than at every sample, the way broker charts do:
+   * hours for 1D, days for 1W, Mondays for 1M, month starts for 3M/1Y and quarters for All.
+   * January shows the year. Labels too close to the edges are dropped so they aren't clipped.
+   */
+  private buildTimeTicks(from: Date, to: Date): AxisTick[] {
+    const fromMs = from.getTime();
+    const span = to.getTime() - fromMs;
+    if (span <= 0) {
+      return [];
+    }
+
+    const cursor = new Date(from);
+    const monthLabel = (date: Date) => date.getMonth() === 0
+      ? String(date.getFullYear())
+      : date.toLocaleDateString([], { month: 'short' });
+    let advance: (date: Date) => void;
+    let label: (date: Date) => string;
+
+    switch (this.activeRange) {
+      case '1D':
+        cursor.setMinutes(0, 0, 0);
+        cursor.setHours(cursor.getHours() + 3 - (cursor.getHours() % 3));
+        advance = (date) => date.setHours(date.getHours() + 3);
+        label = (date) => date.getHours() === 0
+          ? date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+          : date.toLocaleTimeString([], { hour: 'numeric' });
+        break;
+      case '1W':
+        cursor.setHours(24, 0, 0, 0);
+        advance = (date) => date.setDate(date.getDate() + 1);
+        label = (date) => `${date.toLocaleDateString([], { weekday: 'short' })} ${date.getDate()}`;
+        break;
+      case '1M':
+        cursor.setHours(24, 0, 0, 0);
+        while (cursor.getDay() !== 1) {
+          cursor.setDate(cursor.getDate() + 1);
+        }
+        advance = (date) => date.setDate(date.getDate() + 7);
+        label = (date) => date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        break;
+      default: {
+        // 3M and 1Y: every month start; All: every quarter start
+        const monthsPerTick = this.activeRange === 'ALL' ? 3 : 1;
+        cursor.setHours(0, 0, 0, 0);
+        cursor.setDate(1);
+        cursor.setMonth(cursor.getMonth() + 1);
+        while (cursor.getMonth() % monthsPerTick !== 0) {
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+        advance = (date) => date.setMonth(date.getMonth() + monthsPerTick);
+        label = monthLabel;
       }
-      break;
     }
 
-    return latestValue;
+    const ticks: AxisTick[] = [];
+    while (cursor.getTime() <= to.getTime()) {
+      const position = (cursor.getTime() - fromMs) / span;
+      if (position >= 0.03 && position <= 0.97) {
+        ticks.push({ position, label: label(cursor) });
+      }
+      advance(cursor);
+    }
+    return ticks;
   }
 
-  private formatRangeLabel(date: Date): string {
-    if (this.activeRange === '1D') {
-      return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    }
-
-    if (this.activeRange === '1W' || this.activeRange === '1M') {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }
-
-    return date.toLocaleDateString([], { month: 'short' });
+  /** SVG y for a value, on the same scale as the y-axis ticks. */
+  private chartY(value: number): number {
+    const { min, max } = this.chartDomain;
+    const fraction = max > min ? (max - value) / (max - min) : 0.5;
+    return CHART_INSET + fraction * (CHART_HEIGHT - 2 * CHART_INSET);
   }
 
-  private buildLinePath(values: number[], width: number, height: number): string {
+  private buildLinePath(values: number[]): string {
     if (values.length === 0) {
       return '';
     }
-
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
-
     return values.map((value, index) => {
-      const x = values.length === 1 ? width / 2 : index / (values.length - 1) * width;
-      const y = height - ((value - min) / range) * (height - 24) - 12;
-      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      const x = values.length === 1 ? CHART_WIDTH / 2 : index / (values.length - 1) * CHART_WIDTH;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${this.chartY(value).toFixed(2)}`;
     }).join(' ');
   }
 
-  private buildAreaPath(values: number[], width: number, height: number): string {
-    if (values.length === 0) {
-      return '';
+  /** A small trend line for an account card, scaled to its own range. A flat series draws mid-height. */
+  private buildSparkline(values: number[]): Sparkline | null {
+    if (values.length < 2) {
+      return null;
     }
-
-    const linePath = this.buildLinePath(values, width, height);
-    return `${linePath} L ${width} ${height} L 0 ${height} Z`;
+    const width = 176;
+    const height = 42;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min;
+    const path = values.map((value, index) => {
+      const x = index / (values.length - 1) * width;
+      const y = range > 1e-9 ? height - 3 - ((value - min) / range) * (height - 6) : height / 2;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    }).join(' ');
+    return { path, falling: values[values.length - 1] < values[0] };
   }
 
   private inferInstrumentType(symbol: string): string {

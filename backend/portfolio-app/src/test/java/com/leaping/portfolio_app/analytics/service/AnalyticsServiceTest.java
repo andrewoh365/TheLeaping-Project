@@ -1,13 +1,18 @@
+
 package com.leaping.portfolio_app.analytics.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -17,8 +22,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,13 +50,17 @@ class AnalyticsServiceTest {
     void setUp() {
         service = new AnalyticsService(
                 restClient,
-                "http://analytics.example"
+                "http://analytics.example",
+                "test-internal-token"
         );
 
-        doReturn(request).when(restClient).get();
-        doReturn(request).when(request).uri(any(URI.class));
-        when(request.retrieve()).thenReturn(response);
-        when(response.body(String.class)).thenReturn("{}");
+        lenient().doReturn(request).when(restClient).get();
+        lenient().doReturn(request).when(request)
+                .header(anyString(), anyString());
+        lenient().doReturn(request).when(request)
+                .uri(any(URI.class));
+        lenient().when(request.retrieve()).thenReturn(response);
+        lenient().when(response.body(String.class)).thenReturn("{}");
     }
 
     @Test
@@ -55,6 +70,7 @@ class AnalyticsServiceTest {
                 LocalDate.of(2026, 9, 30),
                 "STOCK",
                 "NASDAQ",
+                15L,
                 "FILLED",
                 "FREQUENT"
         );
@@ -62,6 +78,12 @@ class AnalyticsServiceTest {
         MultiValueMap<String, String> query = capturedQuery();
 
         assertEquals("{}", result);
+
+        verify(request).header(
+                "X-Analytics-Internal-Token",
+                "test-internal-token"
+        );
+
         assertEquals(
                 List.of("2026-09-01"),
                 query.get("date_from")
@@ -70,8 +92,18 @@ class AnalyticsServiceTest {
                 List.of("2026-09-30"),
                 query.get("date_to")
         );
-        assertEquals(List.of("STOCK"), query.get("asset_type"));
-        assertEquals(List.of("NASDAQ"), query.get("market"));
+        assertEquals(
+                List.of("STOCK"),
+                query.get("asset_type")
+        );
+        assertEquals(
+                List.of("NASDAQ"),
+                query.get("market")
+        );
+        assertEquals(
+                List.of("15"),
+                query.get("instrument_id")
+        );
         assertEquals(
                 List.of("FILLED"),
                 query.get("order_status")
@@ -90,12 +122,243 @@ class AnalyticsServiceTest {
                 null,
                 null,
                 null,
+                null,
                 ""
         );
 
         MultiValueMap<String, String> query = capturedQuery();
 
+        assertTrue(query.get("instrument_id") == null);
         assertTrue(query.get("client_segment") == null);
+    }
+
+    @Test
+    void getDashboard_missingInternalTokenFailsRequestNotStartup() {
+        AnalyticsService unconfigured = new AnalyticsService(
+                restClient,
+                "http://analytics.example",
+                ""
+        );
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> unconfigured.getDashboard(
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                exception.getStatusCode()
+        );
+        verify(restClient, never()).get();
+    }
+
+    @Test
+    void getDashboard_mapsUpstreamUnauthorizedToBadGateway() {
+        when(response.body(String.class)).thenThrow(
+                upstreamError(
+                        HttpStatus.UNAUTHORIZED,
+                        "{\"detail\":\"Invalid analytics service token\"}"
+                )
+        );
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                this::getUnfilteredDashboard
+        );
+
+        assertEquals(
+                HttpStatus.BAD_GATEWAY,
+                exception.getStatusCode()
+        );
+        assertEquals(
+                "Analytics service authentication failed",
+                exception.getReason()
+        );
+    }
+
+    @Test
+    void getDashboard_mapsUpstreamServerErrorTo503() {
+        when(response.body(String.class)).thenThrow(
+                HttpServerErrorException.create(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Internal Server Error",
+                        HttpHeaders.EMPTY,
+                        "Internal Server Error"
+                                .getBytes(StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8
+                )
+        );
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                this::getUnfilteredDashboard
+        );
+
+        assertEquals(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                exception.getStatusCode()
+        );
+    }
+
+    @Test
+    void getDashboard_doesNotExposeStructuredValidationErrors() {
+        when(response.body(String.class)).thenThrow(
+                upstreamError(
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "{\"detail\":[{\"loc\":[\"query\",\"market\"],"
+                                + "\"msg\":\"too long\"}]}"
+                )
+        );
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                this::getUnfilteredDashboard
+        );
+
+        assertEquals(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                exception.getStatusCode()
+        );
+        assertEquals("Unprocessable Entity", exception.getReason());
+    }
+
+    private void getUnfilteredDashboard() {
+        service.getDashboard(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private HttpClientErrorException upstreamError(
+            HttpStatus status,
+            String body
+    ) {
+        return HttpClientErrorException.create(
+                status,
+                status.getReasonPhrase(),
+                HttpHeaders.EMPTY,
+                body.getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8
+        );
+    }
+
+    @Test
+    void getDashboard_preservesUpstreamNotFoundStatus() {
+        HttpClientErrorException notFound =
+                HttpClientErrorException.create(
+                        HttpStatus.NOT_FOUND,
+                        "Not Found",
+                        HttpHeaders.EMPTY,
+                        "{\"detail\":\"Instrument 999 was not found\"}"
+                                .getBytes(StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8
+                );
+
+        when(response.body(String.class)).thenThrow(notFound);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.getDashboard(
+                        null,
+                        null,
+                        null,
+                        null,
+                        999L,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(
+                HttpStatus.NOT_FOUND,
+                exception.getStatusCode()
+        );
+
+        assertEquals(
+                "Instrument 999 was not found",
+                exception.getReason()
+        );
+    }
+
+    @Test
+    void getDashboard_preservesUpstreamValidationStatus() {
+        HttpClientErrorException validationError =
+                HttpClientErrorException.create(
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Unprocessable Entity",
+                        HttpHeaders.EMPTY,
+                        "{\"detail\":\"Invalid dashboard filter\"}"
+                                .getBytes(StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8
+                );
+
+        when(response.body(String.class)).thenThrow(validationError);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.getDashboard(
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                exception.getStatusCode()
+        );
+
+        assertEquals(
+                "Invalid dashboard filter",
+                exception.getReason()
+        );
+    }
+
+    @Test
+    void getDashboard_mapsReportingConnectionFailureTo503() {
+        when(response.body(String.class)).thenThrow(
+                new RestClientException("connection refused")
+        );
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.getDashboard(
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                exception.getStatusCode()
+        );
+
+        assertEquals(
+                "Analytics reporting is temporarily unavailable",
+                exception.getReason()
+        );
     }
 
     private MultiValueMap<String, String> capturedQuery() {

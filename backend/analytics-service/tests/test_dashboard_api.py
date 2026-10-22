@@ -1,7 +1,9 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import SQLAlchemyError
 
 import app.api.dashboard as dashboard_api
 import app.main as main_api
@@ -15,6 +17,8 @@ from app.schemas.dashboard import (
     InstrumentActivity,
     OrderOutcome,
     RejectionReason,
+    ReportingPeriod,
+    SelectedInstrument,
     TimeGrouping,
     TradingVolumePoint,
     TradingVolumeTrend,
@@ -22,7 +26,27 @@ from app.schemas.dashboard import (
 from app.schemas.filters import ClientSegment
 
 
-client = TestClient(app)
+client = TestClient(
+    app,
+    headers={
+        "X-Analytics-Internal-Token": "test-analytics-internal-token"
+    },
+)
+
+
+def test_dashboard_rejects_missing_internal_token():
+    response = TestClient(app).get("/analytics/dashboard")
+
+    assert response.status_code == 401
+
+
+def test_dashboard_rejects_invalid_internal_token():
+    response = TestClient(app).get(
+        "/analytics/dashboard",
+        headers={"X-Analytics-Internal-Token": "wrong-token"},
+    )
+
+    assert response.status_code == 401
 
 
 def _mock_dashboard_response() -> DashboardResponse:
@@ -120,6 +144,10 @@ def _mock_dashboard_response() -> DashboardResponse:
                 trading_volume_usd=1000.75,
             ),
         ],
+        reporting_period=ReportingPeriod(
+            date_from=date(2026, 9, 1),
+            date_to=date(2026, 9, 30),
+        ),
     )
 
 
@@ -132,12 +160,23 @@ def test_health_endpoint():
         "status": "healthy",
         "service": "analytics",
     }
-    
+
+
 def test_ready_endpoint_when_database_is_available(monkeypatch):
     monkeypatch.setattr(
         main_api,
-        "test_database_connection",
-        lambda: True,
+        "get_reporting_status",
+        lambda: {
+            "in_recovery": True,
+            "receiver_status": "streaming",
+            "received_lsn": "0/10",
+            "replayed_lsn": "0/10",
+            "replay_pending": False,
+            "last_replay_timestamp": None,
+            "receive_start_lsn": "0/1",
+            "latest_end_lsn": "0/10",
+            "ready": True,
+        },
     )
 
     response = client.get("/ready")
@@ -148,14 +187,25 @@ def test_ready_endpoint_when_database_is_available(monkeypatch):
         "status": "ready",
         "service": "analytics",
         "database": "connected",
+        "reporting": {
+            "in_recovery": True,
+            "receiver_status": "streaming",
+            "received_lsn": "0/10",
+            "replayed_lsn": "0/10",
+            "replay_pending": False,
+            "last_replay_timestamp": None,
+            "receive_start_lsn": "0/1",
+            "latest_end_lsn": "0/10",
+            "ready": True,
+        },
     }
 
 
 def test_ready_endpoint_when_database_is_unavailable(monkeypatch):
     monkeypatch.setattr(
         main_api,
-        "test_database_connection",
-        lambda: False,
+        "get_reporting_status",
+        lambda: (_ for _ in ()).throw(SQLAlchemyError("offline")),
     )
 
     response = client.get("/ready")
@@ -167,6 +217,29 @@ def test_ready_endpoint_when_database_is_unavailable(monkeypatch):
         "service": "analytics",
         "database": "unavailable",
     }
+
+
+def test_ready_endpoint_when_replica_is_not_safe(monkeypatch):
+    monkeypatch.setattr(
+        main_api,
+        "get_reporting_status",
+        lambda: {
+            "in_recovery": False,
+            "receiver_status": "disconnected",
+            "received_lsn": None,
+            "replayed_lsn": None,
+            "replay_pending": False,
+            "last_replay_timestamp": None,
+            "receive_start_lsn": None,
+            "latest_end_lsn": None,
+            "ready": False,
+        },
+    )
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json()["reporting"]["in_recovery"] is False
 
 
 def test_dashboard_endpoint(monkeypatch):
@@ -182,6 +255,23 @@ def test_dashboard_endpoint(monkeypatch):
 
     body = response.json()
 
+    assert set(body) == {
+        "summary",
+        "trading_volume_over_time",
+        "order_outcomes",
+        "most_active_instruments",
+        "client_activity_trend",
+        "top_rejection_reasons",
+        "client_segment_breakdown",
+        "selected_instrument",
+        "reporting_period",
+    }
+    assert set(body["summary"]) == {
+        "trading_volume_usd",
+        "total_orders",
+        "active_clients",
+        "filled_orders_percentage",
+    }
     assert body["summary"]["total_orders"] == 120
     assert body["summary"]["active_clients"] == 18
     assert body["summary"]["filled_orders_percentage"] == 75.0
@@ -217,6 +307,44 @@ def test_dashboard_endpoint(monkeypatch):
         "order_count": 0,
         "trading_volume_usd": 0.0,
     }
+    assert body["selected_instrument"] is None
+    assert body["reporting_period"] == {
+        "date_from": "2026-09-01",
+        "date_to": "2026-09-30",
+        "timezone": "UTC",
+    }
+
+
+def test_dashboard_returns_selected_instrument_metadata(monkeypatch):
+    response = _mock_dashboard_response()
+    response.selected_instrument = SelectedInstrument(
+        instrument_id=15,
+        symbol="AAPL",
+        name="Apple Inc.",
+        instrument_type="STOCK",
+        market_name="NASDAQ",
+        is_active=True,
+    )
+    monkeypatch.setattr(
+        dashboard_api,
+        "build_dashboard",
+        lambda filters: response,
+    )
+
+    result = client.get(
+        "/analytics/dashboard",
+        params={"instrument_id": 15},
+    )
+
+    assert result.status_code == 200
+    assert result.json()["selected_instrument"] == {
+        "instrument_id": 15,
+        "symbol": "AAPL",
+        "name": "Apple Inc.",
+        "instrument_type": "STOCK",
+        "market_name": "NASDAQ",
+        "is_active": True,
+    }
 
 
 def test_dashboard_accepts_valid_filters(monkeypatch):
@@ -240,6 +368,7 @@ def test_dashboard_accepts_valid_filters(monkeypatch):
             "date_to": "2026-09-30",
             "asset_type": "STOCK",
             "market": "NASDAQ",
+            "instrument_id": 15,
             "order_status": "FILLED",
             "client_segment": "REGULAR",
         },
@@ -253,6 +382,7 @@ def test_dashboard_accepts_valid_filters(monkeypatch):
     assert filters.date_to == date(2026, 9, 30)
     assert filters.asset_type.value == "STOCK"
     assert filters.market == "NASDAQ"
+    assert filters.instrument_id == 15
     assert filters.order_status.value == "FILLED"
     assert filters.client_segment.value == "REGULAR"
 
@@ -290,6 +420,37 @@ def test_dashboard_rejects_invalid_client_segment():
     assert response.status_code == 422
 
 
+def test_dashboard_returns_404_for_unknown_instrument(monkeypatch):
+    def raise_not_found(filters):
+        raise dashboard_api.InstrumentNotFoundError(999)
+
+    monkeypatch.setattr(
+        dashboard_api,
+        "build_dashboard",
+        raise_not_found,
+    )
+
+    response = client.get(
+        "/analytics/dashboard",
+        params={"instrument_id": 999},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Instrument 999 was not found"
+    }
+
+
+@pytest.mark.parametrize("instrument_id", ["not-an-id", 0, -1])
+def test_dashboard_rejects_invalid_instrument_id(instrument_id):
+    response = client.get(
+        "/analytics/dashboard",
+        params={"instrument_id": instrument_id},
+    )
+
+    assert response.status_code == 422
+
+
 def test_dashboard_rejects_invalid_date_range(monkeypatch):
     monkeypatch.setattr(
         dashboard_api,
@@ -306,3 +467,37 @@ def test_dashboard_rejects_invalid_date_range(monkeypatch):
     )
 
     assert response.status_code == 422
+
+
+def test_dashboard_rejects_invalid_effective_date_range(monkeypatch):
+    monkeypatch.setattr(
+        dashboard_api,
+        "build_dashboard",
+        lambda filters: (_ for _ in ()).throw(
+            dashboard_api.InvalidDateRangeError()
+        ),
+    )
+
+    response = client.get(
+        "/analytics/dashboard",
+        params={"date_from": "2026-10-21"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_dashboard_returns_503_when_reporting_database_fails(monkeypatch):
+    monkeypatch.setattr(
+        dashboard_api,
+        "build_dashboard",
+        lambda filters: (_ for _ in ()).throw(
+            SQLAlchemyError("database details must not leak")
+        ),
+    )
+
+    response = client.get("/analytics/dashboard")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "Analytics reporting is temporarily unavailable"
+    }

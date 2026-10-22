@@ -1,0 +1,139 @@
+.instrument-expanded-dialog {
+  background-color: var(--background-color);
+  padding: 20px;
+  border-radius: 8px;
+
+ 
+
+  .chart-container {
+    width: min(100%, 760px);
+    height: 260px;
+    position: relative;
+    margin: 0 auto 20px;
+
+    canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+  }
+
+  .chart-range-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 38px;
+    width: fit-content;
+    margin: 0 auto 16px;
+    padding: 3px;
+    background-color: var(--secondary-background-color);
+    border: 1px solid var(--secondary-background-color);
+    border-radius: 8px;
+
+    button {
+      min-width: 42px;
+      height: 30px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: #fafafa;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+
+      &:hover,
+      &.active {
+        background: var(--secondary-color);
+        color: #fafafa;
+      }
+    }
+  }
+
+
+  .instrument-title {
+    font-weight: 800;
+    color: var(--secondary-accent-color);
+    text-align: center;
+    margin-bottom: 20px;
+    font: inherit;
+    font-size: 24px;
+
+  }
+
+  .instrument-details {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    min-width: 300px;
+  }
+
+  .selected-price {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0 auto 16px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--secondary-background-color);
+
+    span,
+    small {
+      color: var(--muted-text-color);
+      font-size: 12px;
+    }
+
+    strong {
+      color: var(--primary-accent-color);
+    }
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+
+    .label {
+      font-weight: 600;
+      color: var(--secondary-accent-color);
+    }
+
+    .value {
+      color: var(--secondary-accent-color);
+    }
+  }
+
+  mat-dialog-actions {
+    &.instrument-trade-actions {
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 12px 0 0;
+
+      button {
+        min-width: 92px;
+        border-radius: 8px;
+      }
+
+      button[color='buyer'] {
+        background-color: var(--primary-accent-color);
+        color: var(--background-color);
+      }
+
+      button[color='seller'] {
+        background-color: var(--danger-color);
+        color: var(--background-color);
+      }
+    }
+
+    &:not(.instrument-trade-actions) button {
+      border: none !important;
+      background: none !important;
+      color: var(--secondary-accent-color);
+      cursor: pointer;
+      font-size: 14px;
+    }
+  }
+}

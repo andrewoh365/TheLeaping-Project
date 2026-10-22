@@ -7,17 +7,17 @@
 }
 
 .tradevault-dashboard-1 {
-  --font-family-geist: 'Geist', 'Segoe UI', sans-serif;
-  --text-rgb-250-250-250: rgba(250, 250, 250, 0.75);
-  --text-rgb-58-58-58: rgba(58, 58, 58, 1);
-  --text-rgb-189-189-189: rgba(189, 189, 189, 1);
-  --text-rgb-0-171-104: rgba(0, 171, 104, 1);
-  --text-rgb-26-26-26: rgba(26, 26, 26, 1);
-  --text-rgb-204-31-45: rgba(204, 31, 45, 1);
+  --font-family-geist: 'Inter', sans-serif;
+  --text-rgb-250-250-250: var(--text-color);
+  --text-rgb-58-58-58: var(--border-color);
+  --text-rgb-189-189-189: var(--muted-text-color);
+  --text-rgb-0-171-104: var(--secondary-color);
+  --text-rgb-26-26-26: var(--background-color);
+  --text-rgb-204-31-45: var(--danger-color);
   width: 100%;
   min-height: 100vh;
-  background-color: rgba(26, 26, 26, 1);
-  color: rgba(250, 250, 250, 1);
+  background-color: var(--background-color);
+  color: var(--text-color);
   font-family: var(--font-family-geist);
 }
 
@@ -57,13 +57,14 @@ button {
 
 .top-nav-2 {
   display: grid;
-  grid-template-columns: auto minmax(280px, 1fr) auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 24px;
-  padding: 0 24px 0 17px;
-  min-height: 72px;
-  background-color: rgba(22, 112, 89, 1);
-  border-bottom: 1px solid rgba(42, 42, 42, 1);
+  gap: 20px;
+  padding: 12px 24px;
+  min-height: 68px;
+  background: linear-gradient(110deg, #125441, #167059 58%, #145846);
+  border-bottom: 1px solid rgba(125, 235, 181, 0.22);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
 }
 
 .group-1-3,
@@ -117,8 +118,17 @@ button {
   order: -1;
 }
 
+.text-13{
+  font-weight: 700;
+  font-size: 34px;
+}
+
+.market-status {
+  font-weight: 700;
+  font-size: 14px;
+}
+
 .text-4,
-.text-13,
 .text-22,
 .text-26,
 .text-31,
@@ -226,6 +236,7 @@ button {
 .text-306,
 .text-308 {
   margin: 0;
+
 }
 
 .text-4 {
@@ -258,6 +269,23 @@ button {
   font-size: 18px;
 }
 
+.nav-left-7 {
+  gap: 10px;
+  min-width: 0;
+}
+
+
+.app-header {
+  display: grid;
+  gap: 1px;
+
+  strong {
+    color: #fafafa;
+    font-size: 30px;
+    letter-spacing: 0.12em;
+  }
+}
+
 .search-container-14 {
   position: relative;
   display: flex;
@@ -265,8 +293,7 @@ button {
   gap: 8px;
   width: min(100%, 400px);
   padding: 8px 14px;
-  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.5);
-  background-color: rgba(250, 250, 250, 1);
+  background-color: transparent;
   border: 1px solid rgba(0, 171, 104, 1);
   border-radius: 8px;
 }
@@ -277,7 +304,7 @@ button {
   border: 0;
   background: transparent;
   outline: none;
-  color: rgba(58, 58, 58, 1);
+  color: #fafafa;
   font-size: 13px;
   line-height: 20px;
 }
@@ -320,8 +347,12 @@ button {
   text-align: left;
 }
 
+.nav-right-19 {
+  gap: 24px;
+}
+
 .market-time-20 {
-  gap: 6px;
+  gap: 9px;
 }
 
 .market-time-20.market-closed {
@@ -329,11 +360,34 @@ button {
 }
 
 .user-profile-23 {
+  align-items: center;
   gap: 10px;
   border: 0;
+  border-radius: 24px;
   background: transparent;
-  padding: 0;
+  padding: 4px 10px 4px 4px;
   color: inherit;
+  cursor: pointer;
+}
+
+.user-profile-23:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.user-profile-23:focus-visible {
+  outline: 2px solid rgba(250, 250, 250, 0.8);
+  outline-offset: 2px;
+
+  &:hover,
+  &:focus-visible {
+    background: transparent;
+    outline: none;
+  }
+
+  &:hover .avatar-24,
+  &:focus-visible .avatar-24 {
+    box-shadow: 0 0 0 3px rgba(125, 235, 181, 0.22);
+  }
 }
 
 .avatar-24 {
@@ -349,10 +403,25 @@ button {
   font-size: 13px;
 }
 
+.market-status,
+.profile-meta-25 {
+  display: grid;
+  padding-right: 10px;
+}
+
+.market-status-label{
+  color: #fafafa;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding-right: 10px;
+}
+
 .dashboard-split-27 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .main-metrics-column-28 {
@@ -499,11 +568,24 @@ button {
   gap: 24px;
 }
 
+.account-card-figma .card-body-56 {
+  align-items: center;
+}
+
+.card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
 .account-card-figma .mini-sparkline-svg {
-  flex: 0 1 55%;
-  min-width: 120px;
+  flex: 0 1 40%;
+  min-width: 96px;
+  max-width: 200px;
   width: auto;
   height: 48px;
+  overflow: visible;
 }
 
 .ghost-figma {
@@ -542,9 +624,14 @@ button {
 .mini-sparkline-svg path {
   fill: none;
   stroke: rgba(0, 171, 104, 1);
-  stroke-width: 2.5;
+  stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.mini-sparkline-svg.falling path {
+  stroke: rgba(204, 31, 45, 1);
 }
 
 .chart-section-104,
@@ -594,15 +681,61 @@ button {
   stroke-width: 2.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
 
-.chart-labels-figma {
+.grid-lines line {
+  vector-effect: non-scaling-stroke;
+}
+
+/* Plot on the left, dollar axis in a gutter on the right */
+.chart-plot {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+}
+
+.chart-canvas {
+  min-width: 0;
+}
+
+.chart-x-axis {
+  position: relative;
+  height: 18px;
   margin-top: 8px;
+}
+
+.chart-x-axis span,
+.chart-y-axis span {
+  position: absolute;
   font-size: 12px;
-  color: rgba(189, 189, 189, 1);
+  line-height: 1;
+  white-space: nowrap;
+  color: rgba(158, 158, 158, 1);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-x-axis span {
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.chart-y-axis {
+  position: relative;
+  height: 260px;
+  min-width: 64px;
+}
+
+.chart-y-axis span {
+  right: 0;
+  transform: translateY(-50%);
+}
+
+/* Narrow screens: every other date label, so they don't collide */
+@media (max-width: 640px) {
+  .chart-x-axis span:nth-child(even) {
+    display: none;
+  }
 }
 
 .time-toggles-109 {
@@ -860,14 +993,529 @@ button {
   gap: 12px;
 }
 
+.watchlist-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin: -16px -20px;
+  padding: 22px 20px 20px;
+  background: rgba(34, 34, 34, 1);
+  border-radius: 0 0 16px 16px;
+}
+
+.watchlist-workspace-header,
+.watchlist-toolbar,
+.watchlist-summary,
+.watchlist-add-heading,
+.watchlist-inline-form,
+.watchlist-instrument-cell,
+.watchlist-price,
+.watchlist-row-action {
+  display: flex;
+  align-items: center;
+}
+
+.watchlist-workspace-header {
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.watchlist-workspace-header h2 {
+  margin: 4px 0 0;
+  color: rgba(250, 250, 250, 1);
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.watchlist-eyebrow,
+.watchlist-table-header,
+.watchlist-select-label {
+  margin: 0;
+  color: rgba(189, 189, 189, 1);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.watchlist-description {
+  margin: 6px 0 0;
+  color: rgba(189, 189, 189, 1);
+  font-size: 13px;
+}
+
+.watchlist-toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.watchlist-select-label {
+  flex-basis: 100%;
+  text-align: right;
+}
+
+.watchlist-select,
+.watchlist-search-field,
+.watchlist-inline-form {
+  border: 1px solid rgba(76, 76, 76, 1);
+  border-radius: 8px;
+  background: rgba(26, 26, 26, 1);
+  color: rgba(250, 250, 250, 1);
+}
+
+.watchlist-select {
+  min-width: 170px;
+  height: 38px;
+  padding: 0 32px 0 12px;
+  outline: none;
+  font-size: 13px;
+}
+
+.watchlist-select:focus,
+.watchlist-search-field:focus-within,
+.watchlist-inline-form:focus-within {
+  border-color: rgba(0, 171, 104, 1);
+}
+
+.watchlist-icon-button,
+.watchlist-remove-button,
+.watchlist-search-field button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: rgba(189, 189, 189, 1);
+}
+
+.watchlist-icon-button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(76, 76, 76, 1);
+  border-radius: 8px;
+}
+
+.watchlist-icon-button:hover,
+.watchlist-remove-button:hover,
+.watchlist-search-field button:hover {
+  color: rgba(0, 171, 104, 1);
+}
+
+.watchlist-icon-button.danger:hover,
+.watchlist-remove-button:hover {
+  color: rgba(255, 120, 130, 1);
+}
+
+.watchlist-icon-button:disabled,
+.watchlist-remove-button:disabled,
+.watchlist-primary-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.watchlist-inline-form {
+  gap: 10px;
+  width: min(100%, 520px);
+  padding: 8px 10px;
+}
+
+.watchlist-inline-form mat-icon {
+  color: rgba(0, 171, 104, 1);
+}
+
+.watchlist-inline-form input,
+.watchlist-search-field input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: rgba(250, 250, 250, 1);
+  font-size: 13px;
+}
+
+.watchlist-inline-form input::placeholder,
+.watchlist-search-field input::placeholder {
+  color: rgba(158, 158, 158, 1);
+}
+
+.watchlist-primary-button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(0, 171, 104, 1);
+  border-radius: 7px;
+  background: rgba(0, 171, 104, 1);
+  color: rgba(20, 35, 31, 1);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.watchlist-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(204, 31, 45, 0.45);
+  border-radius: 8px;
+  background: rgba(112, 22, 30, 0.22);
+  color: rgba(255, 150, 158, 1);
+  font-size: 12px;
+}
+
+.watchlist-summary {
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px;
+  border: 1px solid rgba(58, 58, 58, 1);
+  border-radius: 12px;
+  background: rgba(26, 26, 26, 1);
+}
+
+.watchlist-summary-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.watchlist-summary-copy strong {
+  color: rgba(250, 250, 250, 1);
+  font-size: 18px;
+}
+
+.watchlist-summary-copy > span:last-child,
+.watchlist-stat span,
+.watchlist-add-heading span,
+.watchlist-instrument-copy small,
+.watchlist-price small {
+  color: rgba(158, 158, 158, 1);
+  font-size: 12px;
+}
+
+.watchlist-stat {
+  display: flex;
+  min-width: 88px;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 20px;
+  border-left: 1px solid rgba(58, 58, 58, 1);
+}
+
+.watchlist-stat strong {
+  color: rgba(250, 250, 250, 1);
+  font-size: 16px;
+}
+
+.watchlist-add-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(58, 58, 58, 1);
+  border-radius: 12px;
+  background: rgba(42, 42, 42, 1);
+}
+
+.watchlist-add-heading {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.watchlist-add-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.watchlist-add-heading strong {
+  color: rgba(250, 250, 250, 1);
+  font-size: 14px;
+}
+
+.watchlist-add-heading mat-icon {
+  color: rgba(0, 171, 104, 1);
+}
+
+.watchlist-search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 10px;
+}
+
+.watchlist-search-field > mat-icon {
+  color: rgba(158, 158, 158, 1);
+}
+
+.watchlist-search-field button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+
+.watchlist-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(76, 76, 76, 1);
+  border-radius: 8px;
+  background: rgba(26, 26, 26, 1);
+}
+
+.watchlist-search-result {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(250, 250, 250, 1);
+  text-align: left;
+}
+
+.watchlist-search-result:hover:not(:disabled) {
+  background: rgba(22, 112, 89, 0.32);
+}
+
+.watchlist-search-result:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.watchlist-result-symbol {
+  font-weight: 700;
+}
+
+.watchlist-result-name {
+  overflow: hidden;
+  color: rgba(189, 189, 189, 1);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watchlist-result-action {
+  display: flex;
+  justify-content: flex-end;
+  color: rgba(0, 171, 104, 1);
+}
+
+.watchlist-search-loading,
+.watchlist-search-empty {
+  padding: 10px;
+  color: rgba(158, 158, 158, 1);
+  font-size: 12px;
+}
+
+.watchlist-table {
+  overflow: hidden;
+  border: 1px solid rgba(58, 58, 58, 1);
+  border-radius: 12px;
+  background: rgba(26, 26, 26, 1);
+}
+
+.watchlist-table-header,
+.watchlist-row {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) minmax(80px, 0.45fr) minmax(120px, 0.55fr) 48px;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+}
+
+.watchlist-table-header {
+  background: rgba(42, 42, 42, 1);
+}
+
+.watchlist-number {
+  text-align: right;
+}
+
+.watchlist-action-heading {
+  text-align: center;
+}
+
+.watchlist-row {
+  min-height: 68px;
+  border-top: 1px solid rgba(58, 58, 58, 1);
+}
+
+.watchlist-instrument-cell {
+  min-width: 0;
+  gap: 10px;
+}
+
+.watchlist-symbol-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 9px;
+  background: rgba(0, 171, 104, 0.14);
+  color: rgba(0, 213, 133, 1);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.watchlist-instrument-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.watchlist-instrument-copy strong {
+  color: rgba(250, 250, 250, 1);
+  font-size: 14px;
+}
+
+.watchlist-instrument-copy small,
+.watchlist-price small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watchlist-type {
+  color: rgba(189, 189, 189, 1);
+  font-size: 12px;
+}
+
+.watchlist-price {
+  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  color: rgba(250, 250, 250, 1);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.watchlist-price small {
+  color: rgba(0, 171, 104, 1);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.watchlist-price small.quote-stale {
+  color: rgba(218, 170, 88, 1);
+}
+
+.quote-unavailable {
+  color: rgba(158, 158, 158, 1);
+  font-weight: 400;
+}
+
+.watchlist-row-action {
+  justify-content: center;
+}
+
+.watchlist-remove-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.watchlist-loading,
+.watchlist-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 150px;
+  padding: 24px;
+  color: rgba(158, 158, 158, 1);
+  text-align: center;
+}
+
+.watchlist-loading {
+  color: rgba(189, 189, 189, 1);
+  font-size: 13px;
+}
+
+.watchlist-empty mat-icon {
+  width: 32px;
+  height: 32px;
+  color: rgba(0, 171, 104, 1);
+  font-size: 32px;
+}
+
+.watchlist-empty strong {
+  color: rgba(250, 250, 250, 1);
+  font-size: 14px;
+}
+
+.watchlist-empty span {
+  max-width: 360px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.watchlist-empty.no-list {
+  min-height: 220px;
+  border: 1px dashed rgba(76, 76, 76, 1);
+  border-radius: 12px;
+}
+
 .node-229 {
   display: flex;
   flex-direction: column;
   gap: 24px;
   padding: 24px;
   min-width: 0;
+  min-height: 100%;
   background-color: rgba(42, 42, 42, 1);
   border-left: 1px solid rgba(42, 42, 42, 1);
+}
+
+.market-sidebar {
+  background: linear-gradient(180deg, rgba(38, 58, 51, 0.96), rgba(42, 42, 42, 1) 34%);
+  padding-top: 2%;
+  
+}
+
+
+.market-sidebar-eyebrow {
+  color: rgba(125, 235, 181, 0.82);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding-top:2%;
+}
+
+.market-sidebar-status {
+  padding: 5px 8px;
+  border: 1px solid rgba(125, 235, 181, 0.22);
+  border-radius: 999px;
+  color: rgba(205, 238, 221, 0.72);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.market-sidebar .search-container-14 {
+  width: 100%;
+  max-width: none;
+  margin-top: 12px;
+}
+
+.market-sidebar .search-container-14 .vector-17 {
+  filter: brightness(0) saturate(100%) invert(98%);
+}
+
+.market-sidebar .section-news-230,
+.market-sidebar .section-movers-266 {
+  border-color: rgba(125, 235, 181, 0.1);
+  border-radius: 12px;
 }
 
 .section-news-230,
@@ -935,6 +1583,7 @@ button {
 .text-261 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
@@ -945,6 +1594,7 @@ button {
 .text-262 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
+  line-clamp: 3;
   -webkit-line-clamp: 3;
   overflow: hidden;
   line-height: 1.45;
@@ -1179,9 +1829,18 @@ button {
   .node-29,
   .table-tab-header-156,
   .trade-drawer-header,
-  .chart-header-105 {
+  .chart-header-105,
+  .watchlist-workspace-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .watchlist-toolbar {
+    justify-content: flex-start;
+  }
+
+  .watchlist-select-label {
+    text-align: left;
   }
 
   .account-cards-grid-49,
@@ -1222,8 +1881,31 @@ button {
   }
 
   .table-wrapper,
-  .holdings-list-171 {
+  .holdings-list-171,
+  .watchlist-table {
     overflow-x: auto;
+  }
+
+  .watchlist-table-header,
+  .watchlist-row {
+    min-width: 560px;
+  }
+
+  .watchlist-workspace {
+    margin: -16px;
+    padding: 18px 16px 16px;
+  }
+
+  .watchlist-summary {
+    flex-wrap: wrap;
+  }
+
+  .watchlist-summary-copy {
+    flex-basis: 100%;
+  }
+
+  .watchlist-stat {
+    flex: 1;
   }
 
   .trade-drawer {

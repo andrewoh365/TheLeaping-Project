@@ -7,12 +7,14 @@ import {
   HttpErrorResponse
 } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, throwError } from 'rxjs';
-import { catchError, switchMap } from 'rxjs/operators';
+import { Observable, of, throwError } from 'rxjs';
+import { catchError, finalize, map, shareReplay, switchMap } from 'rxjs/operators';
 import { AuthService } from '../services/auth.service';
 
 @Injectable()
 export class JwtInterceptor implements HttpInterceptor {
+  private refreshRequest$: Observable<string> | null = null;
+
   constructor(
     private authService: AuthService,
     private router: Router
@@ -27,9 +29,11 @@ export class JwtInterceptor implements HttpInterceptor {
 
     return next.handle(request).pipe(
       catchError((error: HttpErrorResponse) => {
-        // Some backends return 403 for expired/invalid JWTs.
+        // The backend returns 401 for missing, invalid or expired tokens and
+        // 403 when an authenticated user lacks the role for a route. Only a
+        // 401 means the session needs refreshing.
         if (
-          (error.status === 401 || error.status === 403)
+          error.status === 401
           && !this.isRefreshUrl(request.url)
           && !this.isLogoutUrl(request.url)
           && !this.isExcludedUrl(request.url)
@@ -50,19 +54,26 @@ export class JwtInterceptor implements HttpInterceptor {
   }
 
   private handleAuthError(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    return this.authService.refreshToken().pipe(
-      switchMap(() => {
-        const token = this.authService.getToken();
-        if (token) {
-          return next.handle(this.addToken(request, token));
-        }
-        this.forceReauth();
-        return throwError(() => new Error('Token refresh failed'));
-      }),
-      catchError((err) => {
-        this.forceReauth();
-        return throwError(() => err);
-      })
+    if (!this.refreshRequest$) {
+      this.refreshRequest$ = this.authService.refreshToken().pipe(
+        map(() => this.authService.getToken()),
+        switchMap(token => token
+          ? of(token)
+          : throwError(() => new Error('Token refresh failed'))
+        ),
+        catchError((err) => {
+          this.forceReauth();
+          return throwError(() => err);
+        }),
+        finalize(() => {
+          this.refreshRequest$ = null;
+        }),
+        shareReplay({ bufferSize: 1, refCount: false })
+      );
+    }
+
+    return this.refreshRequest$.pipe(
+      switchMap(token => next.handle(this.addToken(request, token)))
     );
   }
 

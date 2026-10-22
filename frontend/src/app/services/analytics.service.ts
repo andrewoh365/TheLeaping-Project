@@ -1,3 +1,4 @@
+
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
@@ -28,6 +29,7 @@ export interface DashboardFilters {
   dateTo?: string;
   assetType?: AssetType;
   market?: string;
+  instrumentId?: number | string;
   orderStatus?: OrderStatus;
   clientSegment?: ClientSegment;
 }
@@ -83,6 +85,21 @@ export interface ClientSegmentBreakdown {
   trading_volume_usd: number;
 }
 
+export interface SelectedInstrument {
+  instrument_id: number;
+  symbol: string;
+  name: string;
+  instrument_type: string;
+  market_name: string;
+  is_active: boolean;
+}
+
+export interface ReportingPeriod {
+  date_from: string;
+  date_to: string;
+  timezone: 'UTC';
+}
+
 export interface DashboardResponse {
   summary: DashboardSummary;
   trading_volume_over_time: TradingVolumeTrend;
@@ -91,6 +108,8 @@ export interface DashboardResponse {
   client_activity_trend: ClientActivityTrend;
   top_rejection_reasons: RejectionReason[];
   client_segment_breakdown: ClientSegmentBreakdown[];
+  selected_instrument: SelectedInstrument | null;
+  reporting_period: ReportingPeriod;
 }
 
 @Injectable({
@@ -98,8 +117,7 @@ export interface DashboardResponse {
 })
 export class AnalyticsService {
 
-  private readonly API_URL =
-  '/api/analytics';
+  private readonly API_URL = '/api/analytics';
 
   constructor(private http: HttpClient) {}
 
@@ -134,6 +152,17 @@ export class AnalyticsService {
       params = params.set(
         'market',
         filters.market
+      );
+    }
+
+    if (
+      filters.instrumentId !== undefined
+      && filters.instrumentId !== null
+      && filters.instrumentId !== ''
+    ) {
+      params = params.set(
+        'instrument_id',
+        String(filters.instrumentId)
       );
     }
 

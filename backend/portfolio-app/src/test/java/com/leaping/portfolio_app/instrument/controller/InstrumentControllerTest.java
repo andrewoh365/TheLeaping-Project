@@ -2,6 +2,7 @@ package com.leaping.portfolio_app.instrument.controller;
 
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.enums.InstrumentType;
+import com.leaping.portfolio_app.instrument.dto.InstrumentDetail;
 import com.leaping.portfolio_app.instrument.service.InstrumentService;
 import com.leaping.portfolio_app.market.entity.Currency;
 import com.leaping.portfolio_app.market.entity.Market;
@@ -203,9 +204,12 @@ class InstrumentControllerTest {
 
         Long instrumentId = 1L;
 
+        InstrumentDetail instrumentDetail =
+            new InstrumentDetail(appleStock, market, null);
+
         when(
-            instrumentService.getInstrumentById(instrumentId)
-        ).thenReturn(Optional.of(appleStock));
+            instrumentService.getInstrumentDetailById(instrumentId)
+        ).thenReturn(Optional.of(instrumentDetail));
 
         mockMvc
             .perform(
@@ -221,7 +225,7 @@ class InstrumentControllerTest {
 
         verify(
             instrumentService
-        ).getInstrumentById(instrumentId);
+        ).getInstrumentDetailById(instrumentId);
     }
 
     /**
@@ -234,7 +238,7 @@ class InstrumentControllerTest {
         Long instrumentId = 999L;
 
         when(
-            instrumentService.getInstrumentById(instrumentId)
+            instrumentService.getInstrumentDetailById(instrumentId)
         ).thenReturn(Optional.empty());
 
         mockMvc
@@ -248,7 +252,7 @@ class InstrumentControllerTest {
 
         verify(
             instrumentService
-        ).getInstrumentById(instrumentId);
+        ).getInstrumentDetailById(instrumentId);
     }
 
     /**
@@ -319,9 +323,12 @@ class InstrumentControllerTest {
 
         Long instrumentId = 1L;
 
+        InstrumentDetail instrumentDetail =
+            new InstrumentDetail(appleStock, market, null);
+
         when(
-            instrumentService.getInstrumentById(instrumentId)
-        ).thenReturn(Optional.of(appleStock));
+            instrumentService.getInstrumentDetailById(instrumentId)
+        ).thenReturn(Optional.of(instrumentDetail));
 
         mockMvc
             .perform(

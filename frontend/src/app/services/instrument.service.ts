@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient} from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface Instrument {
@@ -10,6 +10,26 @@ export interface Instrument {
   priceCurrencyCode: string;
   isTradeable: boolean;
   isActive: boolean;
+}
+
+export interface InstrumentDetail extends Instrument {
+  price: number | null;
+  lastUpdated: string | null;
+  marketId?: number;
+  marketName?: string;
+  country?: string;
+  timezone?: string;
+  openTime?: string;
+  closeTime?: string;
+}
+
+export interface PricePointDto {
+  symbol: string;
+  price: number;
+  currencyCode: string;
+  timestamp: string;
+  sourceType: string;
+  provider: string;
 }
 
 @Injectable({
@@ -29,8 +49,8 @@ export class InstrumentService {
 
   getInstrumentById(
     id: string
-  ): Observable<Instrument> {
-    return this.http.get<Instrument>(
+  ): Observable<InstrumentDetail> {
+    return this.http.get<InstrumentDetail>(
       `${this.API_URL}/${id}`
     );
   }
@@ -42,6 +62,15 @@ export class InstrumentService {
       `${this.API_URL}/search`,
       {
         params: { query }
+      }
+    );
+  }
+
+  getPriceHistory(symbol: string, from: string, to: string): Observable<PricePointDto[]> {
+    return this.http.get<PricePointDto[]>(
+      '/api/market/instruments/price/history',
+      {
+        params: { symbol, from, to }
       }
     );
   }

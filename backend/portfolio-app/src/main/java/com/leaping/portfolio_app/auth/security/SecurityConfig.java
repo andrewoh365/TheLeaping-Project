@@ -3,6 +3,7 @@ package com.leaping.portfolio_app.auth.security;
 import com.leaping.portfolio_app.auth.service.SessionService;
 import com.leaping.portfolio_app.auth.util.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -13,6 +14,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -94,16 +96,33 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/auth/**").permitAll()      // All auth endpoints are public
+                        .requestMatchers( "/api/auth/login",
+                        "/api/auth/register",
+                        "/api/auth/refresh",
+                        "/api/auth/logout",
+                        "/api/auth/health").permitAll()      // All auth endpoints are public
                         .requestMatchers("/api/public/**").permitAll()    // Public endpoints
-                    .requestMatchers("/api/market/news", "/api/market/movers").permitAll() // Public dashboard insights
+                        .requestMatchers("/api/market/news", "/api/market/movers").permitAll() // Public dashboard insights
                         .requestMatchers("/auth/**").permitAll()          // Auth endpoints without /api prefix
                         .requestMatchers("/actuator/health").permitAll()  // Health check for ECS; only this exact path, never /actuator/**
+                        .requestMatchers("/api/market/instruments/price/history").permitAll()
+                        // Error dispatches carry no JWT; without this, a 404 or 503
+                        // from a controller is rewritten to 401 and looks like an
+                        // expired session to the frontend.
+                        .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()                     // Everything else requires authentication
                 )
                 // Add JWT filter BEFORE the standard username/password filter
                 // This way, JWT tokens are validated first
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                // Missing, invalid or expired tokens get 401 so the frontend
+                // knows to refresh; 403 is left for authenticated users who
+                // lack the required role.
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(
+                                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)
+                        )
+                )
                 .httpBasic(httpBasic -> httpBasic.disable())
                 .formLogin(formLogin -> formLogin.disable());
 

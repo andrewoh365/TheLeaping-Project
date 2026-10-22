@@ -216,7 +216,7 @@ class MarketComponentIntegrationTest {
         @Test
         void marketEndpoints_shouldRequireAuthentication() throws Exception {
                 mockMvc.perform(get("/api/market/exchanges"))
-                                .andExpect(status().isForbidden());
+                                .andExpect(status().isUnauthorized());
         }
 
         @Test
