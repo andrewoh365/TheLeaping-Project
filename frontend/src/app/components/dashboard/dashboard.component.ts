@@ -10,7 +10,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatListModule } from '@angular/material/list';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { Subject, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
+import { Subject, Subscription, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrument.service';
@@ -22,7 +22,8 @@ import {
   MarketOverrideStatus,
   MarketStatusResponse,
   NewsItem,
-  PricePointResponse
+  PricePointResponse,
+  QuoteResponse
 } from '../../services/market.service';
 import {
   CashDirection,
@@ -161,6 +162,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   marketStatus: MarketStatusResponse | null = null;
   /** After-hours testing switch; null until loaded, and only shown where the backend allows it. */
   marketOverride: MarketOverrideStatus | null = null;
+  private marketOverrideRequested = false;
   marketOverrideSaving = false;
   portfolio: PortfolioResponse | null = null;
   holdings: DashboardHolding[] = [];
@@ -176,6 +178,26 @@ export class DashboardComponent implements OnInit, OnDestroy {
   watchlists: WatchlistResponse[] = [];
   watchlistInstruments: WatchlistInstrumentResponse[] = [];
   activeWatchlistName = 'Watchlist';
+  activeWatchlistId: number | null = null;
+  watchlistQuotes: Record<string, QuoteResponse> = {};
+  // In-flight watchlist requests, cancelled when the user switches lists so a
+  // slow response for the previous list cannot overwrite the current one.
+  private watchlistInstrumentsRequest?: Subscription;
+  private watchlistQuotesRequest?: Subscription;
+  watchlistLoading = false;
+  watchlistQuotesLoading = false;
+  watchlistSaving = false;
+  watchlistError = '';
+  watchlistSearchQuery = '';
+  watchlistSearchResults: Instrument[] = [];
+  watchlistSearchLoading = false;
+  watchlistSearchError = '';
+  showCreateWatchlist = false;
+  newWatchlistName = '';
+  showRenameWatchlist = false;
+  renameWatchlistName = '';
+  watchlistAddingInstrumentId: number | null = null;
+  watchlistRemovingInstrumentId: number | null = null;
   activityOrders: OrderResponse[] = [];
   activityPage = 0;
   activityHasMore = false;
@@ -259,6 +281,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly rangeOptions: RangeKey[] = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
   private destroy$ = new Subject<void>();
   private searchSubject$ = new Subject<string>();
+  private watchlistSearch$ = new Subject<string>();
   private holdingsSearch$ = new Subject<string>();
   private ticketSearch$ = new Subject<string>();
   private previewRequest$ = new Subject<void>();
@@ -360,6 +383,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get watchlistCount(): number {
     return this.watchlistInstruments.length;
+  }
+
+  get activeWatchlist(): WatchlistResponse | null {
+    return this.watchlists.find((watchlist) => watchlist.watchlistId === this.activeWatchlistId) ?? null;
+  }
+
+  get watchlistSearchMatches(): Instrument[] {
+    const watchedIds = new Set(this.watchlistInstruments.map((instrument) => instrument.instrumentId));
+    return this.watchlistSearchResults.filter((instrument) => !watchedIds.has(Number(instrument.instrumentId)));
+  }
+
+  getWatchlistQuote(symbol: string): QuoteResponse | null {
+    return this.watchlistQuotes[symbol] ?? null;
   }
 
   get filteredHoldings(): DashboardHolding[] {
@@ -540,6 +576,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((user) => {
         this.currentUser = user;
+        // The override endpoint is admin-only; customers would only get a
+        // 403. The role may arrive after init (e.g. from /auth/me), so check
+        // on every emission but load once.
+        if (user?.role === 'ADMIN' && !this.marketOverrideRequested) {
+          this.marketOverrideRequested = true;
+          this.loadMarketOverride();
+        }
       });
 
     this.searchSubject$
@@ -550,6 +593,35 @@ export class DashboardComponent implements OnInit, OnDestroy {
       )
       .subscribe((query) => {
         this.performSearch(query);
+      });
+
+    this.watchlistSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          if (!query.trim()) {
+            this.watchlistSearchLoading = false;
+            this.watchlistSearchError = '';
+            return of<Instrument[]>([]);
+          }
+
+          this.watchlistSearchLoading = true;
+          this.watchlistSearchError = '';
+          return this.instrumentService.searchInstruments(query).pipe(
+            catchError(() => {
+              this.watchlistSearchError = 'Search is unavailable right now. Try again in a moment.';
+              return of<Instrument[]>([]);
+            }),
+            finalize(() => {
+              this.watchlistSearchLoading = false;
+            })
+          );
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((results) => {
+        this.watchlistSearchResults = results.filter((instrument) => instrument.isActive).slice(0, 6);
       });
 
     this.ticketSearch$
@@ -650,7 +722,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
 
     this.loadDashboard();
-    this.loadMarketOverride();
     this.startLiveUpdates();
     this.startMarketContextUpdates();
 
@@ -717,6 +788,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.searchSubject$.next(this.searchQuery);
   }
 
+  onWatchlistSearchInput(): void {
+    this.watchlistSearch$.next(this.watchlistSearchQuery);
+  }
+
   onHoldingsFilterInput(): void {
     const query = this.holdingsFilterQuery.trim();
     if (!query) {
@@ -744,6 +819,196 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (tab === 'activity' && !this.activityLoaded) {
       this.loadActivity(true);
     }
+  }
+
+  selectWatchlist(watchlistId: number | string): void {
+    const selectedId = Number(watchlistId);
+    const selected = this.watchlists.find((watchlist) => watchlist.watchlistId === selectedId);
+    if (!selected || selected.watchlistId === this.activeWatchlistId) {
+      return;
+    }
+
+    this.showRenameWatchlist = false;
+    this.watchlistError = '';
+    this.loadWatchlistInstruments(selected.watchlistId, selected.watchlistName);
+  }
+
+  toggleCreateWatchlist(): void {
+    this.showCreateWatchlist = !this.showCreateWatchlist;
+    this.showRenameWatchlist = false;
+    this.newWatchlistName = '';
+    this.watchlistError = '';
+  }
+
+  createWatchlist(): void {
+    const name = this.newWatchlistName.trim();
+    if (!name || this.watchlistSaving) {
+      return;
+    }
+
+    this.watchlistSaving = true;
+    this.watchlistError = '';
+    this.watchlistService.createWatchlist({ watchlistName: name })
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistSaving = false;
+        })
+      )
+      .subscribe({
+        next: (watchlist) => {
+          this.watchlists = [...this.watchlists, watchlist];
+          this.showCreateWatchlist = false;
+          this.newWatchlistName = '';
+          this.loadWatchlistInstruments(watchlist.watchlistId, watchlist.watchlistName);
+        },
+        error: () => {
+          this.watchlistError = 'Could not create that watchlist. Please try again.';
+        }
+      });
+  }
+
+  startRenameWatchlist(): void {
+    if (!this.activeWatchlist) {
+      return;
+    }
+
+    this.showCreateWatchlist = false;
+    this.showRenameWatchlist = true;
+    this.renameWatchlistName = this.activeWatchlist.watchlistName;
+    this.watchlistError = '';
+  }
+
+  renameWatchlist(): void {
+    const active = this.activeWatchlist;
+    const name = this.renameWatchlistName.trim();
+    if (!active || !name || this.watchlistSaving) {
+      return;
+    }
+
+    this.watchlistSaving = true;
+    this.watchlistError = '';
+    this.watchlistService.renameWatchlist(active.watchlistId, { watchlistName: name })
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistSaving = false;
+        })
+      )
+      .subscribe({
+        next: (watchlist) => {
+          this.watchlists = this.watchlists.map((item) => item.watchlistId === watchlist.watchlistId ? watchlist : item);
+          this.activeWatchlistName = watchlist.watchlistName;
+          this.showRenameWatchlist = false;
+        },
+        error: () => {
+          this.watchlistError = 'Could not rename that watchlist. Please try again.';
+        }
+      });
+  }
+
+  deleteActiveWatchlist(): void {
+    const active = this.activeWatchlist;
+    if (!active || this.watchlistSaving || !window.confirm(`Delete ${active.watchlistName}?`)) {
+      return;
+    }
+
+    this.watchlistSaving = true;
+    this.watchlistError = '';
+    this.watchlistService.deleteWatchlist(active.watchlistId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistSaving = false;
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.watchlists = this.watchlists.filter((item) => item.watchlistId !== active.watchlistId);
+          const nextWatchlist = this.watchlists[0];
+          if (nextWatchlist) {
+            this.loadWatchlistInstruments(nextWatchlist.watchlistId, nextWatchlist.watchlistName);
+          } else {
+            this.activeWatchlistId = null;
+            this.activeWatchlistName = 'Watchlist';
+            this.watchlistInstruments = [];
+            this.watchlistQuotes = {};
+          }
+        },
+        error: () => {
+          this.watchlistError = 'Could not delete that watchlist. Please try again.';
+        }
+      });
+  }
+
+  addWatchlistInstrument(instrument: Instrument): void {
+    if (!this.activeWatchlistId || this.watchlistAddingInstrumentId !== null) {
+      return;
+    }
+
+    const watchlistId = this.activeWatchlistId;
+    const instrumentId = Number(instrument.instrumentId);
+    this.watchlistAddingInstrumentId = instrumentId;
+    this.watchlistError = '';
+    this.watchlistService.addInstrument(watchlistId, instrumentId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistAddingInstrumentId = null;
+        })
+      )
+      .subscribe({
+        next: (addedInstrument) => {
+          // The user may have switched lists; the add still succeeded on the
+          // original list, which reloads from the server when reselected.
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistInstruments = [...this.watchlistInstruments, addedInstrument];
+          this.watchlistSearchQuery = '';
+          this.watchlistSearchResults = [];
+          this.watchlistSearchError = '';
+          this.refreshWatchlistQuotes();
+        },
+        error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistError = `${instrument.symbol} could not be added. It may already be on this list.`;
+        }
+      });
+  }
+
+  removeWatchlistInstrument(instrument: WatchlistInstrumentResponse): void {
+    if (!this.activeWatchlistId || this.watchlistRemovingInstrumentId !== null) {
+      return;
+    }
+
+    const watchlistId = this.activeWatchlistId;
+    this.watchlistRemovingInstrumentId = instrument.instrumentId;
+    this.watchlistError = '';
+    this.watchlistService.removeInstrument(watchlistId, instrument.instrumentId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistRemovingInstrumentId = null;
+        })
+      )
+      .subscribe({
+        next: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistInstruments = this.watchlistInstruments.filter((item) => item.instrumentId !== instrument.instrumentId);
+          this.refreshWatchlistQuotes();
+        },
+        error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistError = `${instrument.symbol} could not be removed. Please try again.`;
+        }
+      });
   }
 
   loadMoreActivity(): void {
@@ -1235,6 +1500,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
         if (watchlists.length > 0) {
           this.loadWatchlistInstruments(watchlists[0].watchlistId, watchlists[0].watchlistName);
+        } else {
+          this.activeWatchlistId = null;
+          this.activeWatchlistName = 'Watchlist';
+          this.watchlistInstruments = [];
+          this.watchlistQuotes = {};
         }
       });
   }
@@ -1270,6 +1540,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .subscribe((portfolio) => {
         if (portfolio) {
           this.applyLivePortfolio(portfolio);
+        }
+        if (this.activeWatchlistId !== null) {
+          this.refreshWatchlistQuotes();
         }
         // Keep the first page of activity current (e.g. orders placed in another tab)
         if (this.activityLoaded && this.activityPage === 0 && this.selectedTab === 'activity') {
@@ -1373,16 +1646,65 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private loadWatchlistInstruments(watchlistId: number, watchlistName: string): void {
+    // Cancel before setting state: finalize() on the old request resets loading.
+    this.watchlistInstrumentsRequest?.unsubscribe();
+    this.watchlistQuotesRequest?.unsubscribe();
+    this.activeWatchlistId = watchlistId;
     this.activeWatchlistName = watchlistName;
-    this.watchlistService.getWatchlistInstruments(watchlistId)
-      .pipe(takeUntil(this.destroy$))
+    this.watchlistLoading = true;
+    this.watchlistError = '';
+    this.watchlistInstrumentsRequest = this.watchlistService.getWatchlistInstruments(watchlistId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistLoading = false;
+        })
+      )
       .subscribe({
         next: (instruments: WatchlistInstrumentResponse[]) => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistInstruments = instruments;
+          this.refreshWatchlistQuotes();
         },
         error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistInstruments = [];
+          this.watchlistQuotes = {};
+          this.watchlistError = 'Could not load this watchlist. Please try again.';
         }
+      });
+  }
+
+  private refreshWatchlistQuotes(): void {
+    this.watchlistQuotesRequest?.unsubscribe();
+    const watchlistId = this.activeWatchlistId;
+    const symbols = this.watchlistInstruments.map((instrument) => instrument.symbol);
+    if (symbols.length === 0) {
+      this.watchlistQuotes = {};
+      return;
+    }
+
+    this.watchlistQuotesLoading = true;
+    this.watchlistQuotesRequest = this.marketService.getQuotes(symbols)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(() => of<QuoteResponse[]>([])),
+        finalize(() => {
+          this.watchlistQuotesLoading = false;
+        })
+      )
+      .subscribe((quotes) => {
+        if (this.activeWatchlistId !== watchlistId) {
+          return;
+        }
+        this.watchlistQuotes = quotes.reduce<Record<string, QuoteResponse>>((lookup, quote) => {
+          lookup[quote.symbol] = quote;
+          return lookup;
+        }, {});
       });
   }
 

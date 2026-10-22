@@ -210,7 +210,7 @@ class WatchlistSecurityTest {
 
         mockMvc.perform(get("/api/watchlists")
                 .header("Authorization", "Bearer " + token))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         verify(sessionService).isAccessTokenActive(token);
         verify(userDetailsService).loadUserByUsername(email);
@@ -223,7 +223,7 @@ class WatchlistSecurityTest {
 
         mockMvc.perform(get("/api/watchlists")
                 .header("Authorization", "valid-token"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(jwtTokenProvider);
         verifyNoInteractions(watchlistService);

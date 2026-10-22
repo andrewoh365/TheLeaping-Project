@@ -60,6 +60,17 @@ export interface PricePointResponse {
   provider: string;
 }
 
+export interface QuoteResponse {
+  symbol: string;
+  price: number;
+  currencyCode: string;
+  timestamp: string;
+  sourceType: string;
+  provider: string;
+  stale: boolean;
+  ageSeconds: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -87,6 +98,11 @@ export class MarketService {
       .set('to', to);
 
     return this.http.get<PricePointResponse[]>(`${this.apiUrl}/instruments/price/history`, { params });
+  }
+
+  getQuotes(symbols: string[]): Observable<QuoteResponse[]> {
+    const params = new HttpParams({ fromObject: { symbols } });
+    return this.http.get<QuoteResponse[]>(`${this.apiUrl}/quotes`, { params });
   }
 
   getNews(): Observable<MarketNews> {
