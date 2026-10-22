@@ -204,7 +204,7 @@ Run the standard checks with:
 This runs the Spring suite against a disposable PostgreSQL database, the
 analytics suite, and an Angular production build. Focused checks can be run
 with `pytest` in `backend/analytics-service`, the focused analytics Maven test
-classes in `backend/portfolio-app`, and `npm run build` in `frontend`. No
+classes in `backend/portfolio-app`, and `npm run build` in `frontend`.
 The isolated performance benchmark is checked in under
 `benchmarks/analytics-isolation/`. It records a no-analytics trading baseline
 and concurrent analytics p50/p95 latency, throughput, errors, connection
@@ -216,36 +216,53 @@ least 3 GiB available memory.
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- **Backend**: Java 21, Maven 3.6+, PostgreSQL 16+
-- **Frontend**: Node.js v18+, npm or yarn
+There are two ways to run the whole application locally. Both start Spring Boot, the analytics
+service, the PostgreSQL primary and its reporting replica, and the Angular frontend.
 
-### Backend Setup (Local Development)
+### Option 1: Docker Compose
+
+**Needs:** Docker with Docker Compose.
+
 ```bash
-cd backend/portfolio-app
-
-# 1. Copy and configure local secrets
-cp src/main/resources/application-local.yaml.example src/main/resources/application-local.yaml
-# Edit application-local.yaml with your DB password and JWT secret
-
-# 2. Build and run
-mvn clean compile
-mvn spring-boot:run
-# Backend runs on http://localhost:8080
+cp .env.example .env
+# Edit .env and give every value your own local secret (see "Docker Compose startup" above)
+docker compose up -d --build      # older installations: docker-compose up -d --build
 ```
 
-**What You Need:**
-- PostgreSQL running with `leaping_db` database
-- `application-local.yaml` with your DB password (auto .gitignored, never committed)
-- Java 21+, Maven 3.9+
+The first start takes a few minutes: the images are built, Flyway creates the database, and the
+replica is cloned from the primary. Stop everything with `docker compose down`; the databases are
+kept.
 
-### Frontend Setup
+### Option 2: Local scripts
+
+**Needs:** Docker, Git, Java 21, Node.js 20.20.2 (see `.nvmrc`), npm and curl.
+
 ```bash
-cd frontend
-npm install
-npm start
-# Frontend runs on http://localhost:4200
+./scripts/setup.sh     # once, after cloning
+./scripts/start.sh
+./scripts/status.sh
+./scripts/stop.sh
 ```
+
+See "Local or EC2 startup" above for what the scripts do.
+
+### Check that Spring Boot is healthy
+
+Spring Boot exposes `/actuator/health`. Jenkins uses it, and AWS will too. It reports `UP` once
+the database is reachable and the startup price backfill has finished, about a minute after
+start. A `503` before that means "still starting".
+
+```bash
+# Docker Compose
+docker compose exec portfolio-app wget -qO- http://localhost:8080/actuator/health
+
+# Local scripts (Spring Boot runs directly on port 8080)
+curl http://localhost:8080/actuator/health
+```
+
+Expected: `{"groups":["liveness","readiness"],"status":"UP"}`. Do not test it at
+`http://localhost:4200/actuator/health`: nginx only forwards `/api/` to Spring Boot, so that
+address shows the Angular app instead. No other actuator endpoint is public.
 
 ### Access Application
 - **Registration**: http://localhost:4200/register
@@ -255,56 +272,39 @@ npm start
 ## 📁 Project Structure
 
 ```
-The Leaping Project/
+TheLeaping-Project/
 ├── backend/
-│   └── portfolio-app/       # Spring Boot application
-│       ├── src/
-│       │   ├── main/java/com/leaping/portfolio_app/
-│       │   │   ├── controller/    # REST API endpoints
-│       │   │   ├── service/       # Business logic
-│       │   │   ├── entity/        # Database entities
-│       │   │   ├── repository/    # Data access layer
-│       │   │   ├── security/      # JWT token handling
-│       │   │   ├── dto/           # Request/response DTOs
-│       │   │   └── config/        # Spring configuration
-│       │   └── resources/
-│       │       ├── application.yaml
-│       │       └── db/migration/  # Flyway migrations
-│       ├── pom.xml
-│       └── BACKEND_AUTH_GUIDE.md
-├── frontend/                # Angular application
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── components/    # Login, Register, Dashboard
-│   │   │   ├── services/      # Authentication service
-│   │   │   ├── interceptors/  # JWT interceptor
-│   │   │   ├── guards/        # Route guards
-│   │   │   ├── app.routes.ts  # Routing config
-│   │   │   └── app.component.ts
-│   │   ├── index.html
-│   │   ├── main.ts
-│   │   └── styles.scss
-│   ├── package.json
-│   ├── angular.json
-│   ├── tsconfig.json
-│   └── FRONTEND_SETUP.md
-├── database/                # Database configuration
-├── docker/                  # Docker configuration
-├── infrastructure/          # Infrastructure setup
-├── AUTHENTICATION_SETUP.md  # Complete integration guide
-├── IMPLEMENTATION_SUMMARY.md# Feature implementation summary
-├── ENVIRONMENT_CONFIG.md    # Environment and Docker config
-├── Jenkinsfile             # CI/CD pipeline definition
-└── README.md               # This file
+│   ├── portfolio-app/              # Spring Boot API (Java 21)
+│   │   ├── src/main/java/com/leaping/portfolio_app/
+│   │   │                           # One package per feature: admin, analytics, audit, auth,
+│   │   │                           # config, holdings, instrument, market, portfolio, trade,
+│   │   │                           # watchlist
+│   │   └── src/main/resources/
+│   │       ├── application.yaml
+│   │       └── db/migration/       # Flyway migrations
+│   ├── analytics-service/          # FastAPI reporting service, reads the replica
+│   └── api-tests.http              # Example API requests
+├── frontend/                       # Angular app, served by nginx in Docker
+├── infrastructure/
+│   ├── postgres/                   # Local PostgreSQL primary and reporting replica
+│   └── README.md                   # AWS deployment blueprint
+├── benchmarks/analytics-isolation/ # Analytics isolation benchmark
+├── scripts/                        # setup, start, status, stop, reset, test
+├── src/data/                       # Older SQL files, not used by the application
+├── docker-compose.yaml             # Runs the whole stack in containers
+├── Jenkinsfile                     # CI pipeline
+├── .env.example                    # Template for the ignored .env file
+├── ARCHITECTURE.md
+├── BUY_SELL_IMPLEMENTATION_PLAN.md
+└── README.md                       # This file
 ```
 
 ## 📚 Documentation
 
-- **[Authentication Setup Guide](./AUTHENTICATION_SETUP.md)** - Complete end-to-end setup and integration guide
-- **[Implementation Summary](./IMPLEMENTATION_SUMMARY.md)** - Overview of completed features
-- **[Frontend Setup Guide](./frontend/FRONTEND_SETUP.md)** - Angular frontend configuration and setup
-- **[Backend Authentication Guide](./backend/portfolio-app/BACKEND_AUTH_GUIDE.md)** - Spring Boot backend implementation
-- **[Environment Configuration](./ENVIRONMENT_CONFIG.md)** - Configuration for different environments
+- **[Architecture](./ARCHITECTURE.md)** - System architecture
+- **[Buy/Sell Implementation Plan](./BUY_SELL_IMPLEMENTATION_PLAN.md)** - Trading feature design
+- **[AWS Deployment Blueprint](./infrastructure/README.md)** - How the application will run on AWS
+- **[Analytics Isolation Benchmark](./benchmarks/analytics-isolation/README.md)** - Reporting performance benchmark
 
 ## 🔐 Security Features
 
@@ -326,9 +326,17 @@ The Leaping Project/
 
 ## 🔄 Branching Strategy
 
-### Trunk-Based Development
+```text
+feature/* or fix/*  ──PR──►  dev  ──PR when ready to release──►  main  ──►  AWS (planned)
+```
 
-Trunk-based development works well for a short 12-week project because everyone integrates into one main branch frequently, which reduces merge conflicts and keeps progress visible in real time. It also helps to deliver working features continuously instead of spending time managing long-lived branches.
+- **Feature and fix branches** are created from `dev` and merged back into `dev` through a
+  reviewed pull request.
+- **`dev`** is where finished work comes together and is tested.
+- **`main`** only changes through a pull request from `dev`. It is the branch that gets deployed.
+
+Database migrations are shared by every branch: never edit, rename or renumber a migration that
+has already been merged. Add a new one instead.
 
 ## 👥 Team
 
@@ -353,20 +361,50 @@ Trunk-based development works well for a short 12-week project because everyone 
 - Spring Security
 - Spring Data JPA
 - JWT (JSON Web Tokens)
-- PostgreSQL 16
+- Flyway
+- Spring Boot Actuator (health check only)
 
-## 🚢 Deployment
+### Analytics
+- Python, FastAPI
+- SQLAlchemy, psycopg
 
-See [Environment Configuration](./ENVIRONMENT_CONFIG.md) for Docker and production deployment setup.
+### Data and Infrastructure
+- PostgreSQL 16, with a streaming replica for reporting
+- Docker and Docker Compose, nginx
+- Jenkins
+- Planned: AWS (ECS on Fargate, RDS, Application Load Balancer, ECR)
 
-## 📝 Development Workflow
+## Continuous Integration (Jenkins)
 
-1. Create a feature branch from `main`
-2. Implement the feature
-3. Create a pull request with detailed description
-4. Code review and approval
-5. Merge to `main` using rebase strategy
-6. Automatically deploy via Jenkins pipeline
+Jenkins runs the [`Jenkinsfile`](./Jenkinsfile) for every branch and pull request in this
+repository:
+
+1. **Spring Boot tests** against a throwaway PostgreSQL database
+2. **Build analytics image**
+3. **Python tests** inside the analytics image
+4. **Build Spring Boot image**
+5. **Spring Boot health check**: starts the image just built against a throwaway PostgreSQL and
+   waits up to 3 minutes for `/actuator/health` to report `UP`, the same check AWS ECS will use.
+   Price updates run every second in this stage so that startup deadlocks show up every time.
+6. **Build frontend image**, which also checks the Angular size budgets
+
+Jenkins runs on the team's VM, which GitHub cannot reach, and builds are not scheduled. Start a
+build from Jenkins with **Scan Repository Now**. Pull requests from forks are not built.
+
+## Deployment
+
+The application is not deployed yet. The AWS plan (services, settings, secrets, health checks,
+order of setup) is in the **[AWS Deployment Blueprint](./infrastructure/README.md)**. Once the AWS
+account is available, deploys will run from `main` through Jenkins, after a manual approval.
+
+## Development Workflow
+
+1. Create a feature branch from `dev`
+2. Implement the feature and run `./scripts/test.sh`
+3. Push the branch and open a pull request into `dev` with a detailed description
+4. In Jenkins, click **Scan Repository Now** and wait for the build to pass
+5. Code review and approval, then merge into `dev`
+6. To release, open a pull request from `dev` into `main`
 
 ## 🤝 Contributing
 
@@ -375,7 +413,7 @@ Please refer to the team's development guidelines and ensure all code follows th
 ## 📞 Support
 
 For setup issues or questions:
-- **Frontend**: See `frontend/FRONTEND_SETUP.md`
-- **Backend**: See `backend/portfolio-app/BACKEND_AUTH_GUIDE.md`
-- **Integration**: See `AUTHENTICATION_SETUP.md`
+- **Running locally**: see [Quick Start](#-quick-start) and [Reporting Isolation](#reporting-isolation)
+- **Architecture**: see [ARCHITECTURE.md](./ARCHITECTURE.md)
+- **Deployment**: see the [AWS Deployment Blueprint](./infrastructure/README.md)
 
