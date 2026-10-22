@@ -30,9 +30,9 @@
             <span class="value">{{ data.instrumentType }}</span>
             </div>
             <div class="detail-row">
-            <span class="label">Price:</span>
+            <span class="label">Price ({{ displayCurrencyCode }}):</span>
             <span class="value">
-                {{ data.price !== null ? (data.price | currency:displayCurrencyCode) : 'Unavailable' }}
+                {{ displayPrice !== null ? (displayPrice | currency:displayCurrencyCode) : 'Unavailable' }}
             </span>
             </div>
             <div class="detail-row">
@@ -45,7 +45,7 @@
             </div>
             <div class="detail-row">
             <span class="label">Last Updated:</span>
-            <span class="value">{{ data.lastUpdated ? (data.lastUpdated | date:'MMM d, y, h:mm a') : 'Unavailable' }}</span>
+            <span class="value">{{ displayLastUpdated ? (displayLastUpdated | date:'MMM d, y, h:mm a') : 'Unavailable' }}</span>
             </div>
             <div class="detail-row">
             <span class="label">Open Time:</span>

@@ -38,7 +38,7 @@ import { AuthService } from '../../services/auth.service';
 import {
     Instrument,
     InstrumentService
-} from '../../services/instrumentService';
+} from '../../services/instrument.service';
 
 import {
     AnalyticsService,

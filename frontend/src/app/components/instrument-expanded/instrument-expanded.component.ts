@@ -53,6 +53,8 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
   chartConfig?: ChartConfig;
   selectedPrice: number | null = null;
   displayCurrencyCode = 'USD';
+  displayPrice: number | null = null;
+  displayLastUpdated: string | null = null;
   isLoading = false;
   chart?: Chart;
   private chartPrices: PricePointDto[] = [];
@@ -173,9 +175,9 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
         const sampledPrices = this.downsamplePrices(rangePrices, InstrumentExpandedComponent.MAX_CHART_POINTS);
         this.chartPrices = sampledPrices;
         const latestPrice = prices[prices.length - 1];
+        this.displayPrice = latestPrice?.price ?? null;
+        this.displayLastUpdated = latestPrice?.timestamp ?? null;
         if (latestPrice) {
-          this.data.price = latestPrice.price;
-          this.data.lastUpdated = latestPrice.timestamp;
           this.displayCurrencyCode = latestPrice.currencyCode;
         }
         this.chartConfig = this.transformToChartData(sampledPrices);
