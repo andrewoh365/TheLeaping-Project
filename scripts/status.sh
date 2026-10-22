@@ -23,6 +23,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/reporting.sh"
 
 
 # ------------------------------------------------------------
@@ -82,6 +84,58 @@ check_postgres() {
     fi
 
     echo "Port: ${POSTGRES_PORT}"
+}
+
+
+# ------------------------------------------------------------
+# Reporting PostgreSQL status
+# ------------------------------------------------------------
+
+check_reporting() {
+    section "Reporting PostgreSQL"
+
+    if ! docker_container_exists "${REPORTING_CONTAINER}"; then
+        error "Container does not exist: ${REPORTING_CONTAINER}"
+        OVERALL_OK=false
+        return
+    fi
+
+    if ! docker_container_running "${REPORTING_CONTAINER}"; then
+        error "${REPORTING_CONTAINER} exists but is stopped"
+        OVERALL_OK=false
+        return
+    fi
+
+    success "${REPORTING_CONTAINER} is running"
+
+    local recovery_state
+    recovery_state="$(reporting_recovery_state)"
+
+    if [[ "${recovery_state}" == "t" ]]; then
+        success "Reporting PostgreSQL is in recovery/read-only standby mode"
+    else
+        error "Reporting PostgreSQL is not in recovery mode"
+        OVERALL_OK=false
+    fi
+
+    if [[ -n "${DB_USERNAME:-}" ]]; then
+        local replication_status
+        replication_status="$(docker exec \
+            "${POSTGRES_CONTAINER}" \
+            psql \
+            -U "${DB_USERNAME}" \
+            -d "${LEAP_DB_NAME}" \
+            -Atqc "SELECT state || ':' || COALESCE(pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn)), 'unknown') FROM pg_stat_replication WHERE application_name = 'leap-reporting-postgres'" \
+            2>/dev/null || true)"
+
+        if [[ "${replication_status}" == streaming:* ]]; then
+            success "Replication streaming (${replication_status#streaming:} behind)"
+        else
+            warn "No active reporting replication stream detected"
+            echo "  Check: docker logs ${REPORTING_CONTAINER}"
+            OVERALL_OK=false
+        fi
+    fi
 }
 
 
@@ -180,7 +234,7 @@ check_analytics() {
             --silent \
             --fail \
             --max-time 2 \
-            "http://127.0.0.1:${ANALYTICS_PORT}/health" \
+            "http://127.0.0.1:${ANALYTICS_PORT}/ready" \
             >/dev/null 2>&1; then
 
             success "Analytics health check passed"
@@ -202,7 +256,7 @@ check_analytics() {
         --silent \
         --fail \
         --max-time 2 \
-        "http://127.0.0.1:${ANALYTICS_PORT}/health" \
+        "http://127.0.0.1:${ANALYTICS_PORT}/ready" \
         >/dev/null 2>&1; then
 
         warn "Analytics appears to be running, but not in the standard LEAP container"
@@ -357,6 +411,7 @@ main() {
 
 
     check_postgres
+    check_reporting
     check_spring
     check_analytics
     check_frontend

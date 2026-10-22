@@ -1,5 +1,7 @@
+
+from datetime import date
 from enum import Enum
-from typing import List
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -63,6 +65,21 @@ class RejectionReason(BaseModel):
     count: int
 
 
+class ReportingPeriod(BaseModel):
+    date_from: date
+    date_to: date
+    timezone: Literal["UTC"] = "UTC"
+
+
+class SelectedInstrument(BaseModel):
+    instrument_id: int
+    symbol: str
+    name: str
+    instrument_type: str
+    market_name: str
+    is_active: bool
+
+
 class DashboardResponse(BaseModel):
     summary: DashboardSummary
     trading_volume_over_time: TradingVolumeTrend
@@ -71,3 +88,5 @@ class DashboardResponse(BaseModel):
     client_activity_trend: ClientActivityTrend
     top_rejection_reasons: List[RejectionReason]
     client_segment_breakdown: List[ClientSegmentBreakdown]
+    reporting_period: ReportingPeriod
+    selected_instrument: Optional[SelectedInstrument] = None

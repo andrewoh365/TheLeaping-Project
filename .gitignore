@@ -4,6 +4,10 @@
 *.swp
 *.swo
 .run/
+# Disposable benchmark output
+benchmarks/analytics-isolation/results/
+__pycache__/
+*.pyc
 
 # Backend
 target/
@@ -30,3 +34,5 @@ application-dev.yaml
 application-test.yaml
 backend/portfolio-app/src/main/resources/application-*.yaml
 backend/portfolio-app/src/test/resources/application-test.yaml
+# Backups of local config can hold real secrets
+*.bak

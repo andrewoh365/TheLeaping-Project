@@ -1,0 +1,195 @@
+import pytest
+from types import SimpleNamespace
+
+import app.database.connection as database_connection
+from app.core.config import Settings
+
+
+class _Result:
+    def __init__(self, row):
+        self.row = row
+
+    def one(self):
+        if isinstance(self.row, tuple):
+            return SimpleNamespace(
+                in_recovery=self.row[0],
+                receiver_status=self.row[1],
+                received_lsn=self.row[2],
+                replayed_lsn=self.row[3],
+                replay_pending=self.row[4],
+                replay_lag_bytes=self.row[5],
+                latest_end_lsn=self.row[6],
+                last_replay_timestamp=None,
+                receive_start_lsn=None,
+            )
+
+        return self.row
+
+
+class _Connection:
+    def __init__(self, row):
+        self.row = row
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exception_type, exception, traceback):
+        return False
+
+    def execute(self, query):
+        return _Result(self.row)
+
+
+class _Engine:
+    def __init__(self, row):
+        self.row = row
+
+    def connect(self):
+        return _Connection(self.row)
+
+
+def test_settings_require_reporting_database_configuration(monkeypatch):
+    for name in (
+        "ANALYTICS_DB_HOST",
+        "ANALYTICS_DB_PORT",
+        "ANALYTICS_DB_NAME",
+        "ANALYTICS_DB_USERNAME",
+        "ANALYTICS_DB_PASSWORD",
+        "ANALYTICS_INTERNAL_TOKEN",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    with pytest.raises(ValueError, match="ANALYTICS_DB_USERNAME"):
+        Settings()
+
+
+def test_settings_do_not_use_primary_database_variables(monkeypatch):
+    monkeypatch.setenv("DB_HOST", "primary")
+    monkeypatch.setenv("DB_USERNAME", "primary_user")
+    monkeypatch.setenv("DB_PASSWORD", "primary_password")
+    monkeypatch.setenv("ANALYTICS_DB_HOST", "reporting")
+    monkeypatch.setenv("ANALYTICS_DB_PORT", "5432")
+    monkeypatch.setenv("ANALYTICS_DB_NAME", "leaping_db")
+    monkeypatch.setenv("ANALYTICS_DB_USERNAME", "analytics_reader")
+    monkeypatch.setenv("ANALYTICS_DB_PASSWORD", "reporting_password")
+    monkeypatch.setenv(
+        "ANALYTICS_INTERNAL_TOKEN",
+        "internal-token",
+    )
+
+    settings = Settings()
+
+    assert settings.db_host == "reporting"
+    assert settings.db_username == "analytics_reader"
+    assert "primary" not in settings.database_url
+    assert "primary_user" not in settings.database_url
+
+
+def test_standby_with_lag_within_threshold_is_ready(monkeypatch):
+    monkeypatch.setattr(
+        database_connection,
+        "engine",
+        _Engine((True, "streaming", "0/20", "0/18", True, 8, "0/20")),
+    )
+
+    status = database_connection.get_reporting_status()
+
+    assert status["received_lsn"] == "0/20"
+    assert status["replayed_lsn"] == "0/18"
+    assert status["replay_pending"] is True
+    assert status["replay_lag_bytes"] == 8
+    assert status["ready"] is True
+
+
+def test_standby_with_replay_backlog_over_threshold_is_not_ready(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        database_connection.settings,
+        "max_replay_lag_bytes",
+        1024,
+    )
+    monkeypatch.setattr(
+        database_connection,
+        "engine",
+        _Engine((True, "streaming", "0/1000", "0/10", True, 4080, "0/1000")),
+    )
+
+    status = database_connection.get_reporting_status()
+
+    assert status["replay_pending"] is True
+    assert status["ready"] is False
+
+
+def test_standby_caught_up_locally_but_behind_primary_is_not_ready(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        database_connection.settings,
+        "max_replay_lag_bytes",
+        1024,
+    )
+    monkeypatch.setattr(
+        database_connection,
+        "engine",
+        _Engine((True, "streaming", "0/10", "0/10", False, 4080, "0/1000")),
+    )
+
+    status = database_connection.get_reporting_status()
+
+    assert status["received_lsn"] == status["replayed_lsn"]
+    assert status["latest_end_lsn"] == "0/1000"
+    assert status["replay_pending"] is False
+    assert status["replay_lag_bytes"] == 4080
+    assert status["ready"] is False
+
+
+def test_standby_with_unknown_wal_position_is_not_ready(monkeypatch):
+    monkeypatch.setattr(
+        database_connection,
+        "engine",
+        _Engine((True, "streaming", None, None, False, None, None)),
+    )
+
+    status = database_connection.get_reporting_status()
+
+    assert status["replay_lag_bytes"] is None
+    assert status["ready"] is False
+
+
+def test_streaming_standby_with_zero_pending_wal_is_ready(monkeypatch):
+    monkeypatch.setattr(
+        database_connection,
+        "engine",
+        _Engine((True, "streaming", "0/10", "0/10", False, 0, "0/10")),
+    )
+
+    assert database_connection.test_database_connection() is True
+
+
+def test_writable_primary_is_not_ready(monkeypatch):
+
+    monkeypatch.setattr(
+        database_connection,
+        "engine",
+        _Engine((False, "streaming", "0/10", "0/10", False, 0, "0/10")),
+    )
+
+    status = database_connection.get_reporting_status()
+
+    assert status["ready"] is False
+
+
+def test_disconnected_standby_is_not_ready(monkeypatch):
+    monkeypatch.setattr(
+        database_connection,
+        "engine",
+        _Engine((True, "disconnected", "0/20", "0/10", True, 16, "0/20")),
+    )
+
+    status = database_connection.get_reporting_status()
+
+    assert status["in_recovery"] is True
+    assert status["receiver_status"] == "disconnected"
+    assert status["replay_pending"] is True
+    assert status["ready"] is False
