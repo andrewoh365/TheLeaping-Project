@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -18,6 +18,56 @@ def test_default_date_range_is_90_days():
     ).days + 1
 
     assert number_of_days == 90
+
+
+def test_effective_date_defaults_use_utc_today(monkeypatch):
+    class FixedDateTime:
+        @classmethod
+        def now(cls, requested_timezone):
+            return datetime(
+                2026,
+                10,
+                20,
+                0,
+                30,
+                tzinfo=requested_timezone,
+            )
+
+    monkeypatch.setattr(service, "datetime", FixedDateTime)
+
+    both_omitted = service._apply_default_date_range(
+        DashboardFilters()
+    )
+    assert both_omitted.date_from == date(2026, 7, 23)
+    assert both_omitted.date_to == date(2026, 10, 20)
+
+    only_end = service._apply_default_date_range(
+        DashboardFilters(date_to=date(2026, 10, 10))
+    )
+    assert only_end.date_from == date(2026, 7, 13)
+    assert only_end.date_to == date(2026, 10, 10)
+
+    only_start = service._apply_default_date_range(
+        DashboardFilters(date_from=date(2026, 10, 1))
+    )
+    assert only_start.date_from == date(2026, 10, 1)
+    assert only_start.date_to == date(2026, 10, 20)
+
+    explicit = service._apply_default_date_range(
+        DashboardFilters(
+            date_from=date(2028, 2, 28),
+            date_to=date(2028, 2, 29),
+        )
+    )
+    assert explicit.date_from == date(2028, 2, 28)
+    assert explicit.date_to == date(2028, 2, 29)
+
+
+def test_effective_reversed_range_is_rejected():
+    with pytest.raises(service.InvalidDateRangeError):
+        service._apply_default_date_range(
+            DashboardFilters(date_from=date(2099, 10, 21))
+        )
 
 
 @pytest.mark.parametrize(
@@ -235,7 +285,7 @@ def test_build_dashboard(monkeypatch):
         dashboard.trading_volume_over_time.points
     ) == 2
 
-    assert len(dashboard.order_outcomes) == 5
+    assert len(dashboard.order_outcomes) == 6
 
     filled_outcome = next(
         outcome
@@ -245,6 +295,15 @@ def test_build_dashboard(monkeypatch):
 
     assert filled_outcome.count == 75
     assert filled_outcome.percentage == 75.0
+
+    expired_outcome = next(
+        outcome
+        for outcome in dashboard.order_outcomes
+        if outcome.status.value == "EXPIRED"
+    )
+
+    assert expired_outcome.count == 0
+    assert expired_outcome.percentage == 0.0
 
     assert len(
         dashboard.most_active_instruments
@@ -281,3 +340,124 @@ def test_build_dashboard(monkeypatch):
     assert occasional.active_clients == 2
     assert occasional.order_count == 5
     assert occasional.trading_volume_usd == 100.26
+    assert dashboard.reporting_period.model_dump() == {
+        "date_from": date(2026, 9, 1),
+        "date_to": date(2026, 9, 30),
+        "timezone": "UTC",
+    }
+
+
+def test_selected_instrument_with_no_activity_returns_zero_metrics(
+    monkeypatch,
+):
+    metadata_calls = []
+
+    def fake_get_instrument_metadata(instrument_id):
+        metadata_calls.append(instrument_id)
+        return {
+            "instrument_id": instrument_id,
+            "symbol": "DELISTED",
+            "name": "Historical Instrument",
+            "instrument_type": "STOCK",
+            "market_name": "NYSE",
+            "is_active": False,
+        }
+
+    monkeypatch.setattr(
+        service,
+        "get_instrument_metadata",
+        fake_get_instrument_metadata,
+    )
+    monkeypatch.setattr(service, "get_total_orders", lambda filters: 0)
+    monkeypatch.setattr(
+        service,
+        "get_trading_volume",
+        lambda filters: Decimal("0"),
+    )
+    monkeypatch.setattr(service, "get_active_clients", lambda filters: 0)
+    monkeypatch.setattr(
+        service,
+        "get_fill_rate_counts",
+        lambda filters: {
+            "total_orders": 0,
+            "filled_orders": 0,
+        },
+    )
+    monkeypatch.setattr(
+        service,
+        "get_trading_volume_rows",
+        lambda filters, grouping: [],
+    )
+    monkeypatch.setattr(service, "get_order_outcomes", lambda filters: [])
+    monkeypatch.setattr(
+        service,
+        "get_most_active_instruments",
+        lambda filters, limit: [],
+    )
+    monkeypatch.setattr(
+        service,
+        "get_client_activity_rows",
+        lambda filters, grouping: [],
+    )
+    monkeypatch.setattr(
+        service,
+        "get_rejection_reasons",
+        lambda filters, limit: [],
+    )
+    monkeypatch.setattr(
+        service,
+        "get_client_segment_breakdown",
+        lambda filters: [],
+    )
+
+    dashboard = service.build_dashboard(
+        DashboardFilters(
+            date_from=date(2026, 9, 1),
+            date_to=date(2026, 9, 30),
+            instrument_id=15,
+        )
+    )
+
+    assert metadata_calls == [15]
+    assert dashboard.selected_instrument.model_dump() == {
+        "instrument_id": 15,
+        "symbol": "DELISTED",
+        "name": "Historical Instrument",
+        "instrument_type": "STOCK",
+        "market_name": "NYSE",
+        "is_active": False,
+    }
+    assert dashboard.summary.model_dump() == {
+        "trading_volume_usd": 0.0,
+        "total_orders": 0,
+        "active_clients": 0,
+        "filled_orders_percentage": 0.0,
+    }
+    assert dashboard.trading_volume_over_time.points == []
+    assert all(
+        outcome.count == 0 and outcome.percentage == 0.0
+        for outcome in dashboard.order_outcomes
+    )
+    assert dashboard.client_activity_trend.points == []
+    assert dashboard.most_active_instruments == []
+    assert dashboard.top_rejection_reasons == []
+    assert dashboard.client_segment_breakdown == []
+
+
+def test_unknown_selected_instrument_is_rejected_before_metrics(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        service,
+        "get_instrument_metadata",
+        lambda instrument_id: None,
+    )
+
+    with pytest.raises(service.InstrumentNotFoundError):
+        service.build_dashboard(
+            DashboardFilters(
+                date_from=date(2026, 9, 1),
+                date_to=date(2026, 9, 30),
+                instrument_id=999,
+            )
+        )

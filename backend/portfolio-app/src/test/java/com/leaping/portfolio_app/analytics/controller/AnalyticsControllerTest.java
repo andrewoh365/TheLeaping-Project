@@ -1,3 +1,4 @@
+
 package com.leaping.portfolio_app.analytics.controller;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -15,11 +16,15 @@ import com.leaping.portfolio_app.analytics.service.AnalyticsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class AnalyticsControllerTest {
@@ -48,6 +53,7 @@ class AnalyticsControllerTest {
                 dateTo,
                 "STOCK",
                 "NASDAQ",
+                15L,
                 "FILLED",
                 "FREQUENT"
         )).thenReturn("{}");
@@ -57,6 +63,7 @@ class AnalyticsControllerTest {
                         .param("date_to", "2026-09-30")
                         .param("asset_type", "STOCK")
                         .param("market", "NASDAQ")
+                        .param("instrument_id", "15")
                         .param("order_status", "FILLED")
                         .param("client_segment", "FREQUENT"))
                 .andExpect(status().isOk())
@@ -68,6 +75,7 @@ class AnalyticsControllerTest {
                 dateTo,
                 "STOCK",
                 "NASDAQ",
+                15L,
                 "FILLED",
                 "FREQUENT"
         );
@@ -80,6 +88,7 @@ class AnalyticsControllerTest {
                 isNull(),
                 isNull(),
                 isNull(),
+                isNull(Long.class),
                 isNull(),
                 isNull()
         )).thenReturn("{}");
@@ -93,8 +102,50 @@ class AnalyticsControllerTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0L, -1L})
+    void getDashboard_rejectsNonPositiveInstrumentId(long instrumentId)
+            throws Exception {
+        mockMvc.perform(get("/api/analytics/dashboard")
+                        .param("instrument_id", Long.toString(instrumentId)))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(analyticsService);
+    }
+
+    @Test
+    void getDashboard_rejectsMalformedInstrumentId() throws Exception {
+        mockMvc.perform(get("/api/analytics/dashboard")
+                        .param("instrument_id", "not-a-number"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(analyticsService);
+    }
+
+    @Test
+    void getDashboard_preservesNotFoundFromAnalyticsService()
+            throws Exception {
+        when(analyticsService.getDashboard(
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                eq(999L),
+                isNull(),
+                isNull()
+        )).thenThrow(new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Instrument 999 was not found"
+        ));
+
+        mockMvc.perform(get("/api/analytics/dashboard")
+                        .param("instrument_id", "999"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -102,6 +153,16 @@ class AnalyticsControllerTest {
         mockMvc.perform(get("/api/analytics/dashboard")
                         .param("client_segment", "VERY_ACTIVE"))
                 .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(analyticsService);
+    }
+
+    @Test
+    void getDashboard_rejectsReversedDateRange() throws Exception {
+        mockMvc.perform(get("/api/analytics/dashboard")
+                        .param("date_from", "2026-10-10")
+                        .param("date_to", "2026-10-01"))
+                .andExpect(status().isUnprocessableEntity());
 
         verifyNoInteractions(analyticsService);
     }

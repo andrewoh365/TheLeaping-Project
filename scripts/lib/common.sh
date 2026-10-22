@@ -34,7 +34,16 @@ RUN_DIR="${REPO_ROOT}/.run"
 
 POSTGRES_CONTAINER="leap-postgres"
 ANALYTICS_CONTAINER="leap-analytics-service"
+REPORTING_CONTAINER="leap-reporting-postgres"
 ANALYTICS_IMAGE="leap-analytics"
+REPORTING_IMAGE="leap-reporting-postgres"
+
+REPORTING_NETWORK="leap-data-network"
+REPORTING_NETWORK_CIDR="172.30.0.0/24"
+REPORTING_VOLUME="leap-reporting-postgres-data"
+REPLICATION_USER="leap_replication"
+REPORTING_DB_USERNAME="leap_reporting"
+REPLICATION_SLOT="leap_reporting_slot"
 
 
 # ------------------------------------------------------------
@@ -42,6 +51,7 @@ ANALYTICS_IMAGE="leap-analytics"
 # ------------------------------------------------------------
 
 POSTGRES_PORT=5432
+LEAP_DB_NAME="leaping_db"
 SPRING_PORT=8080
 ANALYTICS_PORT=8000
 FRONTEND_PORT=4200

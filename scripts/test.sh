@@ -16,6 +16,7 @@ set -Eeuo pipefail
 #
 #   2. Python analytics tests
 #      - inside the standardized Python Docker image
+#      - with a disposable PostgreSQL database for SQL integration tests
 #
 #   3. Angular verification
 #      - npm ci
@@ -47,6 +48,13 @@ TEST_DB_USERNAME="leap_test"
 TEST_DB_PASSWORD="leap_test_password"
 
 ANALYTICS_TEST_IMAGE="leap-analytics-test"
+ANALYTICS_TEST_POSTGRES_CONTAINER="leap-analytics-test-postgres-$$"
+ANALYTICS_TEST_NETWORK="leap-analytics-test-network-$$"
+ANALYTICS_TEST_DB_NAME="analytics_test"
+ANALYTICS_TEST_DB_USERNAME="postgres"
+ANALYTICS_TEST_DB_PASSWORD="analytics_test_password"
+ANALYTICS_TEST_READER_USERNAME="leap_reporting"
+ANALYTICS_TEST_READER_PASSWORD="reporting-reader-test-password"
 
 REQUIRED_JAVA_MAJOR=21
 
@@ -58,6 +66,8 @@ REQUIRED_JAVA_MAJOR=21
 cleanup() {
     if command_exists docker && docker_is_running; then
 
+        cleanup_analytics_test_database
+
         if docker_container_exists "${TEST_POSTGRES_CONTAINER}"; then
             docker rm -f \
                 "${TEST_POSTGRES_CONTAINER}" \
@@ -65,6 +75,19 @@ cleanup() {
         fi
 
     fi
+}
+
+
+cleanup_analytics_test_database() {
+    if docker_container_exists "${ANALYTICS_TEST_POSTGRES_CONTAINER}"; then
+        docker rm -f \
+            "${ANALYTICS_TEST_POSTGRES_CONTAINER}" \
+            >/dev/null 2>&1 || true
+    fi
+
+    docker network rm \
+        "${ANALYTICS_TEST_NETWORK}" \
+        >/dev/null 2>&1 || true
 }
 
 
@@ -305,8 +328,68 @@ run_spring_tests() {
 
 
 # ------------------------------------------------------------
+# Replica credential lifecycle tests
+# ------------------------------------------------------------
+
+run_replica_credential_tests() {
+    section "Replica credential lifecycle"
+
+    info "Testing ephemeral passfile creation and password rotation"
+
+    bash "${REPO_ROOT}/infrastructure/postgres/replica/entrypoint_test.sh"
+
+    success "Replica credential lifecycle checks passed"
+}
+
+
+# ------------------------------------------------------------
 # Analytics tests
 # ------------------------------------------------------------
+
+start_analytics_test_database() {
+    section "Analytics test database"
+
+    info "Creating disposable PostgreSQL 16 database"
+
+    docker network create \
+        "${ANALYTICS_TEST_NETWORK}" \
+        >/dev/null
+
+    docker run \
+        -d \
+        --rm \
+        --name "${ANALYTICS_TEST_POSTGRES_CONTAINER}" \
+        --network "${ANALYTICS_TEST_NETWORK}" \
+        --network-alias analytics-test-postgres \
+        -e POSTGRES_DB="${ANALYTICS_TEST_DB_NAME}" \
+        -e POSTGRES_USER="${ANALYTICS_TEST_DB_USERNAME}" \
+        -e POSTGRES_PASSWORD="${ANALYTICS_TEST_DB_PASSWORD}" \
+        "${TEST_POSTGRES_IMAGE}" \
+        >/dev/null
+
+    info "Waiting for analytics test database"
+
+    local attempts=0
+    local max_attempts=30
+
+    until docker exec "${ANALYTICS_TEST_POSTGRES_CONTAINER}" \
+        pg_isready \
+        -U "${ANALYTICS_TEST_DB_USERNAME}" \
+        -d "${ANALYTICS_TEST_DB_NAME}" \
+        >/dev/null 2>&1
+    do
+        ((attempts += 1))
+
+        if (( attempts >= max_attempts )); then
+            die "Analytics test PostgreSQL database did not become ready."
+        fi
+
+        sleep 1
+    done
+
+    success "Analytics test database is ready"
+}
+
 
 run_analytics_tests() {
     section "Analytics tests"
@@ -319,14 +402,25 @@ run_analytics_tests() {
 
     success "Analytics test image built"
 
-    info "Running pytest inside Python Docker environment"
+    start_analytics_test_database
+
+    info "Running pytest with SQL integration tests enabled"
 
     docker run \
         --rm \
+        --network "${ANALYTICS_TEST_NETWORK}" \
+        -e ANALYTICS_TEST_DATABASE_URL="postgresql+psycopg://${ANALYTICS_TEST_DB_USERNAME}:${ANALYTICS_TEST_DB_PASSWORD}@analytics-test-postgres:5432/${ANALYTICS_TEST_DB_NAME}" \
+        -e ANALYTICS_DB_HOST=analytics-test-postgres \
+        -e ANALYTICS_DB_PORT=5432 \
+        -e ANALYTICS_DB_NAME="${ANALYTICS_TEST_DB_NAME}" \
+        -e ANALYTICS_DB_USERNAME="${ANALYTICS_TEST_READER_USERNAME}" \
+        -e ANALYTICS_DB_PASSWORD="${ANALYTICS_TEST_READER_PASSWORD}" \
         -v "${ANALYTICS_DIR}/tests:/app/tests:ro" \
         -v "${ANALYTICS_DIR}/pytest.ini:/app/pytest.ini:ro" \
         "${ANALYTICS_TEST_IMAGE}" \
         pytest -q
+
+    cleanup_analytics_test_database
 
     success "Analytics test suite passed"
 }
@@ -405,6 +499,7 @@ main() {
     ensure_frontend_not_running
 
     run_spring_tests
+    run_replica_credential_tests
     run_analytics_tests
     run_frontend_checks
 
