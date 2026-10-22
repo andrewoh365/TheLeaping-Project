@@ -27,10 +27,9 @@ export class JwtInterceptor implements HttpInterceptor {
 
     return next.handle(request).pipe(
       catchError((error: HttpErrorResponse) => {
-        // A 403 means the user is authenticated but lacks permission for the resource.
-        // Do not turn role-based authorization failures into a forced logout.
+        // Some backends return 403 for expired/invalid JWTs.
         if (
-          error.status === 401
+          (error.status === 401 || error.status === 403)
           && !this.isRefreshUrl(request.url)
           && !this.isLogoutUrl(request.url)
           && !this.isExcludedUrl(request.url)
