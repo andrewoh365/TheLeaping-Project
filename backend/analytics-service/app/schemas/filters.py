@@ -27,13 +27,6 @@ class ClientSegment(str, Enum):
     FREQUENT = "FREQUENT"
 
 
-class ClientSegment(str, Enum):
-    INACTIVE = "INACTIVE"
-    OCCASIONAL = "OCCASIONAL"
-    REGULAR = "REGULAR"
-    FREQUENT = "FREQUENT"
-
-
 class DashboardFilters(BaseModel):
     date_from: Optional[date] = None
     date_to: Optional[date] = None

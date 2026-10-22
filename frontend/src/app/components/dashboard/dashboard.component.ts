@@ -7,7 +7,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
-import { Subject, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
+import { Subject, Subscription, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrumentService';
@@ -172,6 +172,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   activeWatchlistName = 'Watchlist';
   activeWatchlistId: number | null = null;
   watchlistQuotes: Record<string, QuoteResponse> = {};
+  // In-flight watchlist requests, cancelled when the user switches lists so a
+  // slow response for the previous list cannot overwrite the current one.
+  private watchlistInstrumentsRequest?: Subscription;
+  private watchlistQuotesRequest?: Subscription;
   watchlistLoading = false;
   watchlistQuotesLoading = false;
   watchlistSaving = false;
@@ -1561,11 +1565,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private loadWatchlistInstruments(watchlistId: number, watchlistName: string): void {
+    // Cancel before setting state: finalize() on the old request resets loading.
+    this.watchlistInstrumentsRequest?.unsubscribe();
+    this.watchlistQuotesRequest?.unsubscribe();
     this.activeWatchlistId = watchlistId;
     this.activeWatchlistName = watchlistName;
     this.watchlistLoading = true;
     this.watchlistError = '';
-    this.watchlistService.getWatchlistInstruments(watchlistId)
+    this.watchlistInstrumentsRequest = this.watchlistService.getWatchlistInstruments(watchlistId)
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {
@@ -1574,10 +1581,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (instruments: WatchlistInstrumentResponse[]) => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistInstruments = instruments;
           this.refreshWatchlistQuotes();
         },
         error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistInstruments = [];
           this.watchlistQuotes = {};
           this.watchlistError = 'Could not load this watchlist. Please try again.';
@@ -1586,6 +1599,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private refreshWatchlistQuotes(): void {
+    this.watchlistQuotesRequest?.unsubscribe();
+    const watchlistId = this.activeWatchlistId;
     const symbols = this.watchlistInstruments.map((instrument) => instrument.symbol);
     if (symbols.length === 0) {
       this.watchlistQuotes = {};
@@ -1593,7 +1608,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
 
     this.watchlistQuotesLoading = true;
-    this.marketService.getQuotes(symbols)
+    this.watchlistQuotesRequest = this.marketService.getQuotes(symbols)
       .pipe(
         takeUntil(this.destroy$),
         catchError(() => of<QuoteResponse[]>([])),
@@ -1602,6 +1617,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         })
       )
       .subscribe((quotes) => {
+        if (this.activeWatchlistId !== watchlistId) {
+          return;
+        }
         this.watchlistQuotes = quotes.reduce<Record<string, QuoteResponse>>((lookup, quote) => {
           lookup[quote.symbol] = quote;
           return lookup;
