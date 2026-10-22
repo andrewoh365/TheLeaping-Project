@@ -52,6 +52,8 @@ services:
     depends_on:
       primary:
         condition: service_healthy
+      portfolio:
+        condition: service_started
     cpus: 0.10
     mem_limit: 128m
 

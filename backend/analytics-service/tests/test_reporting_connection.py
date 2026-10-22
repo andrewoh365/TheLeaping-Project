@@ -17,9 +17,10 @@ class _Result:
                 received_lsn=self.row[2],
                 replayed_lsn=self.row[3],
                 replay_pending=self.row[4],
+                replay_lag_bytes=self.row[5],
+                latest_end_lsn=self.row[6],
                 last_replay_timestamp=None,
                 receive_start_lsn=None,
-                latest_end_lsn=None,
             )
 
         return self.row
@@ -84,11 +85,11 @@ def test_settings_do_not_use_primary_database_variables(monkeypatch):
     assert "primary_user" not in settings.database_url
 
 
-def test_streaming_standby_with_pending_wal_is_ready(monkeypatch):
+def test_standby_with_lag_within_threshold_is_ready(monkeypatch):
     monkeypatch.setattr(
         database_connection,
         "engine",
-        _Engine((True, "streaming", "0/20", "0/18", True)),
+        _Engine((True, "streaming", "0/20", "0/18", True, 8, "0/20")),
     )
 
     status = database_connection.get_reporting_status()
@@ -96,14 +97,71 @@ def test_streaming_standby_with_pending_wal_is_ready(monkeypatch):
     assert status["received_lsn"] == "0/20"
     assert status["replayed_lsn"] == "0/18"
     assert status["replay_pending"] is True
+    assert status["replay_lag_bytes"] == 8
     assert status["ready"] is True
+
+
+def test_standby_with_replay_backlog_over_threshold_is_not_ready(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        database_connection.settings,
+        "max_replay_lag_bytes",
+        1024,
+    )
+    monkeypatch.setattr(
+        database_connection,
+        "engine",
+        _Engine((True, "streaming", "0/1000", "0/10", True, 4080, "0/1000")),
+    )
+
+    status = database_connection.get_reporting_status()
+
+    assert status["replay_pending"] is True
+    assert status["ready"] is False
+
+
+def test_standby_caught_up_locally_but_behind_primary_is_not_ready(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        database_connection.settings,
+        "max_replay_lag_bytes",
+        1024,
+    )
+    monkeypatch.setattr(
+        database_connection,
+        "engine",
+        _Engine((True, "streaming", "0/10", "0/10", False, 4080, "0/1000")),
+    )
+
+    status = database_connection.get_reporting_status()
+
+    assert status["received_lsn"] == status["replayed_lsn"]
+    assert status["latest_end_lsn"] == "0/1000"
+    assert status["replay_pending"] is False
+    assert status["replay_lag_bytes"] == 4080
+    assert status["ready"] is False
+
+
+def test_standby_with_unknown_wal_position_is_not_ready(monkeypatch):
+    monkeypatch.setattr(
+        database_connection,
+        "engine",
+        _Engine((True, "streaming", None, None, False, None, None)),
+    )
+
+    status = database_connection.get_reporting_status()
+
+    assert status["replay_lag_bytes"] is None
+    assert status["ready"] is False
 
 
 def test_streaming_standby_with_zero_pending_wal_is_ready(monkeypatch):
     monkeypatch.setattr(
         database_connection,
         "engine",
-        _Engine((True, "streaming", "0/10", "0/10", False)),
+        _Engine((True, "streaming", "0/10", "0/10", False, 0, "0/10")),
     )
 
     assert database_connection.test_database_connection() is True
@@ -114,7 +172,7 @@ def test_writable_primary_is_not_ready(monkeypatch):
     monkeypatch.setattr(
         database_connection,
         "engine",
-        _Engine((False, "streaming", "0/10", "0/10", False)),
+        _Engine((False, "streaming", "0/10", "0/10", False, 0, "0/10")),
     )
 
     status = database_connection.get_reporting_status()
@@ -126,7 +184,7 @@ def test_disconnected_standby_is_not_ready(monkeypatch):
     monkeypatch.setattr(
         database_connection,
         "engine",
-        _Engine((True, "disconnected", "0/20", "0/10", True)),
+        _Engine((True, "disconnected", "0/20", "0/10", True, 16, "0/20")),
     )
 
     status = database_connection.get_reporting_status()

@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
@@ -55,9 +54,23 @@ interface DashboardHolding extends HoldingResponse {
   todaysChangePercent: number | null;
 }
 
+/** One sample of portfolio value, split so the account cards can chart their own slice. */
 interface ChartPoint {
-  label: string;
+  time: number;
   value: number;
+  brokerage: number;
+  crypto: number;
+}
+
+/** An axis label: position is 0-1 along the axis (x: from the left, y: from the top). */
+interface AxisTick {
+  position: number;
+  label: string;
+}
+
+interface Sparkline {
+  path: string;
+  falling: boolean;
 }
 
 interface SummaryCard {
@@ -66,7 +79,13 @@ interface SummaryCard {
   value: number;
   changePercent: number | null;
   tone: 'positive' | 'negative' | 'neutral';
+  sparkline: Sparkline | null;
 }
+
+/** Main chart drawing area, in SVG units. The line is inset so its stroke isn't clipped at the edges. */
+const CHART_WIDTH = 1000;
+const CHART_HEIGHT = 260;
+const CHART_INSET = 10;
 
 /** Outcome of the last order, shown on the ticket in plain language. */
 interface OrderResult {
@@ -98,7 +117,6 @@ const MAX_CASH_TRANSFER_USD = 1_000_000;
     CommonModule,
     FormsModule,
     MatToolbarModule,
-    MatButtonModule,
     MatIconModule,
     MatMenuModule,
     MatDividerModule,
@@ -109,12 +127,12 @@ const MAX_CASH_TRANSFER_USD = 1_000_000;
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   private readonly portfolioRanges: Record<RangeKey, { days: number; points: number }> = {
-    '1D': { days: 1, points: 8 },
-    '1W': { days: 7, points: 8 },
-    '1M': { days: 30, points: 10 },
-    '3M': { days: 90, points: 12 },
-    '1Y': { days: 365, points: 12 },
-    'ALL': { days: 730, points: 14 }
+    '1D': { days: 1, points: 49 },     // every 30 min
+    '1W': { days: 7, points: 85 },     // every 2 h
+    '1M': { days: 30, points: 61 },    // every 12 h
+    '3M': { days: 90, points: 91 },    // daily
+    '1Y': { days: 365, points: 105 },  // ~twice a week
+    'ALL': { days: 730, points: 105 }  // ~weekly
   };
 
 
@@ -142,6 +160,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   holdings: DashboardHolding[] = [];
   allInstruments: Instrument[] = [];
   chartPoints: ChartPoint[] = [];
+  chartLinePath = '';
+  chartAreaPath = '';
+  chartXTicks: AxisTick[] = [];
+  chartYTicks: AxisTick[] = [];
+  private chartDomain = { min: 0, max: 1 };
+  private brokerageSparkline: Sparkline | null = null;
+  private cryptoSparkline: Sparkline | null = null;
   watchlists: WatchlistResponse[] = [];
   watchlistInstruments: WatchlistInstrumentResponse[] = [];
   activeWatchlistName = 'Watchlist';
@@ -514,14 +539,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
         subtitle: 'Cash plus listed holdings',
         value: this.brokerageValue,
         changePercent: listedChange,
-        tone: this.getTone(listedChange)
+        tone: this.getTone(listedChange),
+        sparkline: this.brokerageSparkline
       },
       {
         title: 'Crypto Wallet',
         subtitle: 'Digital asset exposure',
         value: this.cryptoHoldingsValue,
         changePercent: cryptoChange,
-        tone: this.getTone(cryptoChange)
+        tone: this.getTone(cryptoChange),
+        // No crypto held over the period: nothing meaningful to draw
+        sparkline: this.cryptoHoldings.length > 0 ? this.cryptoSparkline : null
       }
     ];
   }
@@ -1253,13 +1281,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.requestPreview();
   }
 
-  getPortfolioLinePath(): string {
-    return this.buildLinePath(this.chartPoints.map((point) => point.value), 1000, 260);
-  }
-
-  getPortfolioAreaPath(): string {
-    return this.buildAreaPath(this.chartPoints.map((point) => point.value), 1000, 260);
-  }
 
   getHoldingMarketValue(holding: HoldingResponse): number {
     const marketValue = this.toNumber(holding.marketValueUsd);
@@ -1379,7 +1400,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
           this.dashboardError = 'Unable to load your portfolio data.';
           this.portfolio = null;
           this.holdings = [];
-          this.chartPoints = [];
+          this.setChart([], new Date(), new Date());
           this.chartHasHistory = false;
           return;
         }
@@ -1631,7 +1652,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const holdings = this.holdings.filter((holding) => this.toNumber(holding.quantity) > 0);
 
     if (holdings.length === 0) {
-      this.chartPoints = [];
+      this.setChart([], new Date(), new Date());
       this.chartHasHistory = false;
       return;
     }
@@ -1657,10 +1678,42 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .subscribe((histories: PricePointResponse[][]) => {
         // A line needs at least two real prices; otherwise say so rather than draw a made-up trend
         this.chartHasHistory = histories.some((history) => history.length >= 2);
-        this.chartPoints = this.chartHasHistory
-          ? this.buildChartPoints(holdings, histories, from, to, range.points)
-          : [];
+        this.setChart(
+          this.chartHasHistory ? this.buildChartPoints(holdings, histories, from, to, range.points) : [],
+          from,
+          to
+        );
       });
+  }
+
+  /** Store the samples and derive everything drawn from them once, not on every change detection. */
+  private setChart(points: ChartPoint[], from: Date, to: Date): void {
+    this.chartPoints = points;
+    if (points.length === 0) {
+      this.chartLinePath = '';
+      this.chartAreaPath = '';
+      this.chartXTicks = [];
+      this.chartYTicks = [];
+      this.brokerageSparkline = null;
+      this.cryptoSparkline = null;
+      return;
+    }
+
+    const values = points.map((point) => point.value);
+    const ticks = this.niceTicks(Math.min(...values), Math.max(...values));
+    this.chartDomain = { min: ticks[0], max: ticks[ticks.length - 1] };
+    const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1;
+    this.chartYTicks = ticks.map((tick) => ({
+      position: this.chartY(tick) / CHART_HEIGHT,
+      label: this.formatAxisCurrency(tick, step)
+    }));
+    this.chartXTicks = this.buildTimeTicks(from, to);
+    this.chartLinePath = this.buildLinePath(values);
+    this.chartAreaPath = this.chartLinePath
+      ? `${this.chartLinePath} L ${CHART_WIDTH} ${CHART_HEIGHT} L 0 ${CHART_HEIGHT} Z`
+      : '';
+    this.brokerageSparkline = this.buildSparkline(points.map((point) => point.brokerage));
+    this.cryptoSparkline = this.buildSparkline(points.map((point) => point.crypto));
   }
 
   private buildChartPoints(
@@ -1675,74 +1728,184 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const pointCount = Math.max(points, 2);
     const step = (toMs - fromMs) / (pointCount - 1);
 
-    return Array.from({ length: pointCount }, (_, index) => {
-      const targetTime = fromMs + step * index;
-      const bucketDate = new Date(targetTime);
-      const holdingsValue = holdings.reduce((sum, holding, historyIndex) => {
-        const history = [...histories[historyIndex]].sort((left, right) => {
-          return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
-        });
-        const currentPriceUsd = this.toNumber(holding.currentPriceUsd || holding.averageCostUsd);
-        const price = this.findHistoricalPrice(history, targetTime, currentPriceUsd);
-        return sum + this.toNumber(holding.quantity) * price;
-      }, 0);
-
+    // Sort each history once; sample times only move forward, so each is walked with a cursor
+    const series = holdings.map((holding, index) => {
+      const sorted = [...histories[index]].sort((left, right) => {
+        return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
+      });
+      // History prices arrive in USD (converted on the server)
+      const history = sorted.map((point) => ({ time: new Date(point.timestamp).getTime(), price: this.toNumber(point.price) }));
+      const currentPriceUsd = this.toNumber(holding.currentPriceUsd || holding.averageCostUsd);
       return {
-        label: this.formatRangeLabel(bucketDate),
-        value: this.cashBalance + holdingsValue
+        history,
+        quantity: this.toNumber(holding.quantity),
+        isCrypto: holding.instrumentType === 'CRYPTO',
+        // Before the first known price, carry the current price back
+        price: currentPriceUsd,
+        cursor: 0
+      };
+    });
+
+    return Array.from({ length: pointCount }, (_, index) => {
+      const time = fromMs + step * index;
+      let listed = 0;
+      let crypto = 0;
+      for (const holding of series) {
+        while (holding.cursor < holding.history.length && holding.history[holding.cursor].time <= time) {
+          holding.price = holding.history[holding.cursor].price || holding.price;
+          holding.cursor++;
+        }
+        const value = holding.quantity * holding.price;
+        if (holding.isCrypto) {
+          crypto += value;
+        } else {
+          listed += value;
+        }
+      }
+      return {
+        time,
+        value: this.cashBalance + listed + crypto,
+        brokerage: this.cashBalance + listed,
+        crypto
       };
     });
   }
 
-  private findHistoricalPrice(history: PricePointResponse[], targetTime: number, fallback: number): number {
-    let latestValue = fallback;
-    for (const point of history) {
-      const pointTime = new Date(point.timestamp).getTime();
-      if (pointTime <= targetTime) {
-        latestValue = this.toNumber(point.price) || latestValue;
-        continue;
+  /**
+   * Round axis values that cover [min, max] in about four steps of 1, 2, 2.5 or 5 x 10^n,
+   * e.g. 9,990 / 10,000 / 10,010. A flat series gets a small band around its value.
+   */
+  private niceTicks(min: number, max: number, targetSteps = 4): number[] {
+    if (max - min < 1e-9) {
+      const pad = Math.max(Math.abs(max) * 0.001, 1);
+      min -= pad;
+      max += pad;
+    }
+    const rawStep = (max - min) / targetSteps;
+    const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+    const step = [1, 2, 2.5, 5, 10].map((multiple) => multiple * magnitude).find((candidate) => candidate >= rawStep) ?? 10 * magnitude;
+    const decimals = Math.max(0, -Math.floor(Math.log10(step)) + 1);
+    const first = Math.floor(min / step) * step;
+    const ticks: number[] = [];
+    for (let tick = first; tick < max + step - 1e-9; tick += step) {
+      ticks.push(Number(tick.toFixed(decimals)));
+    }
+    return ticks;
+  }
+
+  /** Dollar axis label with just enough precision to tell neighbouring ticks apart. */
+  private formatAxisCurrency(value: number, step: number): string {
+    const compact = Math.abs(value) >= 100_000;
+    const unit = !compact ? 1 : Math.abs(value) >= 1e9 ? 1e9 : Math.abs(value) >= 1e6 ? 1e6 : 1e3;
+    const digits = Math.min(2, Math.max(0, Math.ceil(-Math.log10(step / unit) - 1e-9)));
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      notation: compact ? 'compact' : 'standard',
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits
+    }).format(value);
+  }
+
+  /**
+   * X-axis labels at calendar boundaries rather than at every sample, the way broker charts do:
+   * hours for 1D, days for 1W, Mondays for 1M, month starts for 3M/1Y and quarters for All.
+   * January shows the year. Labels too close to the edges are dropped so they aren't clipped.
+   */
+  private buildTimeTicks(from: Date, to: Date): AxisTick[] {
+    const fromMs = from.getTime();
+    const span = to.getTime() - fromMs;
+    if (span <= 0) {
+      return [];
+    }
+
+    const cursor = new Date(from);
+    const monthLabel = (date: Date) => date.getMonth() === 0
+      ? String(date.getFullYear())
+      : date.toLocaleDateString([], { month: 'short' });
+    let advance: (date: Date) => void;
+    let label: (date: Date) => string;
+
+    switch (this.activeRange) {
+      case '1D':
+        cursor.setMinutes(0, 0, 0);
+        cursor.setHours(cursor.getHours() + 3 - (cursor.getHours() % 3));
+        advance = (date) => date.setHours(date.getHours() + 3);
+        label = (date) => date.getHours() === 0
+          ? date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+          : date.toLocaleTimeString([], { hour: 'numeric' });
+        break;
+      case '1W':
+        cursor.setHours(24, 0, 0, 0);
+        advance = (date) => date.setDate(date.getDate() + 1);
+        label = (date) => `${date.toLocaleDateString([], { weekday: 'short' })} ${date.getDate()}`;
+        break;
+      case '1M':
+        cursor.setHours(24, 0, 0, 0);
+        while (cursor.getDay() !== 1) {
+          cursor.setDate(cursor.getDate() + 1);
+        }
+        advance = (date) => date.setDate(date.getDate() + 7);
+        label = (date) => date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        break;
+      default: {
+        // 3M and 1Y: every month start; All: every quarter start
+        const monthsPerTick = this.activeRange === 'ALL' ? 3 : 1;
+        cursor.setHours(0, 0, 0, 0);
+        cursor.setDate(1);
+        cursor.setMonth(cursor.getMonth() + 1);
+        while (cursor.getMonth() % monthsPerTick !== 0) {
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+        advance = (date) => date.setMonth(date.getMonth() + monthsPerTick);
+        label = monthLabel;
       }
-      break;
     }
 
-    return latestValue;
+    const ticks: AxisTick[] = [];
+    while (cursor.getTime() <= to.getTime()) {
+      const position = (cursor.getTime() - fromMs) / span;
+      if (position >= 0.03 && position <= 0.97) {
+        ticks.push({ position, label: label(cursor) });
+      }
+      advance(cursor);
+    }
+    return ticks;
   }
 
-  private formatRangeLabel(date: Date): string {
-    if (this.activeRange === '1D') {
-      return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    }
-
-    if (this.activeRange === '1W' || this.activeRange === '1M') {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }
-
-    return date.toLocaleDateString([], { month: 'short' });
+  /** SVG y for a value, on the same scale as the y-axis ticks. */
+  private chartY(value: number): number {
+    const { min, max } = this.chartDomain;
+    const fraction = max > min ? (max - value) / (max - min) : 0.5;
+    return CHART_INSET + fraction * (CHART_HEIGHT - 2 * CHART_INSET);
   }
 
-  private buildLinePath(values: number[], width: number, height: number): string {
+  private buildLinePath(values: number[]): string {
     if (values.length === 0) {
       return '';
     }
-
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
-
     return values.map((value, index) => {
-      const x = values.length === 1 ? width / 2 : index / (values.length - 1) * width;
-      const y = height - ((value - min) / range) * (height - 24) - 12;
-      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      const x = values.length === 1 ? CHART_WIDTH / 2 : index / (values.length - 1) * CHART_WIDTH;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${this.chartY(value).toFixed(2)}`;
     }).join(' ');
   }
 
-  private buildAreaPath(values: number[], width: number, height: number): string {
-    if (values.length === 0) {
-      return '';
+  /** A small trend line for an account card, scaled to its own range. A flat series draws mid-height. */
+  private buildSparkline(values: number[]): Sparkline | null {
+    if (values.length < 2) {
+      return null;
     }
-
-    const linePath = this.buildLinePath(values, width, height);
-    return `${linePath} L ${width} ${height} L 0 ${height} Z`;
+    const width = 176;
+    const height = 42;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min;
+    const path = values.map((value, index) => {
+      const x = index / (values.length - 1) * width;
+      const y = range > 1e-9 ? height - 3 - ((value - min) / range) * (height - 6) : height / 2;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    }).join(' ');
+    return { path, falling: values[values.length - 1] < values[0] };
   }
 
   private inferInstrumentType(symbol: string): string {

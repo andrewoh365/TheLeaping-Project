@@ -47,8 +47,8 @@ A full-stack online trading platform application for portfolio management and ma
 	tests: outcome counts reconcile to Total Orders, volume buckets reconcile
 	to Trading Volume, and segment activity reconciles under equivalent filters.
 - Run `./scripts/test.sh` for the standard Spring, analytics, and Angular
-	checks. To enable analytics PostgreSQL integration tests directly, set
-	`ANALYTICS_TEST_DATABASE_URL` to a disposable isolated database.
+	checks. The command creates a disposable PostgreSQL database and runs the
+	analytics SQL integration tests as part of the standard analytics suite.
 - Top-five instrument charts intentionally exclude instruments outside the
 	top five; distinct-client counts across time buckets can also repeat a
 	customer and should not be summed as a global distinct-client total.
@@ -81,10 +81,14 @@ and the physical slot `leap_reporting_slot`. The replication role has only
 and `markets`, and `default_transaction_read_only` enabled; it has no create,
 superuser, or replication privileges. Provisioning removes old direct,
 inherited, public, and default table privileges, and does not grant SELECT on
-future application tables. The role remains a member of
-`pg_read_all_stats` for standby monitoring; that predefined role exposes
-broader PostgreSQL statistics and may be separated into a dedicated monitoring
-account later.
+future application tables. The role remains a member of `pg_read_all_stats`
+so the reporting readiness check can inspect standby receiver and replay
+statistics. This is an explicit accepted security boundary:
+`pg_read_all_stats` exposes broader PostgreSQL statistics than the five
+reporting tables, but does not grant application-table SELECT, write, create,
+superuser, or replication privileges. A dedicated monitoring account is the
+follow-up design if those statistics must be removed from the reporting
+account.
 
 Replication is asynchronous. Analytics can be slightly behind live trading.
 The slot has `max_slot_wal_keep_size=2048MB`; if the standby remains offline
@@ -106,10 +110,11 @@ The local lifecycle scripts also apply to an EC2 host running Docker:
 
 `setup.sh` creates missing ignored values for `REPLICATION_PASSWORD`,
 `REPORTING_DB_PASSWORD`, and `ANALYTICS_INTERNAL_TOKEN`, configures the
-primary HBA, provisions roles and the slot, and builds the reporting image.
-`start.sh` starts the preserved primary first, starts the standby, waits for
-recovery, and then starts FastAPI against the `reporting-postgres` network
-alias. The local primary database and FastAPI are published only on loopback
+primary HBA, and builds the reporting image. `start.sh` starts the preserved
+primary, runs Spring Boot/Flyway, then provisions the reporting roles and slot
+before starting the standby and waiting for recovery. FastAPI then runs against
+the `reporting-postgres` network alias. The local primary database and FastAPI
+are published only on loopback
 (`127.0.0.1:5432` and `127.0.0.1:8000`); neither is exposed to the LAN. Spring
 sends the internal token in
 `X-Analytics-Internal-Token`; Angular never receives that token.
@@ -117,6 +122,15 @@ An existing primary container created before the loopback hardening may retain
 an older `0.0.0.0:5432` binding; inspect it with `docker port leap-postgres` and
 recreate only the container, retaining `leap-postgres-data`, during an approved
 maintenance window.
+
+The standby's replication `.pgpass` is created with mode `0600` under the
+container's ephemeral `/run/postgresql` filesystem and is recreated on every
+standby start. It is not stored in `postgres-replica-data`, so stopping the
+container removes the runtime credential from the reporting volume and its
+backups. Restart the standby after rotating `REPLICATION_PASSWORD`; startup
+rewrites the passfile and the standby connection configuration. The startup
+script also removes the legacy persistent `/var/lib/postgresql/data/.pgpass`
+left by older images.
 
 #### Docker Compose startup
 
@@ -147,9 +161,13 @@ ANALYTICS_INTERNAL_TOKEN
 
 `/health` is a liveness endpoint. FastAPI `/ready` is reporting-specific and
 returns 503 unless the database is in recovery, the WAL receiver is streaming,
-and received and replayed WAL are caught up at the check. It reports receiver
-state, received/replayed LSNs, replay backlog, and replay timestamp, without
-returning credentials or tokens. Inspect the primary and standby with:
+and replay is within `ANALYTICS_MAX_REPLAY_LAG_BYTES` (default 16777216, one
+WAL segment) of the primary's WAL end as last reported to the receiver
+(`latest_end_lsn`). This covers WAL not yet received as well as WAL received
+but not replayed. The standby cannot see the primary's exact current
+position; check `pg_stat_replication` on the primary for that. It reports
+receiver state, received/replayed LSNs, replay backlog, lag in bytes, and
+replay timestamp, without returning credentials or tokens. Inspect the primary and standby with:
 
 ```sql
 SELECT pg_is_in_recovery();

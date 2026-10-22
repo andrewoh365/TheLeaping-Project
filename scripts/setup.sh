@@ -895,7 +895,6 @@ prepare_reporting() {
     ensure_reporting_env
     ensure_reporting_network
     ensure_local_primary_hba
-    provision_reporting_primary
     build_reporting_image
 
     success "Reporting standby infrastructure prepared"

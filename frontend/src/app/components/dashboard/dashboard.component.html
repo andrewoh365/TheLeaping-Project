@@ -43,7 +43,7 @@
         <span class="market-dot" aria-hidden="true"></span>
         <p class="text-22"><span class="text-rgb-250-250-250">{{ marketStatusLabel }}</span></p>
       </div>
-      <button mat-button class="user-profile-23" [matMenuTriggerFor]="menu">
+      <button type="button" class="user-profile-23" [matMenuTriggerFor]="menu" aria-label="Account menu">
         <img src="assets/figma/images/avatar-24.png" class="avatar-24" alt="User avatar" />
         <div class="profile-meta-25">
           <p class="text-26"><span class="text-rgb-250-250-250">{{ displayName }}</span></p>
@@ -127,13 +127,26 @@
             <p class="text-52"><span class="text-rgb-250-250-250">{{ card.title }}</span></p>
           </div>
           <div class="card-body-56">
-            <div class="value-group-57">
-              <p class="text-58"><span class="text-rgb-250-250-250">{{ card.value | currency:'USD':'symbol':'1.2-2' }}</span></p>
-              <div class="change-badge-59" [class.negative-badge]="card.tone === 'negative'">
-                <p class="text-60" [class.text-rgb-204-31-45]="card.tone === 'negative'" [class.text-rgb-0-171-104]="card.tone !== 'negative'">{{ formatSignedPercent(card.changePercent) }}</p>
+            <div class="card-main">
+              <div class="value-group-57">
+                <p class="text-58"><span class="text-rgb-250-250-250">{{ card.value | currency:'USD':'symbol':'1.2-2' }}</span></p>
+                <div class="change-badge-59" [class.negative-badge]="card.tone === 'negative'">
+                  <p class="text-60" [class.text-rgb-204-31-45]="card.tone === 'negative'" [class.text-rgb-0-171-104]="card.tone !== 'negative'">{{ formatSignedPercent(card.changePercent) }}</p>
+                </div>
               </div>
+              <p class="card-subtitle">{{ card.subtitle }} · gain/loss on cost</p>
             </div>
-            <p class="card-subtitle">{{ card.subtitle }} · gain/loss on cost</p>
+            <svg
+              *ngIf="card.sparkline"
+              class="mini-sparkline-svg"
+              [class.falling]="card.sparkline.falling"
+              viewBox="0 0 176 42"
+              preserveAspectRatio="none"
+              role="img"
+              [attr.aria-label]="card.title + ' trend over ' + activeRange + (card.sparkline.falling ? ', down' : ', up or flat')"
+            >
+              <path [attr.d]="card.sparkline.path"></path>
+            </svg>
           </div>
         </div>
       </div>
@@ -155,18 +168,22 @@
           <div class="chart-empty" *ngIf="!isChartLoading && !chartHasHistory">
             {{ holdings.length === 0 ? 'Your portfolio chart will appear once you own some investments.' : 'Not enough price history to chart this period yet.' }}
           </div>
-          <svg viewBox="0 0 1000 260" preserveAspectRatio="none" aria-label="Portfolio performance chart">
-            <g class="grid-lines">
-              <line x1="0" y1="40" x2="1000" y2="40"></line>
-              <line x1="0" y1="100" x2="1000" y2="100"></line>
-              <line x1="0" y1="160" x2="1000" y2="160"></line>
-              <line x1="0" y1="220" x2="1000" y2="220"></line>
-            </g>
-            <path class="chart-area" [attr.d]="getPortfolioAreaPath()"></path>
-            <path class="chart-line" [attr.d]="getPortfolioLinePath()"></path>
-          </svg>
-          <div class="chart-labels-figma">
-            <span *ngFor="let point of chartPoints">{{ point.label }}</span>
+          <div class="chart-plot">
+            <div class="chart-canvas">
+              <svg viewBox="0 0 1000 260" preserveAspectRatio="none" aria-label="Portfolio performance chart">
+                <g class="grid-lines">
+                  <line *ngFor="let tick of chartYTicks" x1="0" x2="1000" [attr.y1]="tick.position * 260" [attr.y2]="tick.position * 260"></line>
+                </g>
+                <path class="chart-area" [attr.d]="chartAreaPath"></path>
+                <path class="chart-line" [attr.d]="chartLinePath"></path>
+              </svg>
+              <div class="chart-x-axis" aria-hidden="true">
+                <span *ngFor="let tick of chartXTicks" [style.left.%]="tick.position * 100">{{ tick.label }}</span>
+              </div>
+            </div>
+            <div class="chart-y-axis" aria-hidden="true">
+              <span *ngFor="let tick of chartYTicks" [style.top.%]="tick.position * 100">{{ tick.label }}</span>
+            </div>
           </div>
         </div>
       </div>

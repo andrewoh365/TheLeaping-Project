@@ -88,10 +88,11 @@ lag. `comparison.json` calculates:
 ((p95_with_analytics - p95_baseline) / p95_baseline) * 100
 ```
 
-The project-defined acceptance result is pass only when p95 degradation is at
-most 15% and the analytics scenario has no more trading errors than baseline.
-This is not a BRS threshold. A non-zero exit from the comparison means the
-observed result did not meet that project target; inspect both scenario JSON
+The project-defined acceptance criterion is a measured p95 degradation of at
+most 15% and no more trading errors in the analytics scenario than in baseline.
+This is not a BRS threshold. The criterion is a target for an executed run,
+not evidence supplied by this repository; a non-zero exit from the comparison
+means the observed result did not meet the target. Inspect both scenario JSON
 files for the cause.
 
 ## Limitations
@@ -106,6 +107,8 @@ resource pressure and external EC2 contention are not controlled. PostgreSQL
 replication is asynchronous, so reporting results may lag recent orders; the
 runner records that lag and waits for the standby to catch up after warmup.
 
-No benchmark has been executed by this change. The current host fails the
-memory guard, so only static validation is appropriate until an isolated host
-with sufficient headroom is available.
+Validation status for this change: the benchmark tooling is implemented, but
+no benchmark run is claimed or recorded. The current host fails the memory
+guard, so only static validation is available until an isolated host with
+sufficient headroom is used. Do not describe the 15% criterion as verified
+without committed run output from an approved benchmark host.

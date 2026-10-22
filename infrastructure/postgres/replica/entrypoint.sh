@@ -9,8 +9,11 @@ set -Eeuo pipefail
 : "${REPLICATION_PASSWORD:?REPLICATION_PASSWORD is required}"
 : "${REPLICATION_SLOT:?REPLICATION_SLOT is required}"
 
-DATA_ROOT="/var/lib/postgresql/data"
+DATA_ROOT="${DATA_ROOT:-/var/lib/postgresql/data}"
 PGDATA="${PGDATA:-${DATA_ROOT}/pgdata}"
+PASSFILE_DIR="${PASSFILE_DIR:-/run/postgresql}"
+PASSFILE="${PASSFILE_DIR}/.pgpass"
+POSTGRES_ENTRYPOINT="${POSTGRES_ENTRYPOINT:-/usr/local/bin/docker-entrypoint.sh}"
 
 validate_identifier() {
     local value="$1"
@@ -31,6 +34,33 @@ run_as_postgres() {
     fi
 }
 
+write_runtime_passfile() {
+    mkdir -p "${PASSFILE_DIR}"
+    if [[ "$(id -u)" == "0" ]]; then
+        chown postgres:postgres "${PASSFILE_DIR}"
+    fi
+    chmod 700 "${PASSFILE_DIR}"
+
+    run_as_postgres env \
+        "PASSFILE=${PASSFILE}" \
+        "REPLICATION_USER=${REPLICATION_USER}" \
+        "REPLICATION_PASSWORD=${REPLICATION_PASSWORD}" \
+        sh -c 'printf "%s\n" "*:*:*:${REPLICATION_USER}:${REPLICATION_PASSWORD}" > "${PASSFILE}" && chmod 600 "${PASSFILE}"'
+}
+
+configure_standby_connection() {
+    run_as_postgres sh -c "sed -i \
+        -e '/^[[:space:]]*primary_conninfo[[:space:]]*=/d' \
+        -e '/^[[:space:]]*primary_slot_name[[:space:]]*=/d' \
+        -e '/^[[:space:]]*hot_standby[[:space:]]*=/d' \
+        '${PGDATA}/postgresql.auto.conf'"
+
+    run_as_postgres sh -c "printf '%s\n' \
+        \"primary_conninfo = 'host=${PRIMARY_HOST} port=${PRIMARY_PORT} user=${REPLICATION_USER} passfile=${PASSFILE} application_name=leap-reporting-postgres'\" \
+        \"primary_slot_name = '${REPLICATION_SLOT}'\" \
+        'hot_standby = on' >> '${PGDATA}/postgresql.auto.conf'"
+}
+
 if [[ -f "${DATA_ROOT}/PG_VERSION" && ! -f "${PGDATA}/PG_VERSION" ]]; then
     echo "Reporting volume root contains an existing PostgreSQL cluster" >&2
     exit 1
@@ -49,7 +79,10 @@ if [[ -f "${PGDATA}/PG_VERSION" ]]; then
         exit 1
     fi
 
-    exec /usr/local/bin/docker-entrypoint.sh postgres
+    write_runtime_passfile
+    rm -f "${DATA_ROOT}/.pgpass"
+    configure_standby_connection
+    exec "${POSTGRES_ENTRYPOINT}" postgres
 fi
 
 unexpected_root_entry="$(find "${DATA_ROOT}" \
@@ -66,12 +99,14 @@ if [[ -n "${unexpected_root_entry}" ]]; then
 fi
 
 mkdir -p "${PGDATA}"
-chown postgres:postgres "${PGDATA}"
+if [[ "$(id -u)" == "0" ]]; then
+    chown postgres:postgres "${PGDATA}"
+fi
 
-passfile="${DATA_ROOT}/.pgpass"
-run_as_postgres sh -c "printf '%s\n' '*:*:*:${REPLICATION_USER}:${REPLICATION_PASSWORD}' > '${passfile}' && chmod 600 '${passfile}'"
+write_runtime_passfile
+rm -f "${DATA_ROOT}/.pgpass"
 
-run_as_postgres env PGPASSFILE="${passfile}" pg_basebackup \
+run_as_postgres env PGPASSFILE="${PASSFILE}" pg_basebackup \
     --pgdata="${PGDATA}" \
     --format=plain \
     --wal-method=stream \
@@ -84,17 +119,10 @@ run_as_postgres env PGPASSFILE="${passfile}" pg_basebackup \
     --dbname="host=${PRIMARY_HOST} port=${PRIMARY_PORT} dbname=${PRIMARY_DB_NAME}" \
     --no-password
 
-run_as_postgres sh -c "sed -i \
-    -e '/^[[:space:]]*primary_conninfo[[:space:]]*=/d' \
-    -e '/^[[:space:]]*primary_slot_name[[:space:]]*=/d' \
-    -e '/^[[:space:]]*hot_standby[[:space:]]*=/d' \
-    '${PGDATA}/postgresql.auto.conf'"
+configure_standby_connection
 
-run_as_postgres sh -c "printf '%s\n' \
-    \"primary_conninfo = 'host=${PRIMARY_HOST} port=${PRIMARY_PORT} user=${REPLICATION_USER} passfile=${passfile} application_name=leap-reporting-postgres'\" \
-    \"primary_slot_name = '${REPLICATION_SLOT}'\" \
-    'hot_standby = on' >> '${PGDATA}/postgresql.auto.conf'"
+if [[ "$(id -u)" == "0" ]]; then
+    chown -R postgres:postgres "${PGDATA}"
+fi
 
-chown -R postgres:postgres "${PGDATA}"
-
-exec /usr/local/bin/docker-entrypoint.sh postgres
+exec "${POSTGRES_ENTRYPOINT}" postgres

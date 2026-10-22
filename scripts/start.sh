@@ -584,6 +584,7 @@ main() {
     start_postgres
     start_reporting_standby
     start_spring
+    start_reporting_standby
     start_analytics
     start_frontend
 
