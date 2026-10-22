@@ -327,8 +327,7 @@ class InstrumentRepositoryTest {
     }
 
     /**
-     * Test: searchInstruments returns
-     * partial matches.
+    * Test: searchInstruments returns partial symbol matches
      */
     @Test
     void searchInstruments_withPartialMatch_shouldReturnMatches() {
@@ -397,73 +396,21 @@ class InstrumentRepositoryTest {
     }
 
     /**
-     * Test: searchInstruments returns
-     * multiple matches with a common name.
+     * Test: searchInstruments does not return mid-name fragment matches
      */
     @Test
-    void searchInstruments_withCommonNamePart_shouldReturnAllMatches() {
-
-        String commonName =
-            "RepositoryTestCompany-" + suffix;
-
-        String firstSymbol =
-            "ONE" + suffix;
-
-        String secondSymbol =
-            "TWO" + suffix;
-
-        Instrument first =
-            new Instrument(
-                market,
-                firstSymbol,
-                commonName + " One",
-                InstrumentType.STOCK,
-                currency
-            );
-
-        Instrument second =
-            new Instrument(
-                market,
-                secondSymbol,
-                commonName + " Two",
-                InstrumentType.STOCK,
-                currency
-            );
-
-        instrumentRepository.saveAll(
-            List.of(
-                first,
-                second
-            )
-        );
-
+    void searchInstruments_withCommonNamePart_shouldReturnNoMatches() {
+        // Arrange: Create instruments with "Inc." in name
+        Instrument apple = new Instrument(market, "AAPL", "Apple Inc.", InstrumentType.STOCK, currency);
+        Instrument google = new Instrument(market, "GOOGL", "Alphabet Inc.", InstrumentType.STOCK, currency);
+        instrumentRepository.saveAll(List.of(apple, google));
         entityManager.flush();
 
         List<Instrument> results =
             instrumentRepository
-                .searchInstruments(commonName);
+                .searchInstruments("Inc.");
 
-        assertEquals(2, results.size());
-
-        assertTrue(
-            results.stream()
-                .anyMatch(
-                    instrument ->
-                        firstSymbol.equals(
-                            instrument.getSymbol()
-                        )
-                )
-        );
-
-        assertTrue(
-            results.stream()
-                .anyMatch(
-                    instrument ->
-                        secondSymbol.equals(
-                            instrument.getSymbol()
-                        )
-                )
-        );
+        assertTrue(results.isEmpty());
     }
 
     /**
@@ -619,91 +566,20 @@ class InstrumentRepositoryTest {
     }
 
     /**
-     * Test: findBySymbolIgnoreCaseAndIsActiveTrue
-     * returns an active instrument.
+    * Test: symbol-prefix-or-name-prefix query returns name matches
      */
     @Test
-    void findBySymbolIgnoreCaseAndIsActiveTrue_withActiveInstrument_shouldReturn() {
-
-        String symbol =
-            "AAPL" + suffix;
-
-        Instrument active =
-            new Instrument(
-                market,
-                symbol,
-                "Apple Active Test " + suffix,
-                InstrumentType.STOCK,
-                currency
-            );
-
-        active.setIsActive(true);
-
-        instrumentRepository.save(active);
+    void findBySymbolPrefixOrNamePrefixIgnoreCase_withNamePrefix_shouldReturnMatches() {
+        Instrument apple = new Instrument(market, "AAPL", "Apple Inc.", InstrumentType.STOCK, currency);
+        Instrument appleMaps = new Instrument(market, "APPL", "Apple Maps", InstrumentType.STOCK, currency);
+        instrumentRepository.saveAll(List.of(apple, appleMaps));
         entityManager.flush();
 
-        Optional<Instrument> result =
-            instrumentRepository
-                .findBySymbolIgnoreCaseAndIsActiveTrue(
-                    symbol.toLowerCase()
-                );
+        List<Instrument> results = instrumentRepository.findBySymbolStartingWithIgnoreCaseOrNameStartingWithIgnoreCase("does-not-exist", "apple");
 
-        assertTrue(result.isPresent());
-
-        assertTrue(
-            result.get().getIsActive()
-        );
-
-        assertEquals(
-            symbol,
-            result.get().getSymbol()
-        );
-    }
-
-    /**
-     * Test: findByNameContainingIgnoreCase
-     * returns partial name matches.
-     */
-    @Test
-    void findByNameContainingIgnoreCase_withPartialName_shouldReturnMatches() {
-
-        String commonName =
-            "UniqueApple-" + suffix;
-
-        Instrument first =
-            new Instrument(
-                market,
-                "AAA" + suffix,
-                commonName + " One",
-                InstrumentType.STOCK,
-                currency
-            );
-
-        Instrument second =
-            new Instrument(
-                market,
-                "BBB" + suffix,
-                commonName + " Two",
-                InstrumentType.STOCK,
-                currency
-            );
-
-        instrumentRepository.saveAll(
-            List.of(
-                first,
-                second
-            )
-        );
-
-        entityManager.flush();
-
-        List<Instrument> results =
-            instrumentRepository
-                .findByNameContainingIgnoreCase(
-                    commonName.toLowerCase()
-                );
-
-        assertEquals(2, results.size());
+        assertTrue(results.size() >= 2);
+        assertTrue(results.stream().anyMatch(i -> "AAPL".equals(i.getSymbol())));
+        assertTrue(results.stream().anyMatch(i -> "APPL".equals(i.getSymbol())));
     }
 
     /**

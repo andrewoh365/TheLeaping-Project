@@ -1,47 +1,18 @@
 <div class="tradevault-dashboard-1">
   <div class="top-nav-2">
     <div class="nav-left-7">
-      <div class="logo-badge-8">
-        <div class="node-9">
-          <div class="shield-user-10">
-            <div class="triangle">
-              <img src="assets/figma/images/icon-12.svg" class="icon-12" alt="Leaping logo" />
-            </div>
-          </div>
-        </div>
-      </div>
-      <p class="text-13"><span class="text-rgb-250-250-250">Leaping</span></p>
-    </div>
-
-    <div class="search-container-14">
-      <div class="icon-search-15">
-        <div class="search-16">
-          <img src="assets/figma/images/vector-17.svg" class="vector-17" alt="Search icon" />
-        </div>
-      </div>
-      <input
-        class="search-input-figma"
-        type="text"
-        [(ngModel)]="searchQuery"
-        (input)="onSearchInput()"
-        placeholder="Search stocks, crypto or currencies..."
-        aria-label="Search instruments to trade"
-      />
-      <div class="search-results-figma" *ngIf="hasSearchResults">
-        <button type="button" class="search-result-figma" *ngFor="let instrument of searchResults" (click)="selectInstrument(instrument)">
-          <div>
-            <strong>{{ instrument.symbol }}</strong>
-            <span>{{ instrument.name }}</span>
-          </div>
-          <small>{{ instrument.instrumentType }}</small>
-        </button>
+      <div class="app-header">
+        <strong>LEAPING</strong>
       </div>
     </div>
 
+  
     <div class="nav-right-19">
-      <div class="market-time-20" [class.market-closed]="!marketStatus?.open" title="NASDAQ trading hours">
+      <div class="market-time-20" [class.market-closed]="!marketStatus?.open">
         <span class="market-dot" aria-hidden="true"></span>
-        <p class="text-22"><span class="text-rgb-250-250-250">{{ marketStatusLabel }}</span></p>
+        <div class="market-status">
+          <p class="market-status-label">{{ marketStatusLabel }}</p>
+        </div>
       </div>
       <button type="button" class="user-profile-23" [matMenuTriggerFor]="menu" aria-label="Account menu">
         <img src="assets/figma/images/avatar-24.png" class="avatar-24" alt="User avatar" />
@@ -358,8 +329,34 @@
     </div>
 
 
-    <div class="node-229">
-      <div class="section-news-230" data-tour="market-news">
+    <aside class="node-229 market-sidebar" aria-label="Market information">
+      <div class="search-container-14">
+        <div class="icon-search-15">
+          <div class="search-16">
+            <img src="assets/figma/images/vector-17.svg" class="vector-17" alt="Search icon" />
+          </div>
+        </div>
+        <input
+          class="search-input-figma"
+          type="text"
+          [(ngModel)]="searchQuery"
+          (input)="onSearchInput()"
+          placeholder="Search stocks, crypto or currencies..."
+          aria-label="Search instruments to trade"
+        />
+        <div class="search-results-figma" *ngIf="hasSearchResults">
+          <button type="button" class="search-result-figma" *ngFor="let instrument of searchResults" (click)="openInstrumentDialog(instrument)">
+            <div>
+              <strong>{{ instrument.symbol }}</strong>
+              <br>
+              <span>{{ instrument.name }}</span>
+            </div>
+            <small>{{ instrument.instrumentType }}</small>
+          </button>
+        </div>
+      </div>
+
+      <div class="section-news-230">
         <div class="section-header-231">
           <p class="text-232"><span class="text-rgb-250-250-250">Market News</span></p>
           <a class="text-233 view-all-link" [href]="newsSearchUrl" target="_blank" rel="noopener noreferrer">
@@ -448,7 +445,7 @@
           <p class="sidebar-note">{{ marketContextLoaded ? 'Market movers are unavailable right now.' : 'Loading market movers...' }}</p>
         </ng-template>
       </div>
-    </div>
+    </aside>
   </div>
 
   <aside class="trade-drawer" [class.open]="tradePanelOpen" aria-label="Trade" data-tour="trade-panel">

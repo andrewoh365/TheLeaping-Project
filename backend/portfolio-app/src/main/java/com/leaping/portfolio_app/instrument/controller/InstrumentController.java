@@ -2,6 +2,7 @@
 package com.leaping.portfolio_app.instrument.controller;
 
 import com.leaping.portfolio_app.instrument.dto.InstrumentDTO;
+import com.leaping.portfolio_app.instrument.dto.InstrumentDetail;
 import com.leaping.portfolio_app.instrument.entity.Instrument;
 import com.leaping.portfolio_app.instrument.service.InstrumentService;
 
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping({"/api/instruments", "/api/auth/instrument"})
+@RequestMapping({"/api/instruments"})
 public class InstrumentController {
 
     private final InstrumentService instrumentService;
@@ -30,7 +31,6 @@ public class InstrumentController {
      * Get all available instruments.
      *
      * GET /api/instruments
-     * GET /api/auth/instrument
      */
     @GetMapping
     public ResponseEntity<List<InstrumentDTO>> getAllInstruments() {
@@ -43,15 +43,13 @@ public class InstrumentController {
      * Get a single instrument by ID.
      *
      * GET /api/instruments/{id}
-     * GET /api/auth/instrument/{id}
      */
     @GetMapping("/{id}")
-    public ResponseEntity<InstrumentDTO> getInstrumentById(
+    public ResponseEntity<InstrumentDetail> getInstrumentById(
         @PathVariable Long id
     ) {
         return instrumentService
-            .getInstrumentById(id)
-            .map(InstrumentDTO::new)
+            .getInstrumentDetailById(id)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
     }
@@ -60,7 +58,6 @@ public class InstrumentController {
      * Search instruments by symbol or name.
      *
      * GET /api/instruments/search?query=AAPL
-     * GET /api/auth/instrument/search?query=AAPL
      */
     @GetMapping("/search")
     public ResponseEntity<List<InstrumentDTO>> searchInstruments(
