@@ -4,16 +4,10 @@ import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { Router } from "@angular/router";
 
-import { MatButtonModule } from "@angular/material/button";
-import { MatCardModule } from "@angular/material/card";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatInputModule } from "@angular/material/input";
-import { MatPaginatorModule, PageEvent } from "@angular/material/paginator";
-import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
-import { MatSelectModule } from "@angular/material/select";
-import { MatTableModule } from "@angular/material/table";
+import { MatIconModule } from "@angular/material/icon";
+import { PageEvent } from "@angular/material/paginator";
 
-import { Subject } from "rxjs";
+import { Subject, Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 
 import {
@@ -22,7 +16,13 @@ import {
   AdminService,
 } from "../../../services/admin.service";
 
-import { InternalNavComponent } from "../../internal-nav/internal-nav.component";
+import { InternalLayoutComponent } from "../../internal-layout/internal-layout.component";
+import { OpsPagerComponent } from "../../internal-layout/ops-pager.component";
+
+interface OrderStatusOption {
+  label: string;
+  value: string;
+}
 
 @Component({
   selector: "app-trade-lookup",
@@ -30,15 +30,9 @@ import { InternalNavComponent } from "../../internal-nav/internal-nav.component"
   imports: [
     CommonModule,
     FormsModule,
-    MatButtonModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatPaginatorModule,
-    MatProgressSpinnerModule,
-    MatSelectModule,
-    MatTableModule,
-    InternalNavComponent,
+    MatIconModule,
+    InternalLayoutComponent,
+    OpsPagerComponent,
   ],
   templateUrl: "./trade-lookup.component.html",
   styleUrls: ["./trade-lookup.component.scss"],
@@ -46,16 +40,17 @@ import { InternalNavComponent } from "../../internal-nav/internal-nav.component"
 export class TradeLookupComponent implements OnInit, OnDestroy {
   orders: AdminOrderLookup[] = [];
 
-  displayedColumns: string[] = [
-    "orderId",
-    "tradeId",
-    "client",
-    "instrument",
-    "side",
-    "quantity",
-    "status",
-    "submittedAt",
+  readonly statusOptions: OrderStatusOption[] = [
+    { label: "All", value: "" },
+    { label: "Submitted", value: "SUBMITTED" },
+    { label: "Accepted", value: "ACCEPTED" },
+    { label: "Filled", value: "FILLED" },
+    { label: "Rejected", value: "REJECTED" },
+    { label: "Cancelled", value: "CANCELLED" },
+    { label: "Expired", value: "EXPIRED" },
   ];
+
+  readonly skeletonRows = [1, 2, 3, 4, 5, 6];
 
   search = "";
   status = "";
@@ -67,12 +62,18 @@ export class TradeLookupComponent implements OnInit, OnDestroy {
   pageSize = 100;
   totalOrders = 0;
 
+  private ordersRequest?: Subscription;
+
   private readonly destroy$ = new Subject<void>();
 
   constructor(
     private adminService: AdminService,
     private router: Router,
   ) {}
+
+  get hasActiveFilters(): boolean {
+    return this.search.trim().length > 0 || this.status !== "";
+  }
 
   ngOnInit(): void {
     this.loadOrders();
@@ -83,11 +84,29 @@ export class TradeLookupComponent implements OnInit, OnDestroy {
     this.loadOrders();
   }
 
+  setStatus(status: string): void {
+    if (this.status === status) {
+      return;
+    }
+
+    this.status = status;
+    this.applyFilters();
+  }
+
+  clearSearch(): void {
+    this.search = "";
+    this.applyFilters();
+  }
+
   resetFilters(): void {
     this.search = "";
     this.status = "";
     this.pageIndex = 0;
 
+    this.loadOrders();
+  }
+
+  retry(): void {
     this.loadOrders();
   }
 
@@ -105,11 +124,25 @@ export class TradeLookupComponent implements OnInit, OnDestroy {
     this.router.navigate(["/admin/orders", order.orderId]);
   }
 
+  clientName(order: AdminOrderLookup): string {
+    return [order.firstName, order.lastName]
+      .map((part) => part?.trim() ?? "")
+      .filter((part) => part.length > 0)
+      .join(" ");
+  }
+
+  trackByOrderId(_index: number, order: AdminOrderLookup): number {
+    return order.orderId;
+  }
+
   private loadOrders(): void {
     this.loading = true;
     this.errorMessage = "";
 
-    this.adminService
+    // Status filters apply on click, so drop any response still in flight.
+    this.ordersRequest?.unsubscribe();
+
+    this.ordersRequest = this.adminService
       .getOrders(
         {
           search: this.search,

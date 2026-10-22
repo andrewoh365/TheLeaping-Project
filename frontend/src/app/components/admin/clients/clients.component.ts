@@ -4,16 +4,10 @@ import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { Router } from "@angular/router";
 
-import { MatButtonModule } from "@angular/material/button";
-import { MatCardModule } from "@angular/material/card";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatInputModule } from "@angular/material/input";
-import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
-import { MatSelectModule } from "@angular/material/select";
-import { MatTableModule } from "@angular/material/table";
-import { MatPaginatorModule, PageEvent } from "@angular/material/paginator";
+import { MatIconModule } from "@angular/material/icon";
+import { PageEvent } from "@angular/material/paginator";
 
-import { Subject } from "rxjs";
+import { Subject, Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 
 import {
@@ -23,7 +17,13 @@ import {
   ClientStatus,
 } from "../../../services/admin.service";
 
-import { InternalNavComponent } from "../../internal-nav/internal-nav.component";
+import { InternalLayoutComponent } from "../../internal-layout/internal-layout.component";
+import { OpsPagerComponent } from "../../internal-layout/ops-pager.component";
+
+interface ClientStatusOption {
+  label: string;
+  value: ClientStatus | "";
+}
 
 @Component({
   selector: "app-clients",
@@ -31,15 +31,9 @@ import { InternalNavComponent } from "../../internal-nav/internal-nav.component"
   imports: [
     CommonModule,
     FormsModule,
-    MatButtonModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatPaginatorModule,
-    MatProgressSpinnerModule,
-    MatSelectModule,
-    MatTableModule,
-    InternalNavComponent,
+    MatIconModule,
+    InternalLayoutComponent,
+    OpsPagerComponent,
   ],
   templateUrl: "./clients.component.html",
   styleUrls: ["./clients.component.scss"],
@@ -47,7 +41,13 @@ import { InternalNavComponent } from "../../internal-nav/internal-nav.component"
 export class ClientsComponent implements OnInit, OnDestroy {
   clients: AdminClientSummary[] = [];
 
-  displayedColumns: string[] = ["clientId", "client", "email", "status"];
+  readonly statusOptions: ClientStatusOption[] = [
+    { label: "All", value: "" },
+    { label: "Active", value: "ACTIVE" },
+    { label: "Inactive", value: "INACTIVE" },
+  ];
+
+  readonly skeletonRows = [1, 2, 3, 4, 5, 6];
 
   search = "";
   status: ClientStatus | "" = "";
@@ -59,12 +59,18 @@ export class ClientsComponent implements OnInit, OnDestroy {
   pageSize = 100;
   totalClients = 0;
 
+  private clientsRequest?: Subscription;
+
   private readonly destroy$ = new Subject<void>();
 
   constructor(
     private adminService: AdminService,
     private router: Router,
   ) {}
+
+  get hasActiveFilters(): boolean {
+    return this.search.trim().length > 0 || this.status !== "";
+  }
 
   ngOnInit(): void {
     this.loadClients();
@@ -75,11 +81,29 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.loadClients();
   }
 
+  setStatus(status: ClientStatus | ""): void {
+    if (this.status === status) {
+      return;
+    }
+
+    this.status = status;
+    this.applyFilters();
+  }
+
+  clearSearch(): void {
+    this.search = "";
+    this.applyFilters();
+  }
+
   resetFilters(): void {
     this.search = "";
     this.status = "";
     this.pageIndex = 0;
 
+    this.loadClients();
+  }
+
+  retry(): void {
     this.loadClients();
   }
 
@@ -99,11 +123,39 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.router.navigate(["/admin/clients", client.clientId]);
   }
 
+  fullName(client: AdminClientSummary): string {
+    return [client.firstName, client.lastName]
+      .map((part) => part?.trim() ?? "")
+      .filter((part) => part.length > 0)
+      .join(" ");
+  }
+
+  clientInitials(client: AdminClientSummary): string {
+    const initials = [client.firstName, client.lastName]
+      .map((part) => part?.trim().charAt(0) ?? "")
+      .join("");
+
+    if (initials) {
+      return initials.toUpperCase();
+    }
+
+    const emailInitial = client.email?.trim().charAt(0) ?? "";
+
+    return emailInitial ? emailInitial.toUpperCase() : "?";
+  }
+
+  trackByClientId(_index: number, client: AdminClientSummary): number {
+    return client.clientId;
+  }
+
   private loadClients(): void {
     this.loading = true;
     this.errorMessage = "";
 
-    this.adminService
+    // Status filters apply on click, so drop any response still in flight.
+    this.clientsRequest?.unsubscribe();
+
+    this.clientsRequest = this.adminService
       .getClients(
         {
           search: this.search,
