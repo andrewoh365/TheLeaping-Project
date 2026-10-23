@@ -273,6 +273,24 @@ print_stopped_summary() {
 
 
 # ------------------------------------------------------------
+# Reporting network
+# ------------------------------------------------------------
+
+stop_reporting_network() {
+    section "Reporting network"
+
+    if ! command_exists docker || ! docker_is_running; then
+        warn "Docker is unavailable; ${REPORTING_NETWORK} could not be checked"
+        return 0
+    fi
+
+    # Docker Compose uses the same network name, so leaving it behind blocks
+    # docker-compose up. start.sh recreates it.
+    remove_reporting_network
+}
+
+
+# ------------------------------------------------------------
 # Main
 # ------------------------------------------------------------
 
@@ -282,13 +300,14 @@ main() {
 
     # Reverse dependency order:
     #
-    # Angular → Analytics → Spring → PostgreSQL
+    # Angular → Analytics → Spring → PostgreSQL → reporting network
 
     stop_frontend
     stop_analytics
     stop_reporting_standby
     stop_spring
     stop_postgres
+    stop_reporting_network
 
     print_stopped_summary
 }

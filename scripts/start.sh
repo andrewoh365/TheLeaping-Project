@@ -125,6 +125,28 @@ start_background_process() {
 
 
 # ------------------------------------------------------------
+# Reporting network
+# ------------------------------------------------------------
+
+start_reporting_network() {
+    section "Reporting network"
+
+    if docker network inspect "${REPORTING_NETWORK}" >/dev/null 2>&1 \
+        && reporting_network_owned_by_compose; then
+        die "${REPORTING_NETWORK} belongs to the Docker Compose stack.
+
+Run docker-compose down before starting LEAP with these scripts."
+    fi
+
+    # stop.sh removes the network so Docker Compose can use the same name.
+    # Recreate it and reconnect the primary before anything needs it.
+    ensure_reporting_network
+
+    success "${POSTGRES_CONTAINER} is connected to ${REPORTING_NETWORK}"
+}
+
+
+# ------------------------------------------------------------
 # PostgreSQL
 # ------------------------------------------------------------
 
@@ -581,6 +603,7 @@ main() {
 
     verify_setup
 
+    start_reporting_network
     start_postgres
     start_spring
     # Needs Flyway's tables, so it must follow start_spring.
