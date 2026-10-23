@@ -15,20 +15,23 @@
   border-radius: 12px;
 }
 
-mat-card-header {
+.register-heading {
+  padding: 16px 16px 0;
   margin-bottom: 30px;
   text-align: center;
 
-  mat-card-title {
+  h1 {
+    margin: 0;
     font-size: 28px;
     font-weight: 600;
+    line-height: 1.2;
     color: var(--text-color);
   }
 
-  mat-card-subtitle {
+  p {
+    margin: 8px 0 0;
     font-size: 14px;
     color: var(--muted-text-color);
-    margin-top: 8px;
   }
 }
 

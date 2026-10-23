@@ -64,8 +64,7 @@ export class RegisterComponent implements OnInit {
       email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required, Validators.minLength(8)]],
       confirmPassword: ['', Validators.required],
-      dateOfBirth: ['', Validators.required],
-      taxId: ['', [Validators.required, Validators.minLength(5)]]
+      dateOfBirth: ['', Validators.required]
     }, {
       validators: this.passwordMatchValidator
     });
@@ -96,9 +95,9 @@ export class RegisterComponent implements OnInit {
     }
 
     this.loading = true;
-    const { firstName, lastName, email, password, confirmPassword, dateOfBirth, taxId } = this.registerForm.value;
+    const { firstName, lastName, email, password, confirmPassword, dateOfBirth } = this.registerForm.value;
 
-    this.authService.register(firstName, lastName, email, password, confirmPassword, dateOfBirth, taxId).subscribe({
+    this.authService.register(firstName, lastName, email, password, confirmPassword, dateOfBirth).subscribe({
       next: () => {
         this.walkthroughService.markPending();
         this.snackBar.open('Registration successful! Redirecting to dashboard...', 'Close', { duration: 3000 });
