@@ -1,394 +1,227 @@
-<app-internal-nav></app-internal-nav>
+<app-internal-layout>
+  <div class="ops-page">
+    <nav class="ops-breadcrumb" aria-label="Breadcrumb">
+      <button type="button" (click)="goBack()">
+        <mat-icon aria-hidden="true">arrow_back</mat-icon>
+        Back to Trade Lookup
+      </button>
+      <mat-icon aria-hidden="true">chevron_right</mat-icon>
+      <span aria-current="page">{{ orderId !== null ? 'Order #' + (order?.orderId ?? orderId) : 'Order detail' }}</span>
+    </nav>
 
-<div class="order-detail-page">
-  <button
-    mat-stroked-button
-    type="button"
-    class="back-button"
-    (click)="goBack()"
-  >
-    ← Back to Trade Lookup
-  </button>
-
-  <!-- LOADING -->
-
-  <div class="loading-container" *ngIf="loading">
-    <mat-spinner diameter="42"></mat-spinner>
-  </div>
-
-  <!-- ERROR -->
-
-  <mat-card class="error-card" *ngIf="errorMessage">
-    {{ errorMessage }}
-  </mat-card>
-
-  <!-- ORDER DETAIL -->
-
-  <ng-container *ngIf="!loading && !errorMessage && order">
-    <div class="order-header">
-      <div>
-        <p class="eyebrow">Order Detail</p>
-
-        <h1>Order #{{ order.orderId }}</h1>
-
-        <p class="order-subtitle">
-          {{ order.symbol || "Unknown instrument" }}
-
-          ·
-
-          {{ order.side || "—" }}
-
-          ·
-
-          {{ order.quantity ?? "—" }}
+    <header class="ops-page-header">
+      <div class="ops-page-heading">
+        <span class="ops-eyebrow">Order detail</span>
+        <h1 class="ops-title">{{ orderId !== null ? 'Order #' + (order?.orderId ?? orderId) : 'Order unavailable' }}</h1>
+        <p class="ops-subtitle order-subtitle" *ngIf="order && !loading && !errorMessage; else pageDescription">
+          <strong>{{ order.symbol || 'Unknown instrument' }}</strong>
+          <span aria-hidden="true">·</span>
+          <span class="ops-side" [class.buy]="order.side === 'BUY'" [class.sell]="order.side === 'SELL'">{{ order.side ? (order.side | titlecase) : '—' }}</span>
+          <span aria-hidden="true">·</span>
+          <span>{{ order.quantity ?? '—' }} units</span>
         </p>
+        <ng-template #pageDescription>
+          <p class="ops-subtitle">Order information, execution details and recorded activity.</p>
+        </ng-template>
       </div>
-
       <span
-        class="status-badge"
-        [class.status-filled]="order.status === 'FILLED'"
-        [class.status-rejected]="order.status === 'REJECTED'"
-        [class.status-cancelled]="order.status === 'CANCELLED'"
-        [class.status-accepted]="order.status === 'ACCEPTED'"
-        [class.status-submitted]="order.status === 'SUBMITTED'"
-      >
-        {{ order.status || "UNKNOWN" }}
-      </span>
-    </div>
+        *ngIf="order && !loading && !errorMessage"
+        class="ops-badge"
+        [ngClass]="'status-' + (order.status || 'unknown').toLowerCase()"
+      >{{ order.status ? (order.status | titlecase) : 'Unknown' }}</span>
+    </header>
 
-    <!-- SUMMARY CARDS -->
-
-    <div class="summary-grid">
-      <mat-card class="summary-card">
-        <span class="summary-label"> Client </span>
-
-        <strong>
-          {{ order.firstName || "" }}
-
-          {{ order.lastName || "" }}
-        </strong>
-
-        <span class="summary-subtext">
-          Client ID {{ order.clientId ?? "—" }}
-        </span>
-      </mat-card>
-
-      <mat-card class="summary-card">
-        <span class="summary-label"> Instrument </span>
-
-        <strong>
-          {{ order.symbol || "—" }}
-        </strong>
-
-        <span class="summary-subtext">
-          {{ order.instrumentName || "—" }}
-        </span>
-      </mat-card>
-
-      <mat-card class="summary-card">
-        <span class="summary-label"> Portfolio </span>
-
-        <strong> #{{ order.portfolioId ?? "—" }} </strong>
-
-        <span class="summary-subtext"> Portfolio ID </span>
-      </mat-card>
-
-      <mat-card class="summary-card">
-        <span class="summary-label"> Trade </span>
-
-        <strong>
-          {{ order.tradeId ?? "—" }}
-        </strong>
-
-        <span class="summary-subtext">
-          {{ order.tradeId ? "Trade created" : "No trade created" }}
-        </span>
-      </mat-card>
-    </div>
-
-    <!-- ORDER INFORMATION -->
-
-    <mat-card class="detail-card">
-      <div class="section-header">
-        <h2>Order Information</h2>
-      </div>
-
-      <div class="detail-grid">
-        <div class="detail-item">
-          <span>Order ID</span>
-
-          <strong>{{ order.orderId }}</strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Status</span>
-
-          <strong>{{ order.status || "—" }}</strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Side</span>
-
-          <strong>{{ order.side || "—" }}</strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Order Type</span>
-
-          <strong>{{ order.orderType || "—" }}</strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Time in Force</span>
-
-          <strong>{{ order.timeInForce || "—" }}</strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Quantity</span>
-
-          <strong>{{ order.quantity ?? "—" }}</strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Limit Price (USD)</span>
-
-          <strong>
-            {{
-              order.limitPriceUsd !== null
-                ? (order.limitPriceUsd | currency: "USD")
-                : "—"
-            }}
-          </strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Submitted</span>
-
-          <strong>
-            {{ order.submittedAt ? (order.submittedAt | date: "medium") : "—" }}
-          </strong>
+    <!-- INITIAL LOADING -->
+    <div class="ops-stack" role="status" aria-label="Loading order details" *ngIf="loading">
+      <div class="ops-stat-grid order-summary" aria-hidden="true">
+        <div class="ops-stat" *ngFor="let tile of [1, 2, 3, 4]">
+          <span class="ops-skeleton"></span>
+          <span class="ops-skeleton ops-skeleton--value"></span>
+          <span class="ops-skeleton"></span>
         </div>
       </div>
-    </mat-card>
-
-    <!-- LIFECYCLE INFORMATION -->
-
-    <mat-card class="detail-card">
-      <div class="section-header">
-        <h2>Order Lifecycle</h2>
-      </div>
-
-      <div class="detail-grid">
-        <div class="detail-item">
-          <span>Accepted At</span>
-
-          <strong>
-            {{ order.acceptedAt ? (order.acceptedAt | date: "medium") : "—" }}
-          </strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Rejected At</span>
-
-          <strong>
-            {{ order.rejectedAt ? (order.rejectedAt | date: "medium") : "—" }}
-          </strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Cancelled At</span>
-
-          <strong>
-            {{ order.cancelledAt ? (order.cancelledAt | date: "medium") : "—" }}
-          </strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Filled At</span>
-
-          <strong>
-            {{ order.filledAt ? (order.filledAt | date: "medium") : "—" }}
-          </strong>
-        </div>
-
-        <div class="detail-item full-width" *ngIf="order.rejectionReason">
-          <span>Rejection Reason</span>
-
-          <strong>
-            {{ order.rejectionReason }}
-          </strong>
-        </div>
-      </div>
-    </mat-card>
-
-    <!-- TRADE INFORMATION -->
-
-    <mat-card class="detail-card" *ngIf="order.tradeId">
-      <div class="section-header">
-        <h2>Trade Information</h2>
-      </div>
-
-      <div class="detail-grid">
-        <div class="detail-item">
-          <span>Trade ID</span>
-
-          <strong>{{ order.tradeId }}</strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Execution Price</span>
-
-          <strong>
-            {{ order.executionPrice ?? "—" }}
-
-            {{ order.executionPriceCurrencyCode || "" }}
-          </strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Exchange Rate to USD</span>
-
-          <strong>
-            {{ order.exchangeRateToUsdAtExecution ?? "—" }}
-          </strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Execution Price (USD)</span>
-
-          <strong>
-            {{
-              order.executionPriceUsd !== null
-                ? (order.executionPriceUsd | currency: "USD")
-                : "—"
-            }}
-          </strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Total USD Value</span>
-
-          <strong>
-            {{
-              order.totalUsdValue !== null
-                ? (order.totalUsdValue | currency: "USD")
-                : "—"
-            }}
-          </strong>
-        </div>
-
-        <div class="detail-item">
-          <span>Executed At</span>
-
-          <strong>
-            {{ order.executedAt ? (order.executedAt | date: "medium") : "—" }}
-          </strong>
-        </div>
-      </div>
-    </mat-card>
-
-    <!-- NO TRADE -->
-
-    <mat-card class="no-trade-card" *ngIf="!order.tradeId">
-      <h2>No Trade Created</h2>
-
-      <p>This order did not result in an executed trade.</p>
-    </mat-card>
-
-    <!-- AUDIT TRAIL -->
-
-    <mat-card class="detail-card audit-card">
-      <div class="section-header">
-        <div>
-          <h2>Audit Trail</h2>
-
-          <p class="section-subtitle">
-            Recorded events for this order, oldest first.
-          </p>
-        </div>
-      </div>
-
-      <div class="audit-loading" *ngIf="auditLoading">
-        <mat-spinner diameter="34"></mat-spinner>
-      </div>
-
-      <div class="audit-error" *ngIf="!auditLoading && auditErrorMessage">
-        {{ auditErrorMessage }}
-      </div>
-
-      <div
-        class="audit-empty"
-        *ngIf="!auditLoading && !auditErrorMessage && auditEvents.length === 0"
-      >
-        No audit events were recorded for this order.
-      </div>
-
-      <div
-        class="audit-list"
-        *ngIf="!auditLoading && !auditErrorMessage && auditEvents.length > 0"
-      >
-        <article class="audit-event" *ngFor="let event of auditEvents">
-          <div class="audit-marker"></div>
-
-          <div class="audit-event-content">
-            <div class="audit-event-heading">
-              <strong>{{ auditLabel(event.eventType) }}</strong>
-
-              <time [attr.datetime]="event.occurredAt || null">
-                {{
-                  event.occurredAt
-                    ? (event.occurredAt | date: "medium")
-                    : "Time unavailable"
-                }}
-              </time>
-            </div>
-
-            <div class="audit-event-links">
-              <span *ngIf="event.executionAttemptId !== null">
-                Attempt #{{ event.executionAttemptId }}
-              </span>
-
-              <span *ngIf="event.tradeId !== null">
-                Trade #{{ event.tradeId }}
-              </span>
-
-              <span *ngIf="event.cashTransactionId !== null">
-                Cash #{{ event.cashTransactionId }}
-              </span>
-            </div>
-
-            <div
-              class="audit-event-details"
-              *ngIf="auditDetailEntries(event).length > 0"
-            >
-              <span
-                class="audit-detail"
-                *ngFor="let detail of auditDetailEntries(event)"
-              >
-                <b>{{ detail.label }}</b>
-
-                {{ detail.value }}
-              </span>
-            </div>
+      <div class="ops-card" aria-hidden="true" *ngFor="let card of [1, 2]">
+        <span class="ops-skeleton ops-skeleton--title"></span>
+        <div class="ops-dl order-info-grid">
+          <div *ngFor="let field of [1, 2, 3, 4, 5, 6, 7, 8]">
+            <span class="ops-skeleton"></span>
+            <span class="ops-skeleton ops-skeleton--value"></span>
           </div>
-        </article>
-
-        <div class="audit-more" *ngIf="hasMoreAudit">
-          <span>
-            Showing {{ auditEvents.length }} of {{ auditTotal }} events
-            <span class="audit-more-error" *ngIf="auditMoreError">· {{ auditMoreError }}</span>
-          </span>
-          <button
-            mat-stroked-button
-            type="button"
-            (click)="loadMoreAudit()"
-            [disabled]="auditLoadingMore"
-          >
-            {{ auditLoadingMore ? "Loading..." : "Show more events" }}
-          </button>
         </div>
       </div>
-    </mat-card>
-  </ng-container>
-</div>
+    </div>
+
+    <!-- Existing API-specific messages cover invalid ID, not found and permission failures. -->
+    <div class="ops-alert ops-alert--danger" role="alert" *ngIf="!loading && errorMessage">
+      <mat-icon aria-hidden="true">error_outline</mat-icon>
+      <div class="ops-alert-body">
+        <strong>Order details unavailable</strong>
+        <span>{{ errorMessage }}</span>
+      </div>
+      <button *ngIf="orderId !== null" type="button" class="ops-btn ops-btn--secondary ops-btn--sm" (click)="retryOrder()">Retry</button>
+    </div>
+
+    <ng-container *ngIf="!loading && !errorMessage && order">
+      <!-- SUMMARY -->
+      <section class="ops-stat-grid order-summary" aria-label="Order summary">
+        <div class="ops-stat">
+          <span class="ops-stat-label"><span class="ops-stat-icon"><mat-icon aria-hidden="true">person_outline</mat-icon></span>Client</span>
+          <strong class="ops-stat-value ops-stat-value--wrap">{{ ((order.firstName || '') + ' ' + (order.lastName || '')).trim() || 'Unknown client' }}</strong>
+          <span class="ops-stat-meta">Client ID {{ order.clientId ?? '—' }}</span>
+        </div>
+        <div class="ops-stat">
+          <span class="ops-stat-label"><span class="ops-stat-icon"><mat-icon aria-hidden="true">show_chart</mat-icon></span>Instrument</span>
+          <strong class="ops-stat-value ops-stat-value--wrap">{{ order.symbol || 'Unknown instrument' }}</strong>
+          <span class="ops-stat-meta">{{ order.instrumentName || 'Name unavailable' }}</span>
+          <span class="ops-stat-meta">Instrument ID {{ order.instrumentId ?? '—' }}</span>
+        </div>
+        <div class="ops-stat">
+          <span class="ops-stat-label"><span class="ops-stat-icon"><mat-icon aria-hidden="true">account_balance_wallet</mat-icon></span>Portfolio</span>
+          <strong class="ops-stat-value ops-stat-value--wrap">{{ order.portfolioId != null ? '#' + order.portfolioId : '—' }}</strong>
+          <span class="ops-stat-meta">Portfolio ID</span>
+        </div>
+        <div class="ops-stat">
+          <span class="ops-stat-label"><span class="ops-stat-icon"><mat-icon aria-hidden="true">swap_horiz</mat-icon></span>Trade</span>
+          <strong class="ops-stat-value ops-stat-value--wrap">{{ order.tradeId != null ? '#' + order.tradeId : '—' }}</strong>
+          <span class="ops-stat-meta">{{ order.tradeId != null ? 'Trade created' : 'No trade created' }}</span>
+        </div>
+      </section>
+
+      <section class="ops-card order-section" aria-labelledby="order-information-heading">
+        <div class="ops-card-header">
+          <div class="ops-card-heading">
+            <h2 class="ops-card-title" id="order-information-heading">Order information</h2>
+            <p class="ops-card-subtitle">Submission details and trading instructions.</p>
+          </div>
+        </div>
+        <dl class="ops-dl order-info-grid">
+          <div><dt>Order ID</dt><dd class="ops-id">{{ order.orderId }}</dd></div>
+          <div>
+            <dt>Status</dt>
+            <dd><span class="ops-badge" [ngClass]="'status-' + (order.status || 'unknown').toLowerCase()">{{ order.status ? (order.status | titlecase) : 'Unknown' }}</span></dd>
+          </div>
+          <div><dt>Side</dt><dd><span class="ops-side" [class.buy]="order.side === 'BUY'" [class.sell]="order.side === 'SELL'">{{ order.side ? (order.side | titlecase) : '—' }}</span></dd></div>
+          <div><dt>Order type</dt><dd>{{ order.orderType ? (order.orderType | titlecase) : '—' }}</dd></div>
+          <div><dt>Time in force</dt><dd>{{ order.timeInForce || '—' }}</dd></div>
+          <div><dt>Quantity</dt><dd>{{ order.quantity ?? '—' }}</dd></div>
+          <div><dt>Limit price (USD)</dt><dd>{{ order.limitPriceUsd != null ? (order.limitPriceUsd | currency: 'USD') : '—' }}</dd></div>
+          <div><dt>Submitted</dt><dd>{{ order.submittedAt ? (order.submittedAt | date: 'medium') : '—' }}</dd></div>
+        </dl>
+      </section>
+
+      <section class="ops-card order-section" aria-labelledby="order-lifecycle-heading">
+        <div class="ops-card-header">
+          <div class="ops-card-heading">
+            <h2 class="ops-card-title" id="order-lifecycle-heading">Order lifecycle</h2>
+            <p class="ops-card-subtitle">Recorded timestamps for each stage of this order.</p>
+          </div>
+        </div>
+        <dl class="ops-dl order-info-grid">
+          <div><dt>Accepted at</dt><dd>{{ order.acceptedAt ? (order.acceptedAt | date: 'medium') : '—' }}</dd></div>
+          <div><dt>Rejected at</dt><dd>{{ order.rejectedAt ? (order.rejectedAt | date: 'medium') : '—' }}</dd></div>
+          <div><dt>Cancelled at</dt><dd>{{ order.cancelledAt ? (order.cancelledAt | date: 'medium') : '—' }}</dd></div>
+          <div><dt>Filled at</dt><dd>{{ order.filledAt ? (order.filledAt | date: 'medium') : '—' }}</dd></div>
+        </dl>
+        <div class="ops-alert ops-alert--danger" *ngIf="order.rejectionReason">
+          <mat-icon aria-hidden="true">info_outline</mat-icon>
+          <div class="ops-alert-body"><strong>Rejection reason</strong><span>{{ order.rejectionReason }}</span></div>
+        </div>
+      </section>
+
+      <section class="ops-card order-section" aria-labelledby="order-trade-heading">
+        <div class="ops-card-header">
+          <div class="ops-card-heading">
+            <h2 class="ops-card-title" id="order-trade-heading">Trade information</h2>
+            <p class="ops-card-subtitle">Execution pricing, currency and settlement value.</p>
+          </div>
+          <span class="ops-badge ops-badge--success" *ngIf="order.tradeId != null">Trade created</span>
+        </div>
+        <dl class="ops-dl order-info-grid" *ngIf="order.tradeId != null; else noTrade">
+          <div><dt>Trade ID</dt><dd class="ops-id">{{ order.tradeId }}</dd></div>
+          <div><dt>Execution price</dt><dd>{{ order.executionPrice != null ? (order.executionPrice | number: '1.0-8') : '—' }}</dd></div>
+          <div><dt>Native execution currency</dt><dd>{{ order.executionPriceCurrencyCode || '—' }}</dd></div>
+          <div><dt>Exchange rate to USD</dt><dd>{{ order.exchangeRateToUsdAtExecution ?? '—' }}</dd></div>
+          <div><dt>Execution price (USD)</dt><dd>{{ order.executionPriceUsd != null ? (order.executionPriceUsd | currency: 'USD') : '—' }}</dd></div>
+          <div><dt>Total USD value</dt><dd>{{ order.totalUsdValue != null ? (order.totalUsdValue | currency: 'USD') : '—' }}</dd></div>
+          <div><dt>Executed at</dt><dd>{{ order.executedAt ? (order.executedAt | date: 'medium') : '—' }}</dd></div>
+        </dl>
+        <ng-template #noTrade>
+          <div class="ops-empty">
+            <mat-icon aria-hidden="true">swap_horiz</mat-icon>
+            <strong>No trade created</strong>
+            <p>This order has not resulted in an executed trade. Execution details will appear here if a trade is created.</p>
+          </div>
+        </ng-template>
+      </section>
+
+      <!-- Backend ordering and pagination are preserved; events are never re-sorted here. -->
+      <section class="ops-card order-section" aria-labelledby="order-audit-heading" [attr.aria-busy]="auditLoading || auditLoadingMore">
+        <div class="ops-card-header">
+          <div class="ops-card-heading">
+            <h2 class="ops-card-title" id="order-audit-heading">Audit trail</h2>
+            <p class="ops-card-subtitle">Recorded events for this order, oldest first.</p>
+          </div>
+          <span class="ops-pill" *ngIf="!auditLoading && !auditErrorMessage">{{ auditTotal | number }} {{ auditTotal === 1 ? 'event' : 'events' }}</span>
+        </div>
+        <div role="status" aria-label="Loading audit trail" *ngIf="auditLoading">
+          <ul class="ops-timeline" aria-hidden="true">
+            <li class="ops-timeline-item" *ngFor="let row of [1, 2, 3]">
+              <span class="ops-timeline-dot"></span>
+              <div class="ops-timeline-content">
+                <span class="ops-skeleton ops-skeleton--title"></span>
+                <span class="ops-skeleton"></span>
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div class="ops-alert ops-alert--danger" role="alert" *ngIf="!auditLoading && auditErrorMessage">
+          <mat-icon aria-hidden="true">error_outline</mat-icon>
+          <div class="ops-alert-body"><strong>Audit trail unavailable</strong><span>{{ auditErrorMessage }}</span></div>
+          <button type="button" class="ops-btn ops-btn--secondary ops-btn--sm" (click)="retryAudit()">Retry</button>
+        </div>
+        <div class="ops-empty" *ngIf="!auditLoading && !auditErrorMessage && auditEvents.length === 0">
+          <mat-icon aria-hidden="true">history</mat-icon>
+          <strong>No audit events recorded</strong>
+          <p>No audit events were recorded for this order.</p>
+        </div>
+        <ng-container *ngIf="!auditLoading && !auditErrorMessage && auditEvents.length > 0">
+          <ol class="ops-timeline">
+            <li class="ops-timeline-item" *ngFor="let event of auditEvents">
+              <span class="ops-timeline-dot tone-info" aria-hidden="true"></span>
+              <div class="ops-timeline-content">
+                <div class="ops-timeline-head">
+                  <strong>{{ auditLabel(event.eventType) }}</strong>
+                  <time [attr.datetime]="event.occurredAt || null">{{ event.occurredAt ? (event.occurredAt | date: 'medium') : 'Time unavailable' }}</time>
+                </div>
+                <div class="order-audit-references" *ngIf="event.executionAttemptId != null || event.tradeId != null || event.cashTransactionId != null">
+                  <span class="ops-id" *ngIf="event.executionAttemptId != null">Attempt #{{ event.executionAttemptId }}</span>
+                  <span class="ops-id" *ngIf="event.tradeId != null">Trade #{{ event.tradeId }}</span>
+                  <span class="ops-id" *ngIf="event.cashTransactionId != null">Cash #{{ event.cashTransactionId }}</span>
+                </div>
+                <ng-container *ngIf="auditDetailEntries(event) as details">
+                  <div class="ops-chip-row" *ngIf="details.length > 0">
+                    <span class="ops-chip" *ngFor="let detail of details"><b>{{ detail.label }}</b>{{ detail.value }}</span>
+                  </div>
+                </ng-container>
+              </div>
+            </li>
+          </ol>
+          <div class="ops-alert ops-alert--danger" role="alert" *ngIf="auditMoreError">
+            <mat-icon aria-hidden="true">error_outline</mat-icon>
+            <div class="ops-alert-body"><strong>Couldn't load more events</strong><span>{{ auditMoreError }}</span></div>
+          </div>
+          <div class="order-audit-footer">
+            <p class="ops-muted" role="status" aria-live="polite">
+              Showing <strong>{{ auditEvents.length | number }}</strong> of <strong>{{ auditTotal | number }}</strong> {{ auditTotal === 1 ? 'event' : 'events' }}
+              <span *ngIf="auditLoadingMore"> · Loading more events…</span>
+            </p>
+            <button *ngIf="hasMoreAudit" type="button" class="ops-btn ops-btn--secondary" (click)="loadMoreAudit()" [disabled]="auditLoadingMore">
+              <mat-icon aria-hidden="true" *ngIf="!auditLoadingMore">{{ auditMoreError ? 'refresh' : 'expand_more' }}</mat-icon>
+              {{ auditLoadingMore ? 'Loading…' : auditMoreError ? 'Retry more events' : 'Show more events' }}
+            </button>
+          </div>
+        </ng-container>
+      </section>
+    </ng-container>
+  </div>
+</app-internal-layout>
