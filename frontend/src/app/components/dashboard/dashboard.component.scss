@@ -391,11 +391,21 @@ button {
 }
 
 .avatar-24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 36px;
   height: 36px;
-  object-fit: cover;
   border: 1px solid rgba(0, 171, 104, 1);
-  border-radius: 18px;
+  border-radius: 50%;
+  background-color: #2a2a2a;
+  overflow: hidden;
+}
+
+.avatar-24 svg {
+  width: 22px;
+  height: 22px;
+  fill: #bdbdbd;
 }
 
 .text-26 {

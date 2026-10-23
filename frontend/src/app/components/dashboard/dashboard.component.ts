@@ -10,8 +10,8 @@ import { MatCardModule } from '@angular/material/card';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatListModule } from '@angular/material/list';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { Subject, Subscription, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
+import { EMPTY, Subject, Subscription, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrument.service';
 import {
@@ -105,6 +105,10 @@ interface TicketInstrument {
 
 /** How often the dashboard refreshes portfolio, prices and order status while visible. */
 const LIVE_UPDATE_MS = 15000;
+/** How often a just-placed order is re-read while a fill is still in flight. */
+const ORDER_WATCH_MS = 1000;
+/** After this many quick reads, a resting order is checked on the normal dashboard cadence. */
+const ORDER_WATCH_FAST_TICKS = 20;
 /** How long a changed value stays highlighted. */
 const HIGHLIGHT_MS = 2000;
 /** News and movers change slowly and are cached server-side; refresh them every 5 minutes. */
@@ -237,6 +241,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   orderSubmitMessage = '';
   orderSubmitError = '';
   orderResult: OrderResult | null = null;
+  private orderWatchId: number | null = null;
+  private readonly orderWatch$ = new Subject<number>();
+  private readonly stopOrderWatch$ = new Subject<void>();
 
   // Every way a panel opens or closes (its own buttons, opening the other
   // panel, picking an instrument from search...) goes through these setters,
@@ -742,6 +749,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.dialog.open(InstrumentExpandedComponent, {
       id: 'instrument-expanded-dialog',
+      panelClass: 'instrument-dialog',
       data: {
         instrumentId: Number(instrument.instrumentId),
         symbol: instrument.symbol,
@@ -751,9 +759,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         priceCurrencyCode: instrument.priceCurrencyCode,
         isTradeable: instrument.isTradeable
       },
-      width: '80vw',
-      height: '80vh',
-      maxWidth: '95vw',
+      width: '980px',
+      maxWidth: '94vw',
+      maxHeight: '90vh',
       autoFocus: false,
       restoreFocus: true
     }).afterClosed()
@@ -770,6 +778,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
           name: result.instrument.name
         });
       });
+
+    this.startOrderWatch();
 
     if (this.walkthroughService.isPending()) {
       this.startTour();
@@ -1318,6 +1328,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const symbol = this.ticketInstrument.symbol;
     this.orderSubmitError = '';
     this.orderSubmitMessage = '';
+    this.stopOrderWatch$.next();
+    this.orderWatchId = null;
     this.orderResult = null;
     this.orderSubmitInProgress = true;
 
@@ -1332,7 +1344,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         next: (response) => {
           const executed = response as PlaceOrderSuccess;
           const order = executed.order ?? (response as OrderResponse);
-          this.orderResult = this.describeAcceptedOrder(order, executed.trade ?? null, symbol);
+          this.showOrderResult(order, symbol, executed.trade ?? null);
           // Clear the quantity so the same order can't be sent twice by accident
           this.orderForm.quantity = null;
           this.refreshPortfolioSlice();
@@ -1342,6 +1354,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
         },
         error: (error: HttpErrorResponse) => {
           this.orderResult = this.describeFailedOrder(error);
+          const order = (error.error as TradeApiError | null)?.order;
+          if (this.orderResult.kind === 'pending' && order?.order_id) {
+            this.followOrder(order.order_id);
+          }
           if (this.orderResult.kind !== 'error') {
             this.refreshPortfolioSlice();
             this.refreshActivityIfLoaded();
@@ -1353,6 +1369,65 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   dismissOrderResult(): void {
     this.orderResult = null;
+    this.orderWatchId = null;
+    this.stopOrderWatch$.next();
+  }
+
+  /**
+   * A market fill lands just after the accepted response. Keep reading that order
+   * so the yellow waiting card can switch to filled or rejected without a page refresh.
+   * Quick reads cover the fill; later reads cover a resting limit order.
+   */
+  private startOrderWatch(): void {
+    this.orderWatch$.pipe(
+      switchMap((orderId) => timer(ORDER_WATCH_MS, ORDER_WATCH_MS).pipe(
+        filter((tick) => !document.hidden && (tick <= ORDER_WATCH_FAST_TICKS || tick % 15 === 0)),
+        switchMap(() => this.tradeService.getOrder(orderId).pipe(catchError(() => EMPTY))),
+        takeWhile((order) => !this.isTerminalOrderStatus(order.order_status), true),
+        takeUntil(this.stopOrderWatch$)
+      )),
+      takeUntil(this.destroy$)
+    ).subscribe((order) => this.applyWatchedOrder(order));
+  }
+
+  private followOrder(orderId: number): void {
+    this.orderWatchId = orderId;
+    this.orderWatch$.next(orderId);
+  }
+
+  private applyWatchedOrder(order: OrderResponse): void {
+    if (this.orderWatchId !== order.order_id || !this.orderResult) {
+      return;
+    }
+    const next = this.describeOrder(order, order.instrument_symbol);
+    const becameFinal = this.orderResult.kind === 'pending' && next.kind !== 'pending';
+    if (!becameFinal && next.detail === this.orderResult.detail) {
+      return;
+    }
+    this.orderResult = next;
+    if (!becameFinal) {
+      return;
+    }
+    this.orderWatchId = null;
+    this.refreshPortfolioSlice();
+    this.refreshActivityIfLoaded();
+    if (this.ticketInstrument) {
+      this.requestPreview();
+    }
+  }
+
+  private showOrderResult(order: OrderResponse, symbol: string, trade: TradeResponse | null): void {
+    const described = trade && order.order_status === 'FILLED'
+      ? this.describeAcceptedOrder(order, trade, symbol)
+      : this.describeOrder(order, symbol);
+    this.orderResult = described;
+    if (described.kind === 'pending') {
+      this.followOrder(order.order_id);
+    }
+  }
+
+  private isTerminalOrderStatus(status: string): boolean {
+    return status === 'FILLED' || status === 'REJECTED' || status === 'CANCELLED' || status === 'EXPIRED';
   }
 
   private setTicketInstrument(instrument: TicketInstrument): void {
@@ -1408,13 +1483,45 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private describeAcceptedOrder(order: OrderResponse, trade: TradeResponse | null, symbol: string): OrderResult {
     const quantity = this.formatQuantity(trade?.executed_quantity ?? order.quantity);
-    if (trade && order.order_status === 'FILLED') {
+    const verb = order.order_action === 'SELL' ? 'Sold' : 'Bought';
+    const total = this.formatUsd(trade?.total_usd_value);
+    return {
+      kind: 'filled',
+      title: `${verb} ${quantity} ${symbol} at ${this.formatUsd(trade?.execution_price)}`,
+      detail: `${order.order_action === 'SELL' ? 'You received' : 'Total cost'} ${total}. Your holdings and cash are updated. Order #${order.order_id}.`
+    };
+  }
+
+  private describeOrder(order: OrderResponse, symbol: string): OrderResult {
+    const quantity = this.formatQuantity(order.quantity);
+    if (order.order_status === 'FILLED') {
       const verb = order.order_action === 'SELL' ? 'Sold' : 'Bought';
-      const total = this.formatUsd(trade.total_usd_value);
+      const total = this.formatUsd(order.total_usd_value);
       return {
         kind: 'filled',
-        title: `${verb} ${quantity} ${symbol} at ${this.formatUsd(trade.execution_price)}`,
+        title: `${verb} ${quantity} ${symbol} at ${this.formatUsd(order.execution_price)}`,
         detail: `${order.order_action === 'SELL' ? 'You received' : 'Total cost'} ${total}. Your holdings and cash are updated. Order #${order.order_id}.`
+      };
+    }
+    if (order.order_status === 'REJECTED') {
+      return {
+        kind: 'rejected',
+        title: 'Order not completed',
+        detail: `${order.rejection_reason || 'The order was rejected.'} Nothing was charged. Order #${order.order_id} is recorded as rejected.`
+      };
+    }
+    if (order.order_status === 'CANCELLED') {
+      return {
+        kind: 'rejected',
+        title: 'Order cancelled',
+        detail: `Order #${order.order_id} was cancelled. Nothing was charged.`
+      };
+    }
+    if (order.order_status === 'EXPIRED') {
+      return {
+        kind: 'rejected',
+        title: 'Order expired',
+        detail: `Order #${order.order_id} expired before it was filled. Nothing was charged.`
       };
     }
     return {

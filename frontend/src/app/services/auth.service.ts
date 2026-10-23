@@ -76,8 +76,7 @@ export class AuthService {
     email: string,
     password: string,
     confirmPassword: string,
-    dateOfBirth: string,
-    taxId: string
+    dateOfBirth: string
   ): Observable<AuthResponse> {
 
     const body = {
@@ -86,8 +85,7 @@ export class AuthService {
       email,
       password,
       confirmPassword,
-      dateOfBirth,
-      taxId
+      dateOfBirth
     };
 
     return this.http
