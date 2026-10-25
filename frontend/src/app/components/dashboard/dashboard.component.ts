@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -15,7 +15,6 @@ import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, fin
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrument.service';
 import {
-  MarketMover,
   MarketMovers,
   MarketNews,
   MarketService,
@@ -306,8 +305,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private marketService: MarketService,
     private watchlistService: WatchlistService,
     private tradeService: TradeService,
-    private walkthroughService: WalkthroughService
+    private walkthroughService: WalkthroughService,
+    private host: ElementRef<HTMLElement>
   ) {}
+
+  /** Watches the header bar so the side sheets can start right below it. */
+  private headerResizeObserver?: ResizeObserver;
 
   get displayName(): string {
     const preferredName = this.currentUser?.firstName?.trim();
@@ -498,16 +501,20 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   /** Movers that are offered on the platform open the trade ticket; others are information only. */
-  openMover(mover: MarketMover): void {
-    if (mover.instrumentId === null) {
-      return;
+  /**
+   * Open the instrument view for a symbol shown anywhere on the dashboard
+   * (holdings, watchlist, activity, movers). Stops the click so a row's own
+   * action, like expanding an activity row, doesn't also fire.
+   */
+  openInstrumentView(instrumentId: number | null | undefined, symbol: string, event?: Event): void {
+    event?.stopPropagation();
+    event?.preventDefault();
+    const instrument = (instrumentId != null
+      ? this.allInstruments.find((candidate) => Number(candidate.instrumentId) === Number(instrumentId))
+      : undefined) ?? this.allInstruments.find((candidate) => candidate.symbol === symbol);
+    if (instrument) {
+      this.openInstrumentDialog(instrument);
     }
-    const instrument = this.allInstruments.find((candidate) => Number(candidate.instrumentId) === mover.instrumentId);
-    this.setTicketInstrument({
-      instrumentId: mover.instrumentId,
-      symbol: mover.symbol,
-      name: instrument?.name ?? mover.name
-    });
   }
 
   /** Plain-language reason the cash form can't be submitted, or '' if it can. */
@@ -550,8 +557,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.cashAmount && this.cashAmount > 0 && !this.cashAmountIssue ? `${verb} ${this.formatUsd(this.cashAmount)}` : verb;
   }
 
+  /** False after a click outside the header search or Esc; focusing the box shows results again. */
+  searchResultsVisible = true;
+
   get hasSearchResults(): boolean {
-    return this.searchQuery.trim().length > 0 && this.searchResults.length > 0;
+    return this.searchResultsVisible && this.searchQuery.trim().length > 0 && this.searchResults.length > 0;
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const search = this.host.nativeElement.querySelector('.top-nav-2 .search-container-14');
+    if (search && !search.contains(event.target as Node)) {
+      this.searchResultsVisible = false;
+    }
   }
 
   get accountCards(): SummaryCard[] {
@@ -579,16 +597,42 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // The header is sticky, so the sheets start at its height. It can change
+    // height as the user and market status load, or when it wraps.
+    const header = this.host.nativeElement.querySelector<HTMLElement>('.top-nav-2');
+    if (header && typeof ResizeObserver !== 'undefined') {
+      this.headerResizeObserver = new ResizeObserver(() => {
+        this.host.nativeElement.style.setProperty('--header-h', `${header.offsetHeight}px`);
+      });
+      this.headerResizeObserver.observe(header);
+    }
+
     this.authService.currentUser$
       .pipe(takeUntil(this.destroy$))
       .subscribe((user) => {
         this.currentUser = user;
-        // The override endpoint is admin-only; customers would only get a
-        // 403. The role may arrive after init (e.g. from /auth/me), so check
-        // on every emission but load once.
-        if (user?.role === 'ADMIN' && !this.marketOverrideRequested) {
+        // Load the override status once a user is signed in. The switch only
+        // appears where the server allows it (local development).
+        if (user && !this.marketOverrideRequested) {
           this.marketOverrideRequested = true;
           this.loadMarketOverride();
+        }
+      });
+
+    // The instrument view can add to or create watchlists; reflect that here
+    this.watchlistService.changed$
+      .pipe(
+        switchMap(() => this.watchlistService.getWatchlists().pipe(catchError(() => of<WatchlistResponse[] | null>(null)))),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((watchlists) => {
+        if (!watchlists) {
+          return;
+        }
+        this.watchlists = watchlists;
+        const active = watchlists.find((watchlist) => watchlist.watchlistId === this.activeWatchlistId) ?? watchlists[0];
+        if (active) {
+          this.loadWatchlistInstruments(active.watchlistId, active.watchlistName);
         }
       });
 
@@ -750,6 +794,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.dialog.open(InstrumentExpandedComponent, {
       id: 'instrument-expanded-dialog',
       panelClass: 'instrument-dialog',
+      backdropClass: 'leaping-dim-backdrop',
+      // Matches the opening animation's length so closing can play it in reverse (styles.scss)
+      exitAnimationDuration: '150ms',
       data: {
         instrumentId: Number(instrument.instrumentId),
         symbol: instrument.symbol,
@@ -787,6 +834,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.headerResizeObserver?.disconnect();
     if (this.highlightTimer) {
       clearTimeout(this.highlightTimer);
     }
@@ -795,6 +843,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   onSearchInput(): void {
+    this.searchResultsVisible = true;
     this.searchSubject$.next(this.searchQuery);
   }
 
@@ -1098,11 +1147,31 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.cashPanelOpen = false;
   }
 
+  /** Close whichever side sheet is open (backdrop click or Esc). */
+  closePanels(): void {
+    if (this.tradePanelOpen) {
+      this.toggleTradePanel();
+    }
+    this.closeCashPanel();
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.hasSearchResults) {
+      this.searchResultsVisible = false;
+      return;
+    }
+    // The tour handles its own keys and expects the panel it points at to stay open
+    if (this.tourStepIndex === null) {
+      this.closePanels();
+    }
+  }
+
   get tourStep(): WalkthroughStep | null {
     return this.tourStepIndex === null ? null : this.tourSteps[this.tourStepIndex];
   }
 
-  /** Turn the after-hours override on or off, keeping the menu open so the switch visibly flips. */
+  /** Turn the market closed override on or off, keeping the menu open so the switch visibly flips. */
   toggleMarketOverride(event: Event): void {
     event.stopPropagation();
     if (!this.marketOverride?.allowed || this.marketOverrideSaving) {
