@@ -284,16 +284,19 @@ export class WalkthroughComponent implements AfterViewInit, OnChanges, OnDestroy
 
     const rect = target.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
-    if (rect.top >= SCREEN_MARGIN && rect.bottom <= viewportHeight - SCREEN_MARGIN) {
+    // The dashboard header sticks to the top, so the usable area starts below it
+    const topInset = target.closest('.top-nav-2') ? 0 : this.stickyHeaderBottom();
+    if (rect.top >= topInset + SCREEN_MARGIN && rect.bottom <= viewportHeight - SCREEN_MARGIN) {
       return Promise.resolve();
     }
 
     const scroller = document.scrollingElement ?? document.documentElement;
     const startTop = scroller.scrollTop;
+    const visibleHeight = viewportHeight - topInset;
     // Tall sections line up with the top so their heading stays on screen.
-    const offset = rect.height > viewportHeight * 0.6
-      ? rect.top - SCROLL_TOP_MARGIN
-      : rect.top - (viewportHeight - rect.height) / 2;
+    const offset = rect.height > visibleHeight * 0.6
+      ? rect.top - topInset - SCROLL_TOP_MARGIN
+      : rect.top - topInset - (visibleHeight - rect.height) / 2;
     const endTop = this.clamp(startTop + offset, 0, scroller.scrollHeight - viewportHeight);
     const distance = endTop - startTop;
 
@@ -329,6 +332,15 @@ export class WalkthroughComponent implements AfterViewInit, OnChanges, OnDestroy
       cancelAnimationFrame(this.scrollFrame);
       this.scrollFrame = null;
     }
+  }
+
+  // Bottom edge of a header pinned to the top of the window (0 when it scrolls away).
+  private stickyHeaderBottom(): number {
+    const header = document.querySelector<HTMLElement>('.top-nav-2');
+    if (!header || getComputedStyle(header).position !== 'sticky') {
+      return 0;
+    }
+    return Math.max(0, header.getBoundingClientRect().bottom);
   }
 
   // Elements inside a fixed panel (like the trade drawer) don't move when the page scrolls.
