@@ -109,8 +109,13 @@ public class MarketDataIngestionService {
         // Daily history is written for every universe row, including an equity
         // whose exchange is closed on this first start. Live ticks stay inside
         // market hours, so that opening price does not move until the session opens.
-        backfillHistoricalPrices(universe);
-        appendLiveTicks(universe);
+        // Hold the tick lock for the whole backfill: it writes the same instrument
+        // and price rows as a live refresh, so taking the lock only for the ticks
+        // would let a refresh grab it and then wait on rows this transaction holds.
+        synchronized (liveTickLock) {
+            backfillHistoricalPrices(universe);
+            appendLiveTicks(universe);
+        }
     }
 
     @Scheduled(
