@@ -583,6 +583,7 @@ main() {
 
     start_postgres
     start_spring
+    # Needs Flyway's tables, so it must follow start_spring.
     start_reporting_standby
     start_analytics
     start_frontend

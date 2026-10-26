@@ -29,8 +29,9 @@ export class JwtInterceptor implements HttpInterceptor {
 
     return next.handle(request).pipe(
       catchError((error: HttpErrorResponse) => {
-        // Refresh only for an unauthenticated request. A 403 means the
-        // session is known but the user is not permitted to access a route.
+        // The backend returns 401 for missing, invalid or expired tokens and
+        // 403 when an authenticated user lacks the role for a route. Only a
+        // 401 means the session needs refreshing.
         if (
           error.status === 401
           && !this.isRefreshUrl(request.url)

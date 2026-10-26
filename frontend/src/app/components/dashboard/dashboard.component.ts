@@ -10,8 +10,8 @@ import { MatCardModule } from '@angular/material/card';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatListModule } from '@angular/material/list';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { Subject, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
+import { EMPTY, Subject, Subscription, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, exhaustMap, filter, finalize, map, switchMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { AuthService, User } from '../../services/auth.service';
 import { InstrumentService, Instrument } from '../../services/instrument.service';
 import {
@@ -22,7 +22,8 @@ import {
   MarketOverrideStatus,
   MarketStatusResponse,
   NewsItem,
-  PricePointResponse
+  PricePointResponse,
+  QuoteResponse
 } from '../../services/market.service';
 import {
   CashDirection,
@@ -104,6 +105,10 @@ interface TicketInstrument {
 
 /** How often the dashboard refreshes portfolio, prices and order status while visible. */
 const LIVE_UPDATE_MS = 15000;
+/** How often a just-placed order is re-read while a fill is still in flight. */
+const ORDER_WATCH_MS = 1000;
+/** After this many quick reads, a resting order is checked on the normal dashboard cadence. */
+const ORDER_WATCH_FAST_TICKS = 20;
 /** How long a changed value stays highlighted. */
 const HIGHLIGHT_MS = 2000;
 /** News and movers change slowly and are cached server-side; refresh them every 5 minutes. */
@@ -161,6 +166,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   marketStatus: MarketStatusResponse | null = null;
   /** After-hours testing switch; null until loaded, and only shown where the backend allows it. */
   marketOverride: MarketOverrideStatus | null = null;
+  private marketOverrideRequested = false;
   marketOverrideSaving = false;
   portfolio: PortfolioResponse | null = null;
   holdings: DashboardHolding[] = [];
@@ -176,6 +182,26 @@ export class DashboardComponent implements OnInit, OnDestroy {
   watchlists: WatchlistResponse[] = [];
   watchlistInstruments: WatchlistInstrumentResponse[] = [];
   activeWatchlistName = 'Watchlist';
+  activeWatchlistId: number | null = null;
+  watchlistQuotes: Record<string, QuoteResponse> = {};
+  // In-flight watchlist requests, cancelled when the user switches lists so a
+  // slow response for the previous list cannot overwrite the current one.
+  private watchlistInstrumentsRequest?: Subscription;
+  private watchlistQuotesRequest?: Subscription;
+  watchlistLoading = false;
+  watchlistQuotesLoading = false;
+  watchlistSaving = false;
+  watchlistError = '';
+  watchlistSearchQuery = '';
+  watchlistSearchResults: Instrument[] = [];
+  watchlistSearchLoading = false;
+  watchlistSearchError = '';
+  showCreateWatchlist = false;
+  newWatchlistName = '';
+  showRenameWatchlist = false;
+  renameWatchlistName = '';
+  watchlistAddingInstrumentId: number | null = null;
+  watchlistRemovingInstrumentId: number | null = null;
   activityOrders: OrderResponse[] = [];
   activityPage = 0;
   activityHasMore = false;
@@ -215,6 +241,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   orderSubmitMessage = '';
   orderSubmitError = '';
   orderResult: OrderResult | null = null;
+  private orderWatchId: number | null = null;
+  private readonly orderWatch$ = new Subject<number>();
+  private readonly stopOrderWatch$ = new Subject<void>();
 
   // Every way a panel opens or closes (its own buttons, opening the other
   // panel, picking an instrument from search...) goes through these setters,
@@ -259,6 +288,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly rangeOptions: RangeKey[] = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
   private destroy$ = new Subject<void>();
   private searchSubject$ = new Subject<string>();
+  private watchlistSearch$ = new Subject<string>();
   private holdingsSearch$ = new Subject<string>();
   private ticketSearch$ = new Subject<string>();
   private previewRequest$ = new Subject<void>();
@@ -360,6 +390,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get watchlistCount(): number {
     return this.watchlistInstruments.length;
+  }
+
+  get activeWatchlist(): WatchlistResponse | null {
+    return this.watchlists.find((watchlist) => watchlist.watchlistId === this.activeWatchlistId) ?? null;
+  }
+
+  get watchlistSearchMatches(): Instrument[] {
+    const watchedIds = new Set(this.watchlistInstruments.map((instrument) => instrument.instrumentId));
+    return this.watchlistSearchResults.filter((instrument) => !watchedIds.has(Number(instrument.instrumentId)));
+  }
+
+  getWatchlistQuote(symbol: string): QuoteResponse | null {
+    return this.watchlistQuotes[symbol] ?? null;
   }
 
   get filteredHoldings(): DashboardHolding[] {
@@ -540,6 +583,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((user) => {
         this.currentUser = user;
+        // The override endpoint is admin-only; customers would only get a
+        // 403. The role may arrive after init (e.g. from /auth/me), so check
+        // on every emission but load once.
+        if (user?.role === 'ADMIN' && !this.marketOverrideRequested) {
+          this.marketOverrideRequested = true;
+          this.loadMarketOverride();
+        }
       });
 
     this.searchSubject$
@@ -550,6 +600,35 @@ export class DashboardComponent implements OnInit, OnDestroy {
       )
       .subscribe((query) => {
         this.performSearch(query);
+      });
+
+    this.watchlistSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          if (!query.trim()) {
+            this.watchlistSearchLoading = false;
+            this.watchlistSearchError = '';
+            return of<Instrument[]>([]);
+          }
+
+          this.watchlistSearchLoading = true;
+          this.watchlistSearchError = '';
+          return this.instrumentService.searchInstruments(query).pipe(
+            catchError(() => {
+              this.watchlistSearchError = 'Search is unavailable right now. Try again in a moment.';
+              return of<Instrument[]>([]);
+            }),
+            finalize(() => {
+              this.watchlistSearchLoading = false;
+            })
+          );
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((results) => {
+        this.watchlistSearchResults = results.filter((instrument) => instrument.isActive).slice(0, 6);
       });
 
     this.ticketSearch$
@@ -650,7 +729,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
 
     this.loadDashboard();
-    this.loadMarketOverride();
     this.startLiveUpdates();
     this.startMarketContextUpdates();
 
@@ -671,6 +749,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.dialog.open(InstrumentExpandedComponent, {
       id: 'instrument-expanded-dialog',
+      panelClass: 'instrument-dialog',
       data: {
         instrumentId: Number(instrument.instrumentId),
         symbol: instrument.symbol,
@@ -680,9 +759,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         priceCurrencyCode: instrument.priceCurrencyCode,
         isTradeable: instrument.isTradeable
       },
-      width: '80vw',
-      height: '80vh',
-      maxWidth: '95vw',
+      width: '980px',
+      maxWidth: '94vw',
+      maxHeight: '90vh',
       autoFocus: false,
       restoreFocus: true
     }).afterClosed()
@@ -700,6 +779,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
         });
       });
 
+    this.startOrderWatch();
+
     if (this.walkthroughService.isPending()) {
       this.startTour();
     }
@@ -715,6 +796,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   onSearchInput(): void {
     this.searchSubject$.next(this.searchQuery);
+  }
+
+  onWatchlistSearchInput(): void {
+    this.watchlistSearch$.next(this.watchlistSearchQuery);
   }
 
   onHoldingsFilterInput(): void {
@@ -744,6 +829,196 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (tab === 'activity' && !this.activityLoaded) {
       this.loadActivity(true);
     }
+  }
+
+  selectWatchlist(watchlistId: number | string): void {
+    const selectedId = Number(watchlistId);
+    const selected = this.watchlists.find((watchlist) => watchlist.watchlistId === selectedId);
+    if (!selected || selected.watchlistId === this.activeWatchlistId) {
+      return;
+    }
+
+    this.showRenameWatchlist = false;
+    this.watchlistError = '';
+    this.loadWatchlistInstruments(selected.watchlistId, selected.watchlistName);
+  }
+
+  toggleCreateWatchlist(): void {
+    this.showCreateWatchlist = !this.showCreateWatchlist;
+    this.showRenameWatchlist = false;
+    this.newWatchlistName = '';
+    this.watchlistError = '';
+  }
+
+  createWatchlist(): void {
+    const name = this.newWatchlistName.trim();
+    if (!name || this.watchlistSaving) {
+      return;
+    }
+
+    this.watchlistSaving = true;
+    this.watchlistError = '';
+    this.watchlistService.createWatchlist({ watchlistName: name })
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistSaving = false;
+        })
+      )
+      .subscribe({
+        next: (watchlist) => {
+          this.watchlists = [...this.watchlists, watchlist];
+          this.showCreateWatchlist = false;
+          this.newWatchlistName = '';
+          this.loadWatchlistInstruments(watchlist.watchlistId, watchlist.watchlistName);
+        },
+        error: () => {
+          this.watchlistError = 'Could not create that watchlist. Please try again.';
+        }
+      });
+  }
+
+  startRenameWatchlist(): void {
+    if (!this.activeWatchlist) {
+      return;
+    }
+
+    this.showCreateWatchlist = false;
+    this.showRenameWatchlist = true;
+    this.renameWatchlistName = this.activeWatchlist.watchlistName;
+    this.watchlistError = '';
+  }
+
+  renameWatchlist(): void {
+    const active = this.activeWatchlist;
+    const name = this.renameWatchlistName.trim();
+    if (!active || !name || this.watchlistSaving) {
+      return;
+    }
+
+    this.watchlistSaving = true;
+    this.watchlistError = '';
+    this.watchlistService.renameWatchlist(active.watchlistId, { watchlistName: name })
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistSaving = false;
+        })
+      )
+      .subscribe({
+        next: (watchlist) => {
+          this.watchlists = this.watchlists.map((item) => item.watchlistId === watchlist.watchlistId ? watchlist : item);
+          this.activeWatchlistName = watchlist.watchlistName;
+          this.showRenameWatchlist = false;
+        },
+        error: () => {
+          this.watchlistError = 'Could not rename that watchlist. Please try again.';
+        }
+      });
+  }
+
+  deleteActiveWatchlist(): void {
+    const active = this.activeWatchlist;
+    if (!active || this.watchlistSaving || !window.confirm(`Delete ${active.watchlistName}?`)) {
+      return;
+    }
+
+    this.watchlistSaving = true;
+    this.watchlistError = '';
+    this.watchlistService.deleteWatchlist(active.watchlistId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistSaving = false;
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.watchlists = this.watchlists.filter((item) => item.watchlistId !== active.watchlistId);
+          const nextWatchlist = this.watchlists[0];
+          if (nextWatchlist) {
+            this.loadWatchlistInstruments(nextWatchlist.watchlistId, nextWatchlist.watchlistName);
+          } else {
+            this.activeWatchlistId = null;
+            this.activeWatchlistName = 'Watchlist';
+            this.watchlistInstruments = [];
+            this.watchlistQuotes = {};
+          }
+        },
+        error: () => {
+          this.watchlistError = 'Could not delete that watchlist. Please try again.';
+        }
+      });
+  }
+
+  addWatchlistInstrument(instrument: Instrument): void {
+    if (!this.activeWatchlistId || this.watchlistAddingInstrumentId !== null) {
+      return;
+    }
+
+    const watchlistId = this.activeWatchlistId;
+    const instrumentId = Number(instrument.instrumentId);
+    this.watchlistAddingInstrumentId = instrumentId;
+    this.watchlistError = '';
+    this.watchlistService.addInstrument(watchlistId, instrumentId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistAddingInstrumentId = null;
+        })
+      )
+      .subscribe({
+        next: (addedInstrument) => {
+          // The user may have switched lists; the add still succeeded on the
+          // original list, which reloads from the server when reselected.
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistInstruments = [...this.watchlistInstruments, addedInstrument];
+          this.watchlistSearchQuery = '';
+          this.watchlistSearchResults = [];
+          this.watchlistSearchError = '';
+          this.refreshWatchlistQuotes();
+        },
+        error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistError = `${instrument.symbol} could not be added. It may already be on this list.`;
+        }
+      });
+  }
+
+  removeWatchlistInstrument(instrument: WatchlistInstrumentResponse): void {
+    if (!this.activeWatchlistId || this.watchlistRemovingInstrumentId !== null) {
+      return;
+    }
+
+    const watchlistId = this.activeWatchlistId;
+    this.watchlistRemovingInstrumentId = instrument.instrumentId;
+    this.watchlistError = '';
+    this.watchlistService.removeInstrument(watchlistId, instrument.instrumentId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistRemovingInstrumentId = null;
+        })
+      )
+      .subscribe({
+        next: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistInstruments = this.watchlistInstruments.filter((item) => item.instrumentId !== instrument.instrumentId);
+          this.refreshWatchlistQuotes();
+        },
+        error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
+          this.watchlistError = `${instrument.symbol} could not be removed. Please try again.`;
+        }
+      });
   }
 
   loadMoreActivity(): void {
@@ -1053,6 +1328,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const symbol = this.ticketInstrument.symbol;
     this.orderSubmitError = '';
     this.orderSubmitMessage = '';
+    this.stopOrderWatch$.next();
+    this.orderWatchId = null;
     this.orderResult = null;
     this.orderSubmitInProgress = true;
 
@@ -1067,7 +1344,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         next: (response) => {
           const executed = response as PlaceOrderSuccess;
           const order = executed.order ?? (response as OrderResponse);
-          this.orderResult = this.describeAcceptedOrder(order, executed.trade ?? null, symbol);
+          this.showOrderResult(order, symbol, executed.trade ?? null);
           // Clear the quantity so the same order can't be sent twice by accident
           this.orderForm.quantity = null;
           this.refreshPortfolioSlice();
@@ -1077,6 +1354,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
         },
         error: (error: HttpErrorResponse) => {
           this.orderResult = this.describeFailedOrder(error);
+          const order = (error.error as TradeApiError | null)?.order;
+          if (this.orderResult.kind === 'pending' && order?.order_id) {
+            this.followOrder(order.order_id);
+          }
           if (this.orderResult.kind !== 'error') {
             this.refreshPortfolioSlice();
             this.refreshActivityIfLoaded();
@@ -1088,6 +1369,65 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   dismissOrderResult(): void {
     this.orderResult = null;
+    this.orderWatchId = null;
+    this.stopOrderWatch$.next();
+  }
+
+  /**
+   * A market fill lands just after the accepted response. Keep reading that order
+   * so the yellow waiting card can switch to filled or rejected without a page refresh.
+   * Quick reads cover the fill; later reads cover a resting limit order.
+   */
+  private startOrderWatch(): void {
+    this.orderWatch$.pipe(
+      switchMap((orderId) => timer(ORDER_WATCH_MS, ORDER_WATCH_MS).pipe(
+        filter((tick) => !document.hidden && (tick <= ORDER_WATCH_FAST_TICKS || tick % 15 === 0)),
+        switchMap(() => this.tradeService.getOrder(orderId).pipe(catchError(() => EMPTY))),
+        takeWhile((order) => !this.isTerminalOrderStatus(order.order_status), true),
+        takeUntil(this.stopOrderWatch$)
+      )),
+      takeUntil(this.destroy$)
+    ).subscribe((order) => this.applyWatchedOrder(order));
+  }
+
+  private followOrder(orderId: number): void {
+    this.orderWatchId = orderId;
+    this.orderWatch$.next(orderId);
+  }
+
+  private applyWatchedOrder(order: OrderResponse): void {
+    if (this.orderWatchId !== order.order_id || !this.orderResult) {
+      return;
+    }
+    const next = this.describeOrder(order, order.instrument_symbol);
+    const becameFinal = this.orderResult.kind === 'pending' && next.kind !== 'pending';
+    if (!becameFinal && next.detail === this.orderResult.detail) {
+      return;
+    }
+    this.orderResult = next;
+    if (!becameFinal) {
+      return;
+    }
+    this.orderWatchId = null;
+    this.refreshPortfolioSlice();
+    this.refreshActivityIfLoaded();
+    if (this.ticketInstrument) {
+      this.requestPreview();
+    }
+  }
+
+  private showOrderResult(order: OrderResponse, symbol: string, trade: TradeResponse | null): void {
+    const described = trade && order.order_status === 'FILLED'
+      ? this.describeAcceptedOrder(order, trade, symbol)
+      : this.describeOrder(order, symbol);
+    this.orderResult = described;
+    if (described.kind === 'pending') {
+      this.followOrder(order.order_id);
+    }
+  }
+
+  private isTerminalOrderStatus(status: string): boolean {
+    return status === 'FILLED' || status === 'REJECTED' || status === 'CANCELLED' || status === 'EXPIRED';
   }
 
   private setTicketInstrument(instrument: TicketInstrument): void {
@@ -1143,13 +1483,45 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private describeAcceptedOrder(order: OrderResponse, trade: TradeResponse | null, symbol: string): OrderResult {
     const quantity = this.formatQuantity(trade?.executed_quantity ?? order.quantity);
-    if (trade && order.order_status === 'FILLED') {
+    const verb = order.order_action === 'SELL' ? 'Sold' : 'Bought';
+    const total = this.formatUsd(trade?.total_usd_value);
+    return {
+      kind: 'filled',
+      title: `${verb} ${quantity} ${symbol} at ${this.formatUsd(trade?.execution_price)}`,
+      detail: `${order.order_action === 'SELL' ? 'You received' : 'Total cost'} ${total}. Your holdings and cash are updated. Order #${order.order_id}.`
+    };
+  }
+
+  private describeOrder(order: OrderResponse, symbol: string): OrderResult {
+    const quantity = this.formatQuantity(order.quantity);
+    if (order.order_status === 'FILLED') {
       const verb = order.order_action === 'SELL' ? 'Sold' : 'Bought';
-      const total = this.formatUsd(trade.total_usd_value);
+      const total = this.formatUsd(order.total_usd_value);
       return {
         kind: 'filled',
-        title: `${verb} ${quantity} ${symbol} at ${this.formatUsd(trade.execution_price)}`,
+        title: `${verb} ${quantity} ${symbol} at ${this.formatUsd(order.execution_price)}`,
         detail: `${order.order_action === 'SELL' ? 'You received' : 'Total cost'} ${total}. Your holdings and cash are updated. Order #${order.order_id}.`
+      };
+    }
+    if (order.order_status === 'REJECTED') {
+      return {
+        kind: 'rejected',
+        title: 'Order not completed',
+        detail: `${order.rejection_reason || 'The order was rejected.'} Nothing was charged. Order #${order.order_id} is recorded as rejected.`
+      };
+    }
+    if (order.order_status === 'CANCELLED') {
+      return {
+        kind: 'rejected',
+        title: 'Order cancelled',
+        detail: `Order #${order.order_id} was cancelled. Nothing was charged.`
+      };
+    }
+    if (order.order_status === 'EXPIRED') {
+      return {
+        kind: 'rejected',
+        title: 'Order expired',
+        detail: `Order #${order.order_id} expired before it was filled. Nothing was charged.`
       };
     }
     return {
@@ -1235,6 +1607,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
         if (watchlists.length > 0) {
           this.loadWatchlistInstruments(watchlists[0].watchlistId, watchlists[0].watchlistName);
+        } else {
+          this.activeWatchlistId = null;
+          this.activeWatchlistName = 'Watchlist';
+          this.watchlistInstruments = [];
+          this.watchlistQuotes = {};
         }
       });
   }
@@ -1270,6 +1647,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .subscribe((portfolio) => {
         if (portfolio) {
           this.applyLivePortfolio(portfolio);
+        }
+        if (this.activeWatchlistId !== null) {
+          this.refreshWatchlistQuotes();
         }
         // Keep the first page of activity current (e.g. orders placed in another tab)
         if (this.activityLoaded && this.activityPage === 0 && this.selectedTab === 'activity') {
@@ -1373,16 +1753,65 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private loadWatchlistInstruments(watchlistId: number, watchlistName: string): void {
+    // Cancel before setting state: finalize() on the old request resets loading.
+    this.watchlistInstrumentsRequest?.unsubscribe();
+    this.watchlistQuotesRequest?.unsubscribe();
+    this.activeWatchlistId = watchlistId;
     this.activeWatchlistName = watchlistName;
-    this.watchlistService.getWatchlistInstruments(watchlistId)
-      .pipe(takeUntil(this.destroy$))
+    this.watchlistLoading = true;
+    this.watchlistError = '';
+    this.watchlistInstrumentsRequest = this.watchlistService.getWatchlistInstruments(watchlistId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistLoading = false;
+        })
+      )
       .subscribe({
         next: (instruments: WatchlistInstrumentResponse[]) => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistInstruments = instruments;
+          this.refreshWatchlistQuotes();
         },
         error: () => {
+          if (this.activeWatchlistId !== watchlistId) {
+            return;
+          }
           this.watchlistInstruments = [];
+          this.watchlistQuotes = {};
+          this.watchlistError = 'Could not load this watchlist. Please try again.';
         }
+      });
+  }
+
+  private refreshWatchlistQuotes(): void {
+    this.watchlistQuotesRequest?.unsubscribe();
+    const watchlistId = this.activeWatchlistId;
+    const symbols = this.watchlistInstruments.map((instrument) => instrument.symbol);
+    if (symbols.length === 0) {
+      this.watchlistQuotes = {};
+      return;
+    }
+
+    this.watchlistQuotesLoading = true;
+    this.watchlistQuotesRequest = this.marketService.getQuotes(symbols)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(() => of<QuoteResponse[]>([])),
+        finalize(() => {
+          this.watchlistQuotesLoading = false;
+        })
+      )
+      .subscribe((quotes) => {
+        if (this.activeWatchlistId !== watchlistId) {
+          return;
+        }
+        this.watchlistQuotes = quotes.reduce<Record<string, QuoteResponse>>((lookup, quote) => {
+          lookup[quote.symbol] = quote;
+          return lookup;
+        }, {});
       });
   }
 

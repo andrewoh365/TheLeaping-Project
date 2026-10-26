@@ -46,11 +46,11 @@ class MarketOverrideSecurityTest {
     @Test
     void anonymousCannotReadOrChangeMarketOverride() throws Exception {
         mockMvc.perform(get("/api/market/override"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(put("/api/market/override")
                         .contentType("application/json")
                         .content("{\"enabled\":true}"))
-                        .andExpect(status().isForbidden());
+                        .andExpect(status().isUnauthorized());
     }
 
     @Test

@@ -361,11 +361,11 @@ export class AnalyticsDashboardComponent
             .getAllInstruments()
             .pipe(takeUntil(this.destroy$))
             .subscribe({
-                next: instruments => {
+                next: (instruments: Instrument[]) => {
                     this.allInstruments = instruments;
                     this.filteredInstruments = instruments;
                 },
-                error: error => {
+                error: (error: unknown) => {
                     console.error(
                         'Failed to load instruments for analytics:',
                         error

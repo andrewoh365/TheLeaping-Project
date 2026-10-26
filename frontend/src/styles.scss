@@ -247,6 +247,12 @@ body {
   font-size: 12px !important;
 }
 
+.mat-mdc-card-title {
+  color: var(--primary-accent-color-color) !important;
+  align-items: center;
+  text-align: center  ;
+}
+
 .mat-mdc-form-field-hint {
   color: var(--muted-text-color) !important;
 }
@@ -397,6 +403,13 @@ body {
   background-color: var(--background-color) !important;
   border-radius: 8px !important;
   margin: 0 !important;
+}
+
+.instrument-dialog .mat-mdc-dialog-surface {
+  padding: 0;
+  border: 1px solid #3a3a3a;
+  overflow: hidden;
+  background-color: #1a1a1a !important;
 }
 
 .mat-mdc-dialog-content {

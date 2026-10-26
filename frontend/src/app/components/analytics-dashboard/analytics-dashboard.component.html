@@ -154,6 +154,27 @@
         </mat-select>
       </mat-form-field>
 
+      <!-- CLIENT SEGMENT -->
+      <mat-form-field appearance="outline">
+        <mat-label>Client Segment</mat-label>
+
+        <mat-select [(ngModel)]="clientSegment">
+          <mat-option value="">All</mat-option>
+          <mat-option value="INACTIVE">
+            Inactive (0 orders)
+          </mat-option>
+          <mat-option value="OCCASIONAL">
+            Occasional (1–9 orders)
+          </mat-option>
+          <mat-option value="REGULAR">
+            Regular (10–19 orders)
+          </mat-option>
+          <mat-option value="FREQUENT">
+            Frequent (20+ orders)
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
       <!-- FILTER BUTTONS -->
       <div class="filter-actions">
 
