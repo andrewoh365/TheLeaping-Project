@@ -25,6 +25,30 @@ import {
 
 import { AuthService } from '../../services/auth.service';
 
+/** A one-click login for one of the BRS personas, mapped to a seeded demo account. */
+interface DemoLogin {
+  persona: string;
+  role: string;
+  email: string;
+  password: string;
+}
+
+/*
+ * Demo accounts for the three BRS personas (section 6). These are the seeded
+ * development credentials (DataSeeder and V7__seed_internal_users.sql).
+ *
+ * Gated on ngDevMode rather than isDevMode(): the Angular CLI replaces ngDevMode
+ * with `false` in production builds, so this list is stripped from the bundle
+ * entirely instead of merely being hidden at runtime.
+ */
+declare const ngDevMode: boolean | undefined;
+
+const DEMO_LOGINS: DemoLogin[] = [
+  { persona: 'Joanna', role: 'Investor', email: 'john.trader@example.com', password: 'password123' },
+  { persona: 'Priya', role: 'Analyst', email: 'analytics.analyst@leap.local', password: 'Analyst123!' },
+  { persona: 'David', role: 'Operations', email: 'analytics.admin@leap.local', password: 'Admin123!' }
+];
+
 @Component({
   selector: 'app-login',
   standalone: true,
@@ -52,6 +76,9 @@ export class LoginComponent implements OnInit {
   returnUrl = '';
   hidePassword = true;
   errorMessage = '';
+
+  readonly demoLogins: DemoLogin[] = typeof ngDevMode === 'undefined' || ngDevMode ? DEMO_LOGINS : [];
+  activeDemo: string | null = null;
 
   constructor(
     private formBuilder: FormBuilder,
@@ -157,6 +184,7 @@ export class LoginComponent implements OnInit {
 
         error: error => {
           this.loading = false;
+          this.activeDemo = null;
 
           this.errorMessage =
             error.error?.message ||
@@ -171,6 +199,16 @@ export class LoginComponent implements OnInit {
           );
         }
       });
+  }
+
+  /** Fill in a persona's demo credentials and sign in. */
+  loginAs(demo: DemoLogin): void {
+    if (this.loading) {
+      return;
+    }
+    this.activeDemo = demo.persona;
+    this.loginForm.setValue({ email: demo.email, password: demo.password });
+    this.onSubmit();
   }
 
   togglePasswordVisibility(): void {

@@ -1,14 +1,12 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, Inject, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, HostListener, Inject, OnDestroy, OnInit } from '@angular/core';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { CommonModule } from '@angular/common';
-import { Chart, ChartOptions, registerables } from 'chart.js';
+import { FormsModule } from '@angular/forms';
+import { MatIconModule } from '@angular/material/icon';
 import { InstrumentDetail, InstrumentService, PricePointDto } from '../../services/instrument.service';
-import { ChartConfig } from '../../models/chart.model';
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
-
-Chart.register(...registerables);
+import { WatchlistResponse, WatchlistService } from '../../services/watchlist.service';
+import { forkJoin, Observable, of, Subject } from 'rxjs';
+import { catchError, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 
 export interface InstrumentExpandedData {
   instrumentId: number;
@@ -16,7 +14,7 @@ export interface InstrumentExpandedData {
   isActive: boolean;
   name: string;
   instrumentType: string;
-  priceCurrencyCode: string;  
+  priceCurrencyCode: string;
   price?: number | null;
   lastUpdated?: string | null;
   marketName?: string;
@@ -32,12 +30,27 @@ export interface InstrumentTradeAction {
   instrument: InstrumentExpandedData;
 }
 
+interface WatchlistMembership {
+  watchlist: WatchlistResponse;
+  contains: boolean;
+}
+
+interface AxisTick {
+  position: number;
+  label: string;
+  y?: number;
+}
+
 type ChartRange = '1D' | '1W' | '1M';
+
+const CHART_WIDTH = 1000;
+const CHART_HEIGHT = 260;
+const CHART_INSET = 10;
 
 @Component({
   selector: 'app-instrument-expanded',
   standalone: true,
-  imports: [CommonModule, MatDialogModule, MatButtonModule],
+  imports: [CommonModule, FormsModule, MatIconModule],
   templateUrl: './instrument-expanded.component.html',
   styleUrl: './instrument-expanded.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -46,80 +59,154 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
   private static readonly MAX_CHART_POINTS = 240;
   private readonly destroy$ = new Subject<void>();
   private requestVersion = 0;
+  private domainMin = 0;
+  private domainMax = 1;
   readonly chartRanges: ChartRange[] = ['1D', '1W', '1M'];
   activeChartRange: ChartRange = '1M';
 
-  @ViewChild('priceChart') priceChartRef?: ElementRef;
-  chartConfig?: ChartConfig;
   selectedPrice: number | null = null;
-  displayCurrencyCode = 'USD';
+  selectedLabel = '';
+  rangeChange: number | null = null;
+  rangeChangePercent: number | null = null;
   isLoading = false;
-  chart?: Chart;
+  hasChart = false;
+  linePath = '';
+  areaPath = '';
+  yTicks: AxisTick[] = [];
+  xTicks: AxisTick[] = [];
+  markerX: number | null = null;
   private chartPrices: PricePointDto[] = [];
-  
-  chartOptions: ChartOptions<'line'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false,
-    normalized: true,
-    interaction: {
-      mode: 'nearest',
-      intersect: false
-    },
-    layout: {
-      padding: 10
-    },
-    plugins: {
-      legend: {
-        display: false
-      }
-    },
-    onClick: (_event, elements) => {
-      const element = elements[0];
-      if (!element || !this.chartPrices[element.index]) {
-        return;
-      }
 
-      this.ngZone.run(() => {
-        this.selectedPrice = this.chartPrices[element.index].price;
-        this.cdr.markForCheck();
-      });
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false
-        },
-        ticks: {
-          color: '#fafafa',
-          maxRotation: 0,
-          autoSkip: true,
-          maxTicksLimit: 8
-        }
-      },
-      y: {
-        beginAtZero: false,
-        grid: {
-          color: '#2c2c2c'
-        },
-        ticks: {
-          color: '#fafafa'
-        }
-      }
-    }
-  };
+  // Watchlist menu: which of the user's lists hold this instrument
+  watchlistMemberships: WatchlistMembership[] = [];
+  watchlistMenuOpen = false;
+  watchlistLoaded = false;
+  watchlistBusyId: number | null = null;
+  watchlistCreating = false;
+  newWatchlistName = '';
+  watchlistError = '';
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: InstrumentExpandedData,
     private instrumentService: InstrumentService,
+    private watchlistService: WatchlistService,
     private dialogRef: MatDialogRef<InstrumentExpandedComponent>,
-    private ngZone: NgZone,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private host: ElementRef<HTMLElement>
   ) {}
 
   ngOnInit(): void {
     this.loadInstrumentDetail();
     this.loadPriceHistory();
+    this.loadWatchlistMemberships();
+  }
+
+  get onAnyWatchlist(): boolean {
+    return this.watchlistMemberships.some((membership) => membership.contains);
+  }
+
+  toggleWatchlistMenu(): void {
+    this.watchlistMenuOpen = !this.watchlistMenuOpen;
+    this.watchlistError = '';
+    this.newWatchlistName = '';
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.watchlistMenuOpen) {
+      return;
+    }
+    const menu = this.host.nativeElement.querySelector('.watchlist-control');
+    if (menu && !menu.contains(event.target as Node)) {
+      this.watchlistMenuOpen = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  /** Add this instrument to the list, or take it off if it's already there. */
+  toggleWatchlist(membership: WatchlistMembership): void {
+    if (this.watchlistBusyId !== null) {
+      return;
+    }
+    const watchlistId = membership.watchlist.watchlistId;
+    const request: Observable<unknown> = membership.contains
+      ? this.watchlistService.removeInstrument(watchlistId, this.data.instrumentId)
+      : this.watchlistService.addInstrument(watchlistId, this.data.instrumentId);
+
+    this.watchlistBusyId = watchlistId;
+    this.watchlistError = '';
+    request
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistBusyId = null;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: () => {
+          membership.contains = !membership.contains;
+          this.watchlistService.notifyChanged();
+        },
+        error: () => {
+          this.watchlistError = membership.contains
+            ? `Couldn't remove ${this.data.symbol} from ${membership.watchlist.watchlistName}.`
+            : `Couldn't add ${this.data.symbol} to ${membership.watchlist.watchlistName}.`;
+        }
+      });
+  }
+
+  /** Create a new list and put this instrument straight on it. */
+  createWatchlistWithInstrument(): void {
+    const name = this.newWatchlistName.trim() || 'My Watchlist';
+    if (this.watchlistCreating) {
+      return;
+    }
+    this.watchlistCreating = true;
+    this.watchlistError = '';
+    this.watchlistService.createWatchlist({ watchlistName: name })
+      .pipe(
+        switchMap((watchlist) => this.watchlistService.addInstrument(watchlist.watchlistId, this.data.instrumentId)
+          .pipe(map(() => watchlist))),
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistCreating = false;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: (watchlist) => {
+          this.watchlistMemberships = [...this.watchlistMemberships, { watchlist, contains: true }];
+          this.newWatchlistName = '';
+          this.watchlistService.notifyChanged();
+        },
+        error: () => {
+          this.watchlistError = "Couldn't create that watchlist. Try a different name.";
+        }
+      });
+  }
+
+  private loadWatchlistMemberships(): void {
+    this.watchlistService.getWatchlists()
+      .pipe(
+        switchMap((watchlists) => watchlists.length === 0
+          ? of<WatchlistMembership[]>([])
+          : forkJoin(watchlists.map((watchlist) =>
+              this.watchlistService.getWatchlistInstruments(watchlist.watchlistId).pipe(
+                map((instruments) => ({
+                  watchlist,
+                  contains: instruments.some((instrument) => instrument.instrumentId === this.data.instrumentId)
+                })),
+                catchError(() => of({ watchlist, contains: false }))
+              )))),
+        catchError(() => of<WatchlistMembership[]>([])),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((memberships) => {
+        this.watchlistMemberships = memberships;
+        this.watchlistLoaded = true;
+        this.cdr.markForCheck();
+      });
   }
 
   setChartRange(range: ChartRange): void {
@@ -128,8 +215,83 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
     }
 
     this.activeChartRange = range;
-    this.selectedPrice = null;
+    this.clearSelection();
+    this.rangeChange = null;
+    this.rangeChangePercent = null;
+    this.clearChart();
     this.loadPriceHistory();
+  }
+
+  get rangeFell(): boolean {
+    return (this.rangeChange ?? 0) < 0;
+  }
+
+  get rangeCaption(): string {
+    switch (this.activeChartRange) {
+      case '1D': return 'today';
+      case '1W': return 'past week';
+      case '1M': return 'past month';
+    }
+  }
+
+  get sessionLabel(): string {
+    const open = this.formatSessionTime(this.data.openTime);
+    const close = this.formatSessionTime(this.data.closeTime);
+    if (open && close) {
+      return `${open} – ${close}`;
+    }
+    return open || close || '—';
+  }
+
+  formatSignedMoney(value: number | null): string {
+    if (value === null || !Number.isFinite(value)) {
+      return '';
+    }
+    const formatted = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(Math.abs(value));
+    if (value > 0) {
+      return `+${formatted}`;
+    }
+    if (value < 0) {
+      return `−${formatted}`;
+    }
+    return formatted;
+  }
+
+  formatSignedPercent(value: number | null): string {
+    if (value === null || !Number.isFinite(value)) {
+      return '';
+    }
+    const formatted = Math.abs(value).toFixed(2);
+    if (value > 0) {
+      return `+${formatted}%`;
+    }
+    if (value < 0) {
+      return `−${formatted}%`;
+    }
+    return `${formatted}%`;
+  }
+
+  selectChartPoint(event: MouseEvent): void {
+    if (this.chartPrices.length < 2) {
+      return;
+    }
+    const svg = event.currentTarget as SVGSVGElement;
+    const bounds = svg.getBoundingClientRect();
+    if (bounds.width <= 0) {
+      return;
+    }
+    const ratio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+    const index = Math.round(ratio * (this.chartPrices.length - 1));
+    const point = this.chartPrices[index];
+    this.selectedPrice = point.price;
+    this.selectedLabel = this.formatChartLabel(point.timestamp);
+    this.markerX = (index / (this.chartPrices.length - 1)) * CHART_WIDTH;
+    this.cdr.markForCheck();
   }
 
   private loadInstrumentDetail(): void {
@@ -137,7 +299,11 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (detail: InstrumentDetail) => {
-          Object.assign(this.data, detail);
+          // Detail price is the stored native print. The chart and header use the USD history.
+          Object.assign(this.data, detail, {
+            price: this.data.price,
+            lastUpdated: this.data.lastUpdated
+          });
           this.cdr.markForCheck();
         },
         error: (error) => {
@@ -172,18 +338,15 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
           : this.keepLatestPricePerDay(prices);
         const sampledPrices = this.downsamplePrices(rangePrices, InstrumentExpandedComponent.MAX_CHART_POINTS);
         this.chartPrices = sampledPrices;
+        this.setRangeChange(sampledPrices);
         const latestPrice = prices[prices.length - 1];
         if (latestPrice) {
           this.data.price = latestPrice.price;
           this.data.lastUpdated = latestPrice.timestamp;
-          this.displayCurrencyCode = latestPrice.currencyCode;
         }
-        this.chartConfig = this.transformToChartData(sampledPrices);
+        this.paintChart(sampledPrices);
         this.isLoading = false;
         this.cdr.markForCheck();
-        requestAnimationFrame(() => {
-          this.ngZone.runOutsideAngular(() => this.renderChart());
-        });
       },
       error: (err) => {
         if (requestVersion !== this.requestVersion) {
@@ -191,6 +354,7 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
         }
 
         console.error('Failed to load price history', err);
+        this.clearChart();
         this.isLoading = false;
         this.cdr.markForCheck();
       }
@@ -205,35 +369,105 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
     }
   }
 
-  private renderChart(): void {
-    if (!this.priceChartRef || !this.chartConfig) {
-      console.warn('Missing priceChartRef or chartConfig');
+  private paintChart(prices: PricePointDto[]): void {
+    if (prices.length < 2) {
+      this.clearChart();
       return;
     }
 
-    if (this.chart) {
-      this.chart.destroy();
-    }
-
-    const canvas = this.priceChartRef.nativeElement;
-    this.chart = new Chart(canvas, {
-      type: 'line',
-      data: {
-        labels: this.chartConfig.labels,
-        datasets: this.chartConfig.datasets.map(ds => ({
-          label: ds.label,
-          data: ds.data,
-          borderColor: ds.borderColor,
-          backgroundColor: ds.backgroundColor,
-          tension: ds.tension,
-          pointRadius: 0,
-          pointHitRadius: 14,
-          borderWidth: 2.5,
-          fill: true
-        }))
-      },
-      options: this.chartOptions
+    const values = prices.map((point) => point.price);
+    const ticks = this.niceTicks(Math.min(...values), Math.max(...values));
+    this.domainMin = ticks[0];
+    this.domainMax = ticks[ticks.length - 1];
+    const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1;
+    this.yTicks = ticks.map((tick) => {
+      const y = this.chartY(tick);
+      return {
+        y,
+        position: y / CHART_HEIGHT,
+        label: this.formatAxisPrice(tick, step)
+      };
     });
+    this.xTicks = this.buildXTicks(prices);
+    this.linePath = values.map((value, index) => {
+      const x = index / (values.length - 1) * CHART_WIDTH;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${this.chartY(value).toFixed(2)}`;
+    }).join(' ');
+    this.areaPath = `${this.linePath} L ${CHART_WIDTH} ${CHART_HEIGHT} L 0 ${CHART_HEIGHT} Z`;
+    this.hasChart = true;
+  }
+
+  private clearChart(): void {
+    this.hasChart = false;
+    this.linePath = '';
+    this.areaPath = '';
+    this.yTicks = [];
+    this.xTicks = [];
+    this.chartPrices = [];
+    this.clearSelection();
+  }
+
+  private clearSelection(): void {
+    this.selectedPrice = null;
+    this.selectedLabel = '';
+    this.markerX = null;
+  }
+
+  private chartY(value: number): number {
+    const fraction = this.domainMax > this.domainMin
+      ? (this.domainMax - value) / (this.domainMax - this.domainMin)
+      : 0.5;
+    return CHART_INSET + fraction * (CHART_HEIGHT - 2 * CHART_INSET);
+  }
+
+  private niceTicks(min: number, max: number, targetSteps = 4): number[] {
+    if (max - min < 1e-9) {
+      const pad = Math.max(Math.abs(max) * 0.001, 1);
+      min -= pad;
+      max += pad;
+    }
+    const rawStep = (max - min) / targetSteps;
+    const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+    const step = [1, 2, 2.5, 5, 10]
+      .map((multiple) => multiple * magnitude)
+      .find((candidate) => candidate >= rawStep) ?? 10 * magnitude;
+    const decimals = Math.max(0, -Math.floor(Math.log10(step)) + 1);
+    const first = Math.floor(min / step) * step;
+    const ticks: number[] = [];
+    for (let tick = first; tick < max + step - 1e-9; tick += step) {
+      ticks.push(Number(tick.toFixed(decimals)));
+    }
+    return ticks;
+  }
+
+  private formatAxisPrice(value: number, step: number): string {
+    const compact = Math.abs(value) >= 100_000;
+    const unit = !compact ? 1 : Math.abs(value) >= 1e9 ? 1e9 : Math.abs(value) >= 1e6 ? 1e6 : 1e3;
+    const digits = Math.min(2, Math.max(0, Math.ceil(-Math.log10(step / unit) - 1e-9)));
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      notation: compact ? 'compact' : 'standard',
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits
+    }).format(value);
+  }
+
+  private buildXTicks(prices: PricePointDto[]): AxisTick[] {
+    const count = prices.length;
+    const ticks: AxisTick[] = [];
+    for (let slot = 0; slot < 5; slot++) {
+      const index = Math.round(slot * (count - 1) / 4);
+      const position = index / (count - 1);
+      if (position < 0.06 || position > 0.94) {
+        continue;
+      }
+      ticks.push({
+        position,
+        label: this.formatChartLabel(prices[index].timestamp)
+      });
+    }
+    return ticks;
   }
 
   private downsamplePrices(prices: PricePointDto[], maxPoints: number): PricePointDto[] {
@@ -265,18 +499,30 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
     });
   }
 
-  private transformToChartData(prices: PricePointDto[]): ChartConfig {
-    return {
-      labels: prices.map(p => this.formatChartLabel(p.timestamp)),
-      datasets: [{
-        label: `${this.data.symbol} Price (${this.displayCurrencyCode})`,
-        data: prices.map(p => p.price),
-        borderColor: '#26d07c',
-        backgroundColor: 'rgba(0, 171, 104, 0.05)',
-        tension: 0.3,
-        fill: true
-      }]
-    };
+  private setRangeChange(prices: PricePointDto[]): void {
+    if (prices.length < 2) {
+      this.rangeChange = null;
+      this.rangeChangePercent = null;
+      return;
+    }
+    const first = prices[0].price;
+    const last = prices[prices.length - 1].price;
+    this.rangeChange = last - first;
+    this.rangeChangePercent = first ? ((last - first) / first) * 100 : null;
+  }
+
+  private formatSessionTime(value?: string): string {
+    if (!value) {
+      return '';
+    }
+    const match = /^(\d{1,2}):(\d{2})/.exec(value);
+    if (!match) {
+      return value;
+    }
+    const hours = Number(match[1]);
+    const suffix = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    return `${hour12}:${match[2]} ${suffix}`;
   }
 
   private formatChartLabel(timestamp: string): string {
@@ -309,11 +555,5 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-
-    if (this.chart) {
-      this.chart.destroy();
-      this.chart = undefined;
-    }
   }
-
 }

@@ -1,47 +1,60 @@
-<nav class="internal-nav" aria-label="Trading Operations navigation">
-
+<header class="internal-nav">
   <div class="internal-nav-brand">
-    <span class="internal-nav-product">
-      LEAP
-    </span>
-
-    <span class="internal-role-badge">
-      Trading Operations
-    </span>
+    <span class="internal-nav-wordmark">LEAPING</span>
+    <span class="internal-role-badge">{{ roleLabel }}</span>
   </div>
 
-
-  <div class="internal-nav-links">
-
+  <nav class="internal-nav-links" aria-label="Internal navigation">
     <a
+      *ngFor="let link of links"
       class="internal-nav-link"
-      routerLink="/admin"
+      [routerLink]="link.route"
       routerLinkActive="active"
-      [routerLinkActiveOptions]="{ exact: true }">
-      Dashboard
+      ariaCurrentWhenActive="page"
+      [routerLinkActiveOptions]="{ exact: link.exact }">
+      {{ link.label }}
     </a>
+  </nav>
 
-    <a
-      class="internal-nav-link"
-      routerLink="/admin/clients"
-      routerLinkActive="active">
-      Clients
-    </a>
-
-    <a
-      class="internal-nav-link"
-      routerLink="/admin/trade-lookup"
-      routerLinkActive="active">
-      Trade Lookup
-    </a>
+  <div class="internal-nav-right">
+    <div
+      class="internal-market-status"
+      *ngIf="marketStatus"
+      [class.closed]="!marketStatus.open"
+      [title]="'NASDAQ · ' + marketStatusLabel">
+      <span class="market-dot" aria-hidden="true"></span>
+      <span class="market-label">{{ marketStatusLabel }}</span>
+    </div>
 
     <button
       type="button"
-      class="logout-link"
-      (click)="logout()">
-      Logout
+      class="internal-profile"
+      [matMenuTriggerFor]="profileMenu"
+      aria-label="Account menu">
+      <span class="internal-avatar" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <circle cx="12" cy="8.5" r="3.4"></circle>
+          <path d="M5 19.2c.9-3.6 3.4-5.4 7-5.4s6.1 1.8 7 5.4"></path>
+        </svg>
+      </span>
+      <span class="internal-profile-name">{{ displayName }}</span>
+      <mat-icon class="internal-profile-caret" aria-hidden="true">expand_more</mat-icon>
     </button>
-
   </div>
 
-</nav>
+  <mat-menu #profileMenu="matMenu" class="profile-menu" xPosition="before" yPosition="below">
+    <div class="internal-user-header">
+      <mat-icon aria-hidden="true">account_circle</mat-icon>
+      <div class="internal-user-info">
+        <span class="internal-user-name">{{ displayName }}</span>
+        <span class="internal-user-email" *ngIf="currentUser?.email">{{ currentUser?.email }}</span>
+        <span class="internal-user-role">{{ isAdmin ? 'Administrator' : 'Analyst' }}</span>
+      </div>
+    </div>
+    <mat-divider></mat-divider>
+    <button mat-menu-item class="logout-button" (click)="logout()">
+      <mat-icon>logout</mat-icon>
+      <span>Logout</span>
+    </button>
+  </mat-menu>
+</header>
