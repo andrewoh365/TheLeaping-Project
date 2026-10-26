@@ -1,11 +1,8 @@
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { ActivatedRoute, Router } from "@angular/router";
-import { MatButtonModule } from "@angular/material/button";
-import { MatCardModule } from "@angular/material/card";
-import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
-import { MatPaginatorModule, PageEvent } from "@angular/material/paginator";
-import { MatTabsModule } from "@angular/material/tabs";
+import { MatIconModule } from "@angular/material/icon";
+import { PageEvent } from "@angular/material/paginator";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import {
@@ -17,18 +14,26 @@ import {
   AdminOrderPage,
   AdminService,
 } from "../../../services/admin.service";
-import { InternalNavComponent } from "../../internal-nav/internal-nav.component";
+import { InternalLayoutComponent } from "../../internal-layout/internal-layout.component";
+import { OpsPagerComponent } from "../../internal-layout/ops-pager.component";
+import { minimumLoadingTime } from "../../internal-layout/minimum-loading-time";
+type ClientDetailTab = "overview" | "holdings" | "orders" | "activity";
+// Audit detail keys whose values are backend enums (e.g. PARTIALLY_FILLED).
+const ENUM_DETAIL_KEYS = new Set([
+  "status",
+  "previousStatus",
+  "newStatus",
+  "action",
+  "transactionType",
+]);
 @Component({
   selector: "app-client-detail",
   standalone: true,
   imports: [
     CommonModule,
-    MatButtonModule,
-    MatCardModule,
-    MatPaginatorModule,
-    MatProgressSpinnerModule,
-    MatTabsModule,
-    InternalNavComponent,
+    MatIconModule,
+    InternalLayoutComponent,
+    OpsPagerComponent,
   ],
   templateUrl: "./client-detail.component.html",
   styleUrls: ["./client-detail.component.scss"],
@@ -54,9 +59,18 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
   totalOrders = 0;
   private clientId = 0;
   errorMessage = "";
+  clientErrorRetryable = false;
   holdingsErrorMessage = "";
   ordersErrorMessage = "";
   activityErrorMessage = "";
+  activeTab: ClientDetailTab = "overview";
+  readonly tabs: ReadonlyArray<{ id: ClientDetailTab; label: string }> = [
+    { id: "overview", label: "Overview" },
+    { id: "holdings", label: "Holdings" },
+    { id: "orders", label: "Orders" },
+    { id: "activity", label: "Activity" },
+  ];
+  readonly skeletonRows = [1, 2, 3, 4, 5, 6];
   private readonly destroy$ = new Subject<void>();
   constructor(
     private route: ActivatedRoute,
@@ -74,6 +88,94 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
     this.loadHoldings(clientId);
     this.loadOrders(clientId);
     this.loadActivity(clientId);
+  }
+  get clientName(): string {
+    if (!this.client) {
+      return "";
+    }
+    return [this.client.firstName, this.client.lastName]
+      .map((part) => part?.trim() ?? "")
+      .filter((part) => part.length > 0)
+      .join(" ");
+  }
+  get clientInitials(): string {
+    if (!this.client) {
+      return "?";
+    }
+    const initials = [this.client.firstName, this.client.lastName]
+      .map((part) => part?.trim().charAt(0) ?? "")
+      .join("");
+    if (initials) {
+      return initials.toUpperCase();
+    }
+    const emailInitial = this.client.email?.trim().charAt(0) ?? "";
+    return emailInitial ? emailInitial.toUpperCase() : "?";
+  }
+  selectTab(tab: ClientDetailTab): void {
+    this.activeTab = tab;
+  }
+  onTabKeydown(event: KeyboardEvent): void {
+    const ids = this.tabs.map((tab) => tab.id);
+    const current = ids.indexOf(this.activeTab);
+    let next: number;
+    switch (event.key) {
+      case "ArrowRight":
+        next = (current + 1) % ids.length;
+        break;
+      case "ArrowLeft":
+        next = (current - 1 + ids.length) % ids.length;
+        break;
+      case "Home":
+        next = 0;
+        break;
+      case "End":
+        next = ids.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    this.selectTab(ids[next]);
+    const tablist = event.currentTarget as HTMLElement | null;
+    tablist
+      ?.querySelector<HTMLElement>(`#client-tab-${ids[next]}`)
+      ?.focus();
+  }
+  tabCount(tab: ClientDetailTab): number | null {
+    switch (tab) {
+      case "holdings":
+        return this.holdingsLoading || this.holdingsErrorMessage
+          ? null
+          : this.totalHoldings;
+      case "orders":
+        return this.ordersLoading || this.ordersErrorMessage
+          ? null
+          : this.totalOrders;
+      case "activity":
+        return this.activity.length === 0 &&
+          (this.activityLoading || this.activityErrorMessage)
+          ? null
+          : this.activityTotalElements;
+      default:
+        return null;
+    }
+  }
+  retryClient(): void {
+    this.loadClient(this.clientId);
+  }
+  retryHoldings(): void {
+    this.loadHoldings(this.clientId);
+  }
+  retryOrders(): void {
+    this.loadOrders(this.clientId);
+  }
+  retryActivity(): void {
+    // Events already on screen mean "Load more" failed; retry that page.
+    if (this.activity.length > 0) {
+      this.loadMoreActivity();
+    } else {
+      this.loadActivity(this.clientId);
+    }
   }
   changeHoldingsPage(event: PageEvent): void {
     this.holdingsPageIndex = event.pageIndex;
@@ -104,6 +206,15 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
       this.loadActivity(clientId, this.activityPage + 1, true);
     }
   }
+  trackByHoldingId(_index: number, holding: AdminHolding): number {
+    return holding.holding_id;
+  }
+  trackByOrderId(_index: number, order: AdminOrderLookup): number {
+    return order.orderId;
+  }
+  trackByAuditEventId(_index: number, event: AdminAuditEvent): number {
+    return event.auditEventId;
+  }
   activityLabel(eventType: string): string {
     const labels: Record<string, string> = {
       ORDER_SUBMITTED: "Order submitted",
@@ -120,6 +231,29 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
       HOLDING_CHANGED: "Holding changed",
     };
     return labels[eventType] || this.humanizeEventType(eventType);
+  }
+  // Timeline dot colour: failures red, fills green, order lifecycle blue,
+  // ledger effects (cash / holdings) amber, anything else neutral.
+  activityTone(eventType: string): string {
+    const type = (eventType || "").toUpperCase();
+    if (type.includes("REJECT") || type.includes("FAIL")) {
+      return "tone-danger";
+    }
+    if (type.includes("FILL")) {
+      return "tone-success";
+    }
+    if (type.includes("CASH") || type.includes("HOLDING")) {
+      return "tone-warning";
+    }
+    if (
+      type.includes("SUBMIT") ||
+      type.includes("ACCEPT") ||
+      type.includes("VALIDAT") ||
+      type.includes("CAPTURED")
+    ) {
+      return "tone-info";
+    }
+    return "";
   }
   activityInstrument(event: AdminAuditEvent): string {
     const symbol = this.detailValue(event, "symbol");
@@ -174,9 +308,10 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
   private loadClient(clientId: number): void {
     this.loading = true;
     this.errorMessage = "";
+    this.clientErrorRetryable = false;
     this.adminService
       .getClient(clientId)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (client) => {
           this.client = client;
@@ -193,6 +328,7 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
               "You do not have permission to view this client.";
           } else {
             this.errorMessage = "Unable to load client details.";
+            this.clientErrorRetryable = true;
           }
         },
       });
@@ -206,11 +342,17 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
         this.holdingsPageIndex,
         this.holdingsPageSize,
       )
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (response: AdminHoldingPage) => {
+          const lastPage = Math.max(0, Math.ceil(response.totalElements / response.size) - 1);
+          if (response.totalElements > 0 && response.page > lastPage) {
+            this.holdingsPageIndex = lastPage;
+            this.loadHoldings(clientId);
+            return;
+          }
           this.holdings = response.holdings;
-          this.holdingsPageIndex = response.page;
+          this.holdingsPageIndex = response.totalElements === 0 ? 0 : response.page;
           this.holdingsPageSize = response.size;
           this.totalHoldings = response.totalElements;
           this.holdingsLoading = false;
@@ -234,11 +376,17 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
     this.ordersErrorMessage = "";
     this.adminService
       .getClientOrders(clientId, this.ordersPageIndex, this.ordersPageSize)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (response: AdminOrderPage) => {
+          const lastPage = Math.max(0, Math.ceil(response.totalElements / response.size) - 1);
+          if (response.totalElements > 0 && response.page > lastPage) {
+            this.ordersPageIndex = lastPage;
+            this.loadOrders(clientId);
+            return;
+          }
           this.orders = response.orders;
-          this.ordersPageIndex = response.page;
+          this.ordersPageIndex = response.totalElements === 0 ? 0 : response.page;
           this.ordersPageSize = response.size;
           this.totalOrders = response.totalElements;
           this.ordersLoading = false;
@@ -262,7 +410,7 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
     this.activityErrorMessage = "";
     this.adminService
       .getClientActivity(clientId, page, this.activityPageSize)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(minimumLoadingTime(), takeUntil(this.destroy$))
       .subscribe({
         next: (activityPage) => {
           this.activity = append
@@ -321,6 +469,13 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
         return date.toLocaleString();
       }
     }
+    if (
+      typeof value === "string" &&
+      ENUM_DETAIL_KEYS.has(key) &&
+      /^[A-Z][A-Z0-9_]*$/.test(value)
+    ) {
+      return this.humanizeEnum(value);
+    }
     return String(value);
   }
   private humanizeEventType(eventType: string): string {
@@ -329,6 +484,11 @@ export class ClientDetailComponent implements OnInit, OnDestroy {
       .split("_")
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
+  }
+  // PARTIALLY_FILLED -> "Partially filled"
+  private humanizeEnum(value: string): string {
+    const words = value.toLowerCase().split("_").filter(Boolean).join(" ");
+    return words.charAt(0).toUpperCase() + words.slice(1);
   }
   private scrollToTop(): void {
     window.scrollTo({

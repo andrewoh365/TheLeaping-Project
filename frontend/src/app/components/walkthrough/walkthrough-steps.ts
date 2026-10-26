@@ -47,10 +47,17 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     backOn: 'cashPanelClosed'
   },
   {
+    id: 'close-transfer-panel',
+    target: 'cash-panel-close',
+    title: 'Cash added!',
+    body: 'Your deposit went through. Close the transfer panel before moving on to your first trade.',
+    advanceOn: 'cashPanelClosed'
+  },
+  {
     id: 'trade-button',
     target: 'trade-button',
     title: 'Time to invest',
-    body: 'Your cash is in. Now click Trade to buy your first investment.',
+    body: 'Now click Trade to buy your first investment.',
     advanceOn: 'tradePanelOpened'
   },
   {
@@ -70,6 +77,12 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     advanceOn: 'tradePanelClosed'
   },
   {
+    id: 'search',
+    target: 'search',
+    title: 'Find any investment',
+    body: 'Search for any stock, crypto or currency up here. Open one to see its price chart, buy or sell it, or press Watchlist to keep an eye on it.'
+  },
+  {
     id: 'performance-chart',
     target: 'performance-chart',
     title: 'Portfolio Performance',
@@ -79,7 +92,7 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     id: 'holdings',
     target: 'holdings',
     title: 'Your holdings',
-    body: 'Everything you own is listed here, with what you paid, today\'s price and your gain or loss. The tabs switch to your Watchlist, Crypto and a history of your orders under Activity.'
+    body: 'Everything you own is listed here, with what you paid, today\'s price and your gain or loss. Click any name for its chart. The tabs switch to your Watchlist (anything you\'re watching), Crypto and a history of your orders under Activity.'
   },
   {
     id: 'market-news',
@@ -91,6 +104,6 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     id: 'market-movers',
     target: 'market-movers',
     title: 'Market Movers',
-    body: 'Today\'s biggest gainers and losers. Click one at any time to open it in the trade panel. That\'s the tour. Happy investing!'
+    body: 'Today\'s biggest gainers and losers among the most traded US stocks. Click one we offer to see its chart and trade it. That\'s the tour. Happy investing!'
   }
 ];

@@ -54,12 +54,26 @@ class MarketOverrideSecurityTest {
     }
 
     @Test
-    void customerCannotReadOrChangeMarketOverride() throws Exception {
+    void customerCanReadAndChangeMarketOverride() throws Exception {
         authenticateAs("CUSTOMER");
+        when(marketOverride.isAllowed()).thenReturn(true);
+        when(marketOverride.isActive()).thenReturn(false);
 
         mockMvc.perform(get("/api/market/override")
                         .header("Authorization", "Bearer customer-token"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/market/override")
+                        .header("Authorization", "Bearer customer-token")
+                        .contentType("application/json")
+                        .content("{\"enabled\":true}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void nobodyCanTurnOnMarketOverrideWhereItIsNotAllowed() throws Exception {
+        authenticateAs("CUSTOMER");
+        when(marketOverride.isAllowed()).thenReturn(false);
+
         mockMvc.perform(put("/api/market/override")
                         .header("Authorization", "Bearer customer-token")
                         .contentType("application/json")

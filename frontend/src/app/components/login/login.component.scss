@@ -1,18 +1,90 @@
 .login-container {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: var(--background-color);
   padding: 20px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 120%, #10261f 0%, var(--background-color) 60%);
 }
 
+/* ---------- Decorative backdrop ---------- */
+
+.login-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.45;
+  will-change: transform;
+}
+
+.glow-a {
+  width: 520px;
+  height: 520px;
+  top: -160px;
+  left: -120px;
+  background: var(--primary-color);
+  animation: drift-a 22s ease-in-out infinite alternate;
+}
+
+.glow-b {
+  width: 460px;
+  height: 460px;
+  right: -140px;
+  bottom: -120px;
+  background: var(--secondary-color);
+  opacity: 0.3;
+  animation: drift-b 26s ease-in-out infinite alternate;
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(250, 250, 250, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(250, 250, 250, 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+  /* Fade the grid out toward the edges */
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+}
+
+@keyframes drift-a {
+  to { transform: translate(140px, 90px) scale(1.12); }
+}
+
+@keyframes drift-b {
+  to { transform: translate(-120px, -70px) scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow-a,
+  .glow-b {
+    animation: none;
+  }
+}
+
+/* ---------- Card ---------- */
+
 .login-card {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 450px;
-  background-color: var(--secondary-background-color);
-  box-shadow: none;
-  border-radius: 12px;
+  /* Frosted glass so the backdrop shows through */
+  background-color: rgba(42, 42, 42, 0.72) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(250, 250, 250, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  border-radius: 16px;
 }
 
 .login-heading {
@@ -139,6 +211,101 @@ form {
         color: var(--primary-accent-color);
         text-decoration: underline;
       }
+    }
+  }
+}
+/* ---------- Quick demo logins ---------- */
+
+.demo-logins {
+  margin: 8px 0 20px;
+}
+
+.demo-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: var(--muted-text-color);
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1 1 auto;
+    height: 1px;
+    background: rgba(250, 250, 250, 0.1);
+  }
+}
+
+.demo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.demo-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px 12px;
+  border: 1px solid rgba(250, 250, 250, 0.08);
+  border-radius: 12px;
+  background: rgba(26, 26, 26, 0.55);
+  color: var(--text-color);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-color: var(--secondary-color);
+    background: rgba(0, 171, 104, 0.08);
+    transform: translateY(-1px);
+    outline: none;
+  }
+
+  &.active {
+    border-color: var(--secondary-color);
+    background: rgba(0, 171, 104, 0.12);
+  }
+
+  &:disabled:not(.active) {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.demo-avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+}
+
+.demo-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.demo-role {
+  font-size: 12px;
+  color: var(--muted-text-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-option {
+    transition: none;
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      transform: none;
     }
   }
 }

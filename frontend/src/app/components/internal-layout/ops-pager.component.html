@@ -1,0 +1,65 @@
+<div class="ops-pager" role="navigation" [attr.aria-label]="'Pagination for ' + itemLabel">
+  <p class="ops-pager-range">
+    <ng-container *ngIf="length > 0; else noRows">
+      Showing <strong>{{ rangeStart | number }}–{{ rangeEnd | number }}</strong>
+      of <strong>{{ length | number }}</strong> {{ itemLabel }}
+    </ng-container>
+    <ng-template #noRows>No {{ itemLabel }}</ng-template>
+  </p>
+
+  <div class="ops-pager-controls">
+    <label class="ops-pager-size">
+      <span>Rows</span>
+      <select
+        class="ops-select"
+        [value]="pageSize"
+        [disabled]="disabled"
+        (change)="changePageSize($any($event.target).value)"
+        aria-label="Rows per page">
+        <option *ngFor="let option of pageSizeOptions" [value]="option" [selected]="option === pageSize">
+          {{ option }}
+        </option>
+      </select>
+    </label>
+
+    <div class="ops-pager-steps">
+      <button
+        type="button"
+        class="ops-icon-btn"
+        aria-label="First page"
+        title="First page"
+        [disabled]="disabled || !hasPrevious"
+        (click)="goTo(0)">
+        <mat-icon>first_page</mat-icon>
+      </button>
+      <button
+        type="button"
+        class="ops-icon-btn"
+        aria-label="Previous page"
+        title="Previous page"
+        [disabled]="disabled || !hasPrevious"
+        (click)="goTo(currentPageIndex - 1)">
+        <mat-icon>chevron_left</mat-icon>
+      </button>
+      <span class="ops-pager-page">Page {{ currentPageIndex + 1 | number }} of {{ pageCount | number }}</span>
+      <button
+        type="button"
+        class="ops-icon-btn"
+        aria-label="Next page"
+        title="Next page"
+        [disabled]="disabled || !hasNext"
+        (click)="goTo(currentPageIndex + 1)">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+      <button
+        type="button"
+        class="ops-icon-btn"
+        aria-label="Last page"
+        title="Last page"
+        [disabled]="disabled || !hasNext"
+        (click)="goTo(pageCount - 1)">
+        <mat-icon>last_page</mat-icon>
+      </button>
+    </div>
+  </div>
+</div>

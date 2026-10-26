@@ -21,3 +21,9 @@ jwt:
 # server:
 #   cors:
 #     allowed-origins: http://localhost:4200,http://localhost:3000
+
+# Show the "Market closed override" switch in the dashboard profile menu so trades can be
+# tried outside market hours. Local development only; leave it off everywhere else.
+trading:
+  market-override:
+    allowed: true
