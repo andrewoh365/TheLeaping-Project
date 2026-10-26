@@ -1,8 +1,40 @@
 <div class="login-container">
-  <mat-card class="login-card">
+  <div class="auth-glow auth-glow-one" aria-hidden="true"></div>
+  <div class="auth-glow auth-glow-two" aria-hidden="true"></div>
+  <div *ngFor="let particle of particles" class="particle" aria-hidden="true" [style.left]="particle.x + '%'" [style.top]="particle.y + '%'" [style.width.px]="particle.size" [style.height.px]="particle.size" [style.opacity]="particle.opacity" [style.animation-delay.s]="particle.delay" [style.animation-duration.s]="particle.duration"></div>
+  <div class="auth-brand" aria-label="Leaping">
+    <span class="auth-brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32" focusable="false">
+        <path class="brand-monogram" d="M7 4v24h17"></path>
+        <path class="brand-trend" d="m12 21 5-5 4 2 7-9m-5 0h5v5"></path>
+      </svg>
+    </span>
+    <span>LEAPING</span>
+  </div>
+  <main class="auth-layout login-layout">
+    <section class="auth-intro" aria-labelledby="login-intro-title">
+      <span class="intro-kicker"><span class="status-dot"></span> YOUR PORTFOLIO, IN FOCUS</span>
+      <h1 id="login-intro-title">Make your next move with <span>more clarity.</span></h1>
+      <p class="intro-description">Follow your investments, explore market trends, and keep your financial picture organized in one secure place.</p>
+      <div class="intro-features">
+        <div>
+          <span class="intro-feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4 19.5h16M5.5 16v-4m5 4V7m5 9v-6m4 6v-8"></path>
+              <path d="m5.5 9 4-3 4 2 6-5"></path>
+            </svg>
+          </span>
+          <span>Portfolio performance at a glance</span>
+        </div>
+        <div><mat-icon>candlestick_chart</mat-icon><span>Market data to inform your view</span></div>
+        <div><mat-icon>verified_user</mat-icon><span>Account access built around security</span></div>
+      </div>
+      <div class="intro-footnote"><span class="market-indicator"></span><span>A clearer perspective on your financial journey</span></div>
+    </section>
+    <mat-card class="login-card">
     <mat-card-header>
       <mat-card-title>Login</mat-card-title>
-      <mat-card-subtitle>Welcome back to Leaping</mat-card-subtitle>
+      <mat-card-subtitle>Welcome back!  </mat-card-subtitle>
     </mat-card-header>
 
     <mat-card-content>
@@ -76,7 +108,9 @@
       <div class="links">
         <p>Don't have an account? <a routerLink="/register">Register here</a></p>
         <p><a href="#forgot">Forgot your password?</a></p>
+        <div class="secure-note"><mat-icon>lock</mat-icon><span>Your account connection is secure</span></div>
       </div>
     </mat-card-content>
-  </mat-card>
+    </mat-card>
+  </main>
 </div>

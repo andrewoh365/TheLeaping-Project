@@ -276,13 +276,48 @@ button {
 
 
 .app-header {
-  display: grid;
-  gap: 1px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .dashboard-brand-mark {
+    display: inline-flex;
+    flex: 0 0 54px;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    height: 54px;
+    color: #f5faf7;
+
+    svg {
+      width: 52px;
+      height: 52px;
+      overflow: visible;
+    }
+
+    .brand-monogram,
+    .brand-trend {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .brand-monogram {
+      stroke: currentColor;
+      stroke-width: 3.4;
+    }
+
+    .brand-trend {
+      stroke: #26d07c;
+      stroke-width: 2.7;
+    }
+  }
 
   strong {
     color: #fafafa;
-    font-size: 30px;
-    letter-spacing: 0.12em;
+    font-size: 36px;
+    line-height: 1;
+    letter-spacing: 0.14em;
   }
 }
 

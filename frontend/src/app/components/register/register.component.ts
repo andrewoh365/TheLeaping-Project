@@ -38,6 +38,14 @@ import { WalkthroughService } from '../../services/walkthrough.service';
   styleUrls: ['./register.component.scss']
 })
 export class RegisterComponent implements OnInit {
+  particles = Array.from({ length: 36 }, () => ({
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    size: Math.random() * 2 + 2,
+    delay: Math.random() * 10,
+    duration: Math.random() * 6 + 8,
+    opacity: Math.random() * 0.18 + 0.12
+  }));
   registerForm!: FormGroup;
   loading = false;
   submitted = false;
