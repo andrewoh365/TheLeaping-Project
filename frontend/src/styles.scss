@@ -164,7 +164,7 @@ body {
     .mat-mdc-form-field.mat-form-field-invalid .mdc-line-ripple,
     .mat-mdc-form-field.mat-form-field-invalid .mdc-line-ripple::before,
     .mat-mdc-form-field.mat-form-field-invalid .mdc-line-ripple::after {
-      background-color: transparent !important;
+      background-color: var(--secondary-background-color) !important;
       border-color: transparent !important;
       box-shadow: none !important;
     }
@@ -437,6 +437,18 @@ body {
 .login-container .login-card .full-width input,
 .register-container .register-card .full-width input {
   background: transparent !important;
+}
+
+.login-container .login-card .full-width input:-webkit-autofill,
+.login-container .login-card .full-width input:-webkit-autofill:hover,
+.login-container .login-card .full-width input:-webkit-autofill:focus,
+.register-container .register-card .full-width input:-webkit-autofill,
+.register-container .register-card .full-width input:-webkit-autofill:hover,
+.register-container .register-card .full-width input:-webkit-autofill:focus {
+  -webkit-box-shadow:  inset 0 0 0 1000px  !important;
+  box-shadow: inset 0 0 0 1000px  !important;
+  -webkit-text-fill-color: var(--text-color) !important;
+  caret-color: var(--primary-accent-color) !important;
 }
 
 .login-container .login-card .mat-mdc-form-field.full-width:hover .mat-mdc-text-field-wrapper,
