@@ -342,6 +342,24 @@ class TradeOrderServiceTest {
     }
 
     @Test
+    void placeOrderShouldRejectMissingInstrument() {
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderAction("BUY");
+        request.setOrderType("MARKET");
+        request.setQuantity(new BigDecimal("1"));
+
+        when(portfolioRepository.findByCustomer_UserId(1L)).thenReturn(Optional.of(portfolio));
+
+        IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> tradeOrderService.placeOrder(1L, request)
+        );
+
+        assertEquals("Instrument is required", ex.getMessage());
+        verifyNoInteractions(instrumentRepository, auditService);
+    }
+
+    @Test
     void cancelOrderShouldSetCancelledStatusForAcceptedOrder() {
         TradeOrder order = new TradeOrder();
         order.setOrderId(500L);

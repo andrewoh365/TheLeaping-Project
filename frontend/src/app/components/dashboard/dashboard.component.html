@@ -341,9 +341,32 @@
           <div class="empty-state" *ngIf="activityLoading && !activityLoaded">Loading your orders...</div>
           <div class="empty-state error" *ngIf="activityError">{{ activityError }}</div>
 
-          <button type="button" class="load-more" *ngIf="activityHasMore" (click)="loadMoreActivity()" [disabled]="activityLoading">
-            {{ activityLoading ? 'Loading...' : 'Show older orders' }}
-          </button>
+          <nav class="activity-pager" *ngIf="activityLoaded && activityTotal > 0" aria-label="Order history pages">
+            <p class="activity-pager-range">
+              Showing {{ activityRangeStart }}–{{ activityRangeEnd }} of {{ activityTotal }} {{ activityTotal === 1 ? 'order' : 'orders' }}
+            </p>
+            <div class="activity-pager-controls" *ngIf="activityTotalPages > 1">
+              <button type="button" class="pager-step" (click)="goToActivityPage(activityPage - 1)" [disabled]="activityPage === 0 || activityLoading" aria-label="Previous page">
+                <mat-icon aria-hidden="true">chevron_left</mat-icon>
+              </button>
+              <ng-container *ngFor="let link of activityPageLinks">
+                <span class="pager-gap" *ngIf="link === null" aria-hidden="true">…</span>
+                <button
+                  *ngIf="link !== null"
+                  type="button"
+                  class="pager-page"
+                  [class.active]="link === activityPage"
+                  [attr.aria-current]="link === activityPage ? 'page' : null"
+                  [attr.aria-label]="'Page ' + (link + 1)"
+                  [disabled]="activityLoading"
+                  (click)="goToActivityPage(link)"
+                >{{ link + 1 }}</button>
+              </ng-container>
+              <button type="button" class="pager-step" (click)="goToActivityPage(activityPage + 1)" [disabled]="activityPage >= activityTotalPages - 1 || activityLoading" aria-label="Next page">
+                <mat-icon aria-hidden="true">chevron_right</mat-icon>
+              </button>
+            </div>
+          </nav>
         </div>
 
         <div *ngIf="selectedTab === 'watchlist'">

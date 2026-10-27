@@ -104,6 +104,8 @@ interface TicketInstrument {
 
 /** How often the dashboard refreshes portfolio, prices and order status while visible. */
 const LIVE_UPDATE_MS = 15000;
+/** Orders per page on the Activity tab. */
+const ACTIVITY_PAGE_SIZE = 10;
 /** How often a just-placed order is re-read while a fill is still in flight. */
 const ORDER_WATCH_MS = 1000;
 /** After this many quick reads, a resting order is checked on the normal dashboard cadence. */
@@ -203,7 +205,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   watchlistRemovingInstrumentId: number | null = null;
   activityOrders: OrderResponse[] = [];
   activityPage = 0;
-  activityHasMore = false;
+  activityTotal = 0;
+  readonly activityPageSize = ACTIVITY_PAGE_SIZE;
   activityLoading = false;
   activityLoaded = false;
   activityError = '';
@@ -876,7 +879,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   setSelectedTab(tab: DashboardTab): void {
     this.selectedTab = tab;
     if (tab === 'activity' && !this.activityLoaded) {
-      this.loadActivity(true);
+      this.loadActivity(0);
     }
   }
 
@@ -1070,8 +1073,44 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
   }
 
-  loadMoreActivity(): void {
-    this.loadActivity(false);
+  get activityTotalPages(): number {
+    return Math.max(1, Math.ceil(this.activityTotal / ACTIVITY_PAGE_SIZE));
+  }
+
+  /** "Showing 11–20 of 42" range for the pager */
+  get activityRangeStart(): number {
+    return this.activityTotal === 0 ? 0 : this.activityPage * ACTIVITY_PAGE_SIZE + 1;
+  }
+
+  get activityRangeEnd(): number {
+    return Math.min(this.activityTotal, (this.activityPage + 1) * ACTIVITY_PAGE_SIZE);
+  }
+
+  /**
+   * Page numbers to show, zero-based. Always the first, last and the pages either side of
+   * the current one; null marks a gap (rendered as an ellipsis), e.g. 1 … 4 5 6 … 12.
+   */
+  get activityPageLinks(): (number | null)[] {
+    const total = this.activityTotalPages;
+    const current = this.activityPage;
+    const links: (number | null)[] = [];
+    for (let page = 0; page < total; page++) {
+      if (page === 0 || page === total - 1 || Math.abs(page - current) <= 1) {
+        links.push(page);
+      } else if (links[links.length - 1] !== null) {
+        links.push(null);
+      }
+    }
+    return links;
+  }
+
+  goToActivityPage(page: number): void {
+    const target = Math.min(Math.max(page, 0), this.activityTotalPages - 1);
+    if (target === this.activityPage || this.activityLoading) {
+      return;
+    }
+    this.expandedOrderId = null;
+    this.loadActivity(target);
   }
 
   toggleOrderDetails(orderId: number): void {
@@ -1720,9 +1759,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         if (this.activeWatchlistId !== null) {
           this.refreshWatchlistQuotes();
         }
-        // Keep the first page of activity current (e.g. orders placed in another tab)
-        if (this.activityLoaded && this.activityPage === 0 && this.selectedTab === 'activity') {
-          this.loadActivity(true);
+        // Keep the visible page of activity current (status changes, orders placed in another tab)
+        if (this.activityLoaded && this.selectedTab === 'activity') {
+          this.loadActivity(this.activityPage);
         }
         if (this.tradePanelOpen && this.ticketInstrument) {
           this.requestPreview();
@@ -1790,12 +1829,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
       });
   }
 
-  private loadActivity(reset: boolean): void {
-    const page = reset ? 0 : this.activityPage + 1;
+  private loadActivity(page: number): void {
     this.activityLoading = true;
     this.activityError = '';
 
-    this.tradeService.getOrderHistory(page)
+    this.tradeService.getOrderHistory(page, ACTIVITY_PAGE_SIZE)
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {
@@ -1804,9 +1842,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (history: OrderHistoryPage) => {
-          this.activityOrders = reset ? history.orders : [...this.activityOrders, ...history.orders];
+          this.activityTotal = history.total_elements;
+          // The page can fall off the end if orders disappear; show the last page instead
+          if (history.orders.length === 0 && page > 0 && history.total_elements > 0) {
+            this.loadActivity(Math.ceil(history.total_elements / ACTIVITY_PAGE_SIZE) - 1);
+            return;
+          }
+          this.activityOrders = history.orders;
           this.activityPage = history.page;
-          this.activityHasMore = history.has_more;
           this.activityLoaded = true;
         },
         error: () => {
@@ -1817,7 +1860,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private refreshActivityIfLoaded(): void {
     if (this.activityLoaded) {
-      this.loadActivity(true);
+      this.loadActivity(this.activityPage);
     }
   }
 

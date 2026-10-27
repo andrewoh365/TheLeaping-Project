@@ -125,6 +125,9 @@ public class TradeOrderService {
             .orElseThrow(() -> new IllegalArgumentException("Portfolio not found for customer"));
 
         // 2. Load instrument
+        if (request.getInstrumentId() == null) {
+            throw new IllegalArgumentException("Instrument is required");
+        }
         Instrument instrument = instrumentRepository.findById(request.getInstrumentId())
             .orElseThrow(() -> new IllegalArgumentException("Instrument not found"));
 
