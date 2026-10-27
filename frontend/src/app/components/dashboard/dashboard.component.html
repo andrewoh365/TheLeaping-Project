@@ -12,33 +12,6 @@
       </div>
     </div>
 
-    <div class="search-container-14" data-tour="search" (focusin)="searchResultsVisible = true">
-      <div class="icon-search-15">
-        <div class="search-16">
-          <img src="assets/figma/images/vector-17.svg" class="vector-17" alt="Search icon" />
-        </div>
-      </div>
-      <input
-        class="search-input-figma"
-        type="text"
-        [(ngModel)]="searchQuery"
-        (input)="onSearchInput()"
-        placeholder="Search stocks, crypto or currencies..."
-        aria-label="Search instruments to trade"
-      />
-      <div class="search-results-figma" *ngIf="hasSearchResults">
-        <button type="button" class="search-result-figma" *ngFor="let instrument of searchResults" (click)="openInstrumentDialog(instrument)">
-          <div>
-            <strong>{{ instrument.symbol }}</strong>
-            <br>
-            <span>{{ instrument.name }}</span>
-          </div>
-          <small>{{ instrument.instrumentType }}</small>
-        </button>
-      </div>
-    </div>
-
-  
     <div class="nav-right-19">
       <div class="market-time-20" [class.market-closed]="!marketStatus?.open">
         <span class="market-dot" aria-hidden="true"></span>
@@ -93,6 +66,34 @@
       </button>   
       
     </mat-menu>
+  </div>
+
+  <div class="dashboard-search-row">
+    <div class="search-container-14" data-tour="search" (focusin)="searchResultsVisible = true">
+      <div class="icon-search-15" aria-hidden="true">
+        <div class="search-16">
+          <img src="assets/figma/images/vector-17.svg" class="vector-17" alt="" />
+        </div>
+      </div>
+      <input
+        class="search-input-figma"
+        type="text"
+        [(ngModel)]="searchQuery"
+        (input)="onSearchInput()"
+        placeholder="Search stocks, crypto or currencies..."
+        aria-label="Search instruments to trade"
+      />
+      <div class="search-results-figma" *ngIf="hasSearchResults">
+        <button type="button" class="search-result-figma" *ngFor="let instrument of searchResults" (click)="openInstrumentDialog(instrument)">
+          <div>
+            <strong>{{ instrument.symbol }}</strong>
+            <br>
+            <span>{{ instrument.name }}</span>
+          </div>
+          <small>{{ instrument.instrumentType }}</small>
+        </button>
+      </div>
+    </div>
   </div>
 
   <div class="dashboard-split-27">

@@ -57,9 +57,9 @@ button {
 
 .top-nav-2 {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 20px;
+  gap: clamp(12px, 2vw, 24px);
   padding: 12px 24px;
   min-height: 68px;
   background: linear-gradient(110deg, #125441, #167059 58%, #145846);
@@ -322,6 +322,7 @@ button {
     font-size: 36px;
     line-height: 1;
     letter-spacing: 0.14em;
+    white-space: nowrap;
   }
 }
 
@@ -332,6 +333,7 @@ button {
   gap: 8px;
   width: min(100%, 400px);
   padding: 8px 14px;
+  margin-top: 8px;
   background-color: transparent;
   border: 1px solid rgba(0, 171, 104, 1);
   border-radius: 8px;
@@ -387,7 +389,9 @@ button {
 }
 
 .nav-right-19 {
-  gap: 24px;
+  justify-content: flex-end;
+  gap: clamp(12px, 2vw, 24px);
+  min-width: 0;
 }
 
 .market-time-20 {
@@ -1552,34 +1556,72 @@ button {
   white-space: nowrap;
 }
 
-/* Instrument search lives in the header, next to the logo */
-.top-nav-2 .search-container-14 {
-  justify-self: start;
-  width: min(calc(100% - 24px), 440px);
-  margin-left: 24px;
-  padding: 9px 14px;
-  background-color: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 10px;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+/* Instrument search sits in its own row below the navigation. */
+.dashboard-search-row {
+  display: flex;
+  justify-content: center;
+  padding: 18px 24px 20px;
+  background: linear-gradient(180deg, rgba(22, 112, 89, 0.1), rgba(26, 26, 26, 0));
 }
 
-.top-nav-2 .search-container-14:focus-within {
-  background-color: rgba(0, 0, 0, 0.32);
-  border-color: rgba(125, 235, 181, 0.7);
+.dashboard-search-row .search-container-14 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  width: min(100%, 680px);
+  min-height: 56px;
+  margin: 0;
+  padding: 0 18px;
+  background-color: rgba(17, 30, 26, 0.88);
+  border: 1px solid rgba(125, 235, 181, 0.34);
+  border-radius: 18px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.2), 0 0 20px rgba(38, 208, 124, 0.08);
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.top-nav-2 .search-container-14 .vector-17 {
-  filter: brightness(0) saturate(100%) invert(98%);
-  opacity: 0.8;
+.dashboard-search-row .icon-search-15 {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
 }
 
-.top-nav-2 .search-input-figma::placeholder {
-  color: rgba(255, 255, 255, 0.6);
+.dashboard-search-row .search-16,
+.dashboard-search-row .vector-17 {
+  width: 18px;
+  height: 18px;
 }
 
-.top-nav-2 .search-results-figma {
+.dashboard-search-row .search-input-figma {
+  min-width: 0;
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.dashboard-search-row .search-container-14:hover {
+  border-color: rgba(125, 235, 181, 0.58);
+}
+
+.dashboard-search-row .search-container-14:focus-within {
+  background-color: rgba(17, 34, 28, 0.98);
+  border-color: rgba(125, 235, 181, 0.9);
+  box-shadow: 0 0 0 4px rgba(125, 235, 181, 0.12), 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.dashboard-search-row .search-container-14 .vector-17 {
+  filter: brightness(0) invert(1);
+  opacity: 0.95;
+}
+
+.dashboard-search-row .search-input-figma::placeholder {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.dashboard-search-row .search-results-figma {
   z-index: 40;
+  border-radius: 16px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
   /* Long result lists scroll inside the dropdown, not the page */
   max-height: min(420px, calc(100vh - var(--header-h, 74px) - 24px));
@@ -1589,11 +1631,11 @@ button {
   scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
 
-.top-nav-2 .search-results-figma::-webkit-scrollbar {
+.dashboard-search-row .search-results-figma::-webkit-scrollbar {
   width: 8px;
 }
 
-.top-nav-2 .search-results-figma::-webkit-scrollbar-thumb {
+.dashboard-search-row .search-results-figma::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.25);
   border-radius: 8px;
 }
@@ -1919,21 +1961,22 @@ button {
 @media (max-width: 960px) {
   .top-nav-2 {
     grid-template-columns: auto 1fr;
-    gap: 16px;
+    gap: 12px 16px;
     padding: 16px;
   }
 
-  .nav-left-7,
-  .nav-right-19,
-  .search-container-14 {
-    grid-column: 1 / -1;
+  .top-nav-2 .nav-left-7 {
+    grid-column: 1;
+    grid-row: 1;
   }
 
-  /* Small screens: logo, then status and profile, then a full-width search */
-  .top-nav-2 .search-container-14 {
-    order: 3;
-    width: 100%;
-    margin-left: 0;
+  .top-nav-2 .nav-right-19 {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .dashboard-search-row {
+    padding: 12px 16px;
   }
 
   .node-29,
@@ -1983,6 +2026,41 @@ button {
   .quick-actions-row-37,
   .trade-mode-toggle-figma {
     flex-wrap: wrap;
+  }
+
+  .top-nav-2 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .top-nav-2 .nav-left-7,
+  .top-nav-2 .nav-right-19 {
+    grid-column: 1;
+  }
+
+  .top-nav-2 .nav-left-7 {
+    grid-row: 1;
+  }
+
+  .top-nav-2 .nav-right-19 {
+    grid-row: 2;
+    justify-content: space-between;
+  }
+
+  .app-header .dashboard-brand-mark {
+    flex-basis: 44px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .app-header .dashboard-brand-mark svg {
+    width: 42px;
+    height: 42px;
+  }
+
+  .app-header strong {
+    font-size: 28px;
   }
 
   .trade-grid-figma,
