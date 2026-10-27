@@ -551,8 +551,11 @@ button {
 }
 
 .quick-actions-row-37 {
+  flex: 1 1 auto;
+  justify-content: flex-end;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .action-btn-buy-38,
@@ -1556,31 +1559,26 @@ button {
   white-space: nowrap;
 }
 
-/* Instrument search sits in its own row below the navigation. */
-.dashboard-search-row {
-  display: flex;
-  justify-content: center;
-  padding: 18px 24px 20px;
-  background: linear-gradient(180deg, rgba(22, 112, 89, 0.1), rgba(26, 26, 26, 0));
-}
-
-.dashboard-search-row .search-container-14 {
+/* Instrument search sits on the same line as Trade, directly to its left. */
+.quick-actions-row-37 .search-container-14 {
   display: flex;
   align-items: center;
+  flex: 1 1 280px;
   gap: 12px;
+  width: auto;
+  max-width: 520px;
   min-width: 0;
-  width: min(100%, 680px);
-  min-height: 56px;
+  min-height: 40px;
   margin: 0;
-  padding: 0 18px;
+  padding: 0 14px;
   background-color: rgba(17, 30, 26, 0.88);
   border: 1px solid rgba(125, 235, 181, 0.34);
-  border-radius: 18px;
+  border-radius: 8px;
   box-shadow: 0 8px 26px rgba(0, 0, 0, 0.2), 0 0 20px rgba(38, 208, 124, 0.08);
   transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.dashboard-search-row .icon-search-15 {
+.quick-actions-row-37 .icon-search-15 {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
@@ -1588,38 +1586,38 @@ button {
   color: #fff;
 }
 
-.dashboard-search-row .search-16,
-.dashboard-search-row .vector-17 {
+.quick-actions-row-37 .search-16,
+.quick-actions-row-37 .vector-17 {
   width: 18px;
   height: 18px;
 }
 
-.dashboard-search-row .search-input-figma {
+.quick-actions-row-37 .search-input-figma {
   min-width: 0;
   font-size: 15px;
   line-height: 24px;
 }
 
-.dashboard-search-row .search-container-14:hover {
+.quick-actions-row-37 .search-container-14:hover {
   border-color: rgba(125, 235, 181, 0.58);
 }
 
-.dashboard-search-row .search-container-14:focus-within {
+.quick-actions-row-37 .search-container-14:focus-within {
   background-color: rgba(17, 34, 28, 0.98);
   border-color: rgba(125, 235, 181, 0.9);
   box-shadow: 0 0 0 4px rgba(125, 235, 181, 0.12), 0 12px 32px rgba(0, 0, 0, 0.28);
 }
 
-.dashboard-search-row .search-container-14 .vector-17 {
+.quick-actions-row-37 .search-container-14 .vector-17 {
   filter: brightness(0) invert(1);
   opacity: 0.95;
 }
 
-.dashboard-search-row .search-input-figma::placeholder {
+.quick-actions-row-37 .search-input-figma::placeholder {
   color: rgba(255, 255, 255, 0.76);
 }
 
-.dashboard-search-row .search-results-figma {
+.quick-actions-row-37 .search-results-figma {
   z-index: 40;
   border-radius: 16px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
@@ -1631,11 +1629,11 @@ button {
   scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
 
-.dashboard-search-row .search-results-figma::-webkit-scrollbar {
+.quick-actions-row-37 .search-results-figma::-webkit-scrollbar {
   width: 8px;
 }
 
-.dashboard-search-row .search-results-figma::-webkit-scrollbar-thumb {
+.quick-actions-row-37 .search-results-figma::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.25);
   border-radius: 8px;
 }
@@ -1975,10 +1973,6 @@ button {
     grid-row: 1;
   }
 
-  .dashboard-search-row {
-    padding: 12px 16px;
-  }
-
   .node-29,
   .table-tab-header-156,
   .trade-drawer-header,
@@ -2023,7 +2017,15 @@ button {
     padding: 16px;
   }
 
-  .quick-actions-row-37,
+  .quick-actions-row-37 {
+    flex-wrap: nowrap;
+  }
+
+  .quick-actions-row-37 .search-container-14 {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+
   .trade-mode-toggle-figma {
     flex-wrap: wrap;
   }

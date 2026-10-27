@@ -566,7 +566,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
-    const search = this.host.nativeElement.querySelector('.dashboard-search-row .search-container-14');
+    const search = this.host.nativeElement.querySelector('.quick-actions-row-37 .search-container-14');
     if (search && !search.contains(event.target as Node)) {
       this.searchResultsVisible = false;
     }
