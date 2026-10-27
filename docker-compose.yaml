@@ -170,6 +170,7 @@ volumes:
 networks:
   leap-data:
     name: leap-data-network
+    external: true
     ipam:
       config:
         - subnet: 172.30.0.0/24

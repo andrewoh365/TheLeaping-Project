@@ -557,7 +557,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.cashAmount && this.cashAmount > 0 && !this.cashAmountIssue ? `${verb} ${this.formatUsd(this.cashAmount)}` : verb;
   }
 
-  /** False after a click outside the header search or Esc; focusing the box shows results again. */
+  /** False after a click outside the dashboard search or Esc; focusing it shows results again. */
   searchResultsVisible = true;
 
   get hasSearchResults(): boolean {
@@ -566,7 +566,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
-    const search = this.host.nativeElement.querySelector('.top-nav-2 .search-container-14');
+    const search = this.host.nativeElement.querySelector('.quick-actions-row-37 .search-container-14');
     if (search && !search.contains(event.target as Node)) {
       this.searchResultsVisible = false;
     }

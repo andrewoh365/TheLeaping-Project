@@ -68,6 +68,15 @@ const DEMO_LOGINS: DemoLogin[] = [
   styleUrls: ['./login.component.scss']
 })
 export class LoginComponent implements OnInit {
+
+  particles = Array.from({ length: 36 }, () => ({
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    size: Math.random() * 2 + 2,
+    delay: Math.random() * 10,
+    duration: Math.random() * 6 + 8,
+    opacity: Math.random() * 0.18 + 0.12
+  }));
   loginForm!: FormGroup;
 
   loading = false;

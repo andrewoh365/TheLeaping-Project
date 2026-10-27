@@ -1,9 +1,34 @@
 <div class="register-container">
-  <mat-card class="register-card">
-    <div class="register-heading">
-      <h1>Create Account</h1>
-      <p>Join Leaping Portfolio today</p>
-    </div>
+  <div class="auth-glow auth-glow-one" aria-hidden="true"></div>
+  <div class="auth-glow auth-glow-two" aria-hidden="true"></div>
+  <div *ngFor="let particle of particles" class="particle" aria-hidden="true" [style.left]="particle.x + '%'" [style.top]="particle.y + '%'" [style.width.px]="particle.size" [style.height.px]="particle.size" [style.opacity]="particle.opacity" [style.animation-delay.s]="particle.delay" [style.animation-duration.s]="particle.duration"></div>
+  <div class="auth-brand" aria-label="Leaping">
+    <span class="auth-brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32" focusable="false">
+        <path class="brand-monogram" d="M7 4v24h17"></path>
+        <path class="brand-trend" d="m12 21 5-5 4 2 7-9m-5 0h5v5"></path>
+      </svg>
+    </span>
+    <span>LEAPING</span>
+  </div>
+  <main class="auth-layout register-layout">
+    <section class="auth-intro" aria-labelledby="register-intro-title">
+      <h1 id="register-intro-title">Start building your <span>FUTURE
+        
+      </span></h1>
+      <p class="intro-description">Create an account to unify your investments, market activity, and watchlists into <i>ONE</i> platform.</p>
+      <div class="intro-features">
+        <div><mat-icon>account_balance_wallet</mat-icon><span>Analyze your portfolio</span></div>
+        <div><mat-icon>query_stats</mat-icon><span>Keep up with market trends</span></div>
+        <div><mat-icon>bookmark_border</mat-icon><span>Save instruments to your watchlist</span></div>
+      </div>
+      <div class="intro-footnote"><span class="market-indicator"></span><span>Thoughtful tools for your investing routine</span></div>
+    </section>
+    <mat-card class="register-card">
+    <mat-card-header>
+      <mat-card-title>Create Account</mat-card-title>
+      <mat-card-subtitle>A clear, secure place to follow your financial growth.</mat-card-subtitle>
+    </mat-card-header>
 
     <mat-card-content>
       <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
@@ -147,7 +172,9 @@
       <!-- Links -->
       <div class="links">
         <p>Already have an account? <a routerLink="/login">Login here</a></p>
+        <div class="secure-note"><mat-icon>lock</mat-icon><span>Your personal information is protected</span></div>
       </div>
     </mat-card-content>
-  </mat-card>
+    </mat-card>
+  </main>
 </div>
