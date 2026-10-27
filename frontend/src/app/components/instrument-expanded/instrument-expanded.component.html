@@ -10,7 +10,7 @@
       </p>
     </div>
     <button type="button" class="close-button" (click)="onClose()" aria-label="Close">
-      <span aria-hidden="true">&times;</span>
+      <mat-icon>close</mat-icon>
     </button>
   </header>
 
@@ -26,6 +26,50 @@
       </p>
     </div>
     <div class="trade-actions">
+      <div class="watchlist-control">
+        <button
+          type="button"
+          class="trade-button watch"
+          [class.watching]="onAnyWatchlist"
+          [disabled]="!watchlistLoaded"
+          [attr.aria-expanded]="watchlistMenuOpen"
+          aria-haspopup="true"
+          (click)="toggleWatchlistMenu()"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"></path>
+          </svg>
+          {{ onAnyWatchlist ? 'Watching' : 'Watchlist' }}
+        </button>
+
+        <div class="watchlist-menu" *ngIf="watchlistMenuOpen" role="group" aria-label="Add to watchlists">
+          <p class="watchlist-menu-title">Add {{ data.symbol }} to</p>
+          <label class="watchlist-option" *ngFor="let membership of watchlistMemberships">
+            <input
+              type="checkbox"
+              [checked]="membership.contains"
+              [disabled]="watchlistBusyId !== null"
+              (change)="toggleWatchlist(membership)"
+            />
+            <span>{{ membership.watchlist.watchlistName }}</span>
+          </label>
+          <p class="watchlist-empty" *ngIf="watchlistMemberships.length === 0">You don't have any watchlists yet.</p>
+          <form class="watchlist-create" (ngSubmit)="createWatchlistWithInstrument()">
+            <input
+              type="text"
+              name="newWatchlistName"
+              [(ngModel)]="newWatchlistName"
+              [placeholder]="watchlistMemberships.length === 0 ? 'My Watchlist' : 'New watchlist name'"
+              maxlength="100"
+              aria-label="New watchlist name"
+            />
+            <button type="submit" [disabled]="watchlistCreating || (watchlistMemberships.length > 0 && !newWatchlistName.trim())">
+              {{ watchlistMemberships.length === 0 ? 'Create & add' : 'Create' }}
+            </button>
+          </form>
+          <p class="watchlist-error" *ngIf="watchlistError" role="alert">{{ watchlistError }}</p>
+        </div>
+      </div>
       <button type="button" class="trade-button buy" (click)="startTrade('BUY')" [disabled]="!data.isTradeable">Buy</button>
       <button type="button" class="trade-button sell" (click)="startTrade('SELL')" [disabled]="!data.isTradeable">Sell</button>
     </div>

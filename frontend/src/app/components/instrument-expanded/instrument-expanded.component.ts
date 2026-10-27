@@ -1,9 +1,12 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, HostListener, Inject, OnDestroy, OnInit } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { MatIconModule } from '@angular/material/icon';
 import { InstrumentDetail, InstrumentService, PricePointDto } from '../../services/instrument.service';
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { WatchlistResponse, WatchlistService } from '../../services/watchlist.service';
+import { forkJoin, Observable, of, Subject } from 'rxjs';
+import { catchError, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 
 export interface InstrumentExpandedData {
   instrumentId: number;
@@ -27,6 +30,11 @@ export interface InstrumentTradeAction {
   instrument: InstrumentExpandedData;
 }
 
+interface WatchlistMembership {
+  watchlist: WatchlistResponse;
+  contains: boolean;
+}
+
 interface AxisTick {
   position: number;
   label: string;
@@ -42,7 +50,7 @@ const CHART_INSET = 10;
 @Component({
   selector: 'app-instrument-expanded',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule, MatIconModule],
   templateUrl: './instrument-expanded.component.html',
   styleUrl: './instrument-expanded.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -69,16 +77,136 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
   markerX: number | null = null;
   private chartPrices: PricePointDto[] = [];
 
+  // Watchlist menu: which of the user's lists hold this instrument
+  watchlistMemberships: WatchlistMembership[] = [];
+  watchlistMenuOpen = false;
+  watchlistLoaded = false;
+  watchlistBusyId: number | null = null;
+  watchlistCreating = false;
+  newWatchlistName = '';
+  watchlistError = '';
+
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: InstrumentExpandedData,
     private instrumentService: InstrumentService,
+    private watchlistService: WatchlistService,
     private dialogRef: MatDialogRef<InstrumentExpandedComponent>,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private host: ElementRef<HTMLElement>
   ) {}
 
   ngOnInit(): void {
     this.loadInstrumentDetail();
     this.loadPriceHistory();
+    this.loadWatchlistMemberships();
+  }
+
+  get onAnyWatchlist(): boolean {
+    return this.watchlistMemberships.some((membership) => membership.contains);
+  }
+
+  toggleWatchlistMenu(): void {
+    this.watchlistMenuOpen = !this.watchlistMenuOpen;
+    this.watchlistError = '';
+    this.newWatchlistName = '';
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.watchlistMenuOpen) {
+      return;
+    }
+    const menu = this.host.nativeElement.querySelector('.watchlist-control');
+    if (menu && !menu.contains(event.target as Node)) {
+      this.watchlistMenuOpen = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  /** Add this instrument to the list, or take it off if it's already there. */
+  toggleWatchlist(membership: WatchlistMembership): void {
+    if (this.watchlistBusyId !== null) {
+      return;
+    }
+    const watchlistId = membership.watchlist.watchlistId;
+    const request: Observable<unknown> = membership.contains
+      ? this.watchlistService.removeInstrument(watchlistId, this.data.instrumentId)
+      : this.watchlistService.addInstrument(watchlistId, this.data.instrumentId);
+
+    this.watchlistBusyId = watchlistId;
+    this.watchlistError = '';
+    request
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistBusyId = null;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: () => {
+          membership.contains = !membership.contains;
+          this.watchlistService.notifyChanged();
+        },
+        error: () => {
+          this.watchlistError = membership.contains
+            ? `Couldn't remove ${this.data.symbol} from ${membership.watchlist.watchlistName}.`
+            : `Couldn't add ${this.data.symbol} to ${membership.watchlist.watchlistName}.`;
+        }
+      });
+  }
+
+  /** Create a new list and put this instrument straight on it. */
+  createWatchlistWithInstrument(): void {
+    const name = this.newWatchlistName.trim() || 'My Watchlist';
+    if (this.watchlistCreating) {
+      return;
+    }
+    this.watchlistCreating = true;
+    this.watchlistError = '';
+    this.watchlistService.createWatchlist({ watchlistName: name })
+      .pipe(
+        switchMap((watchlist) => this.watchlistService.addInstrument(watchlist.watchlistId, this.data.instrumentId)
+          .pipe(map(() => watchlist))),
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.watchlistCreating = false;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: (watchlist) => {
+          this.watchlistMemberships = [...this.watchlistMemberships, { watchlist, contains: true }];
+          this.newWatchlistName = '';
+          this.watchlistService.notifyChanged();
+        },
+        error: () => {
+          this.watchlistError = "Couldn't create that watchlist. Try a different name.";
+        }
+      });
+  }
+
+  private loadWatchlistMemberships(): void {
+    this.watchlistService.getWatchlists()
+      .pipe(
+        switchMap((watchlists) => watchlists.length === 0
+          ? of<WatchlistMembership[]>([])
+          : forkJoin(watchlists.map((watchlist) =>
+              this.watchlistService.getWatchlistInstruments(watchlist.watchlistId).pipe(
+                map((instruments) => ({
+                  watchlist,
+                  contains: instruments.some((instrument) => instrument.instrumentId === this.data.instrumentId)
+                })),
+                catchError(() => of({ watchlist, contains: false }))
+              )))),
+        catchError(() => of<WatchlistMembership[]>([])),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((memberships) => {
+        this.watchlistMemberships = memberships;
+        this.watchlistLoaded = true;
+        this.cdr.markForCheck();
+      });
   }
 
   setChartRange(range: ChartRange): void {

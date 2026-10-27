@@ -121,11 +121,6 @@ public class AuthService {
                 "Date of birth is required", false);
         }
 
-        if (registerRequest.getTaxId() == null || registerRequest.getTaxId().trim().isEmpty()) {
-            return new RegisterResponse(null, null, null, null, 
-                "Tax ID is required", false);
-        }
-        
         // STEP 2: Validate passwords match
         if (!registerRequest.getPassword().equals(registerRequest.getConfirmPassword())) {
             return new RegisterResponse(null, null, null, null, 
@@ -144,9 +139,12 @@ public class AuthService {
                 "Email already exists", false);
         }
 
-        // STEP 5: Check tax ID doesn't already exist (now in CustomerRepository)
-        if (customerRepository.existsByTaxId(registerRequest.getTaxId())) {
-            return new RegisterResponse(null, null, null, null, 
+        // The registration form does not collect a tax ID. The column is still required and unique.
+        String taxId = registerRequest.getTaxId() == null ? "" : registerRequest.getTaxId().trim();
+        if (taxId.isEmpty()) {
+            taxId = "internal-" + UUID.randomUUID();
+        } else if (customerRepository.existsByTaxId(taxId)) {
+            return new RegisterResponse(null, null, null, null,
                 "Tax ID already exists", false);
         }
         
@@ -178,7 +176,7 @@ public class AuthService {
         Customer newCustomer = new Customer();
         newCustomer.setUser(savedUser);  // @MapsId will automatically set user_id from savedUser.id
         newCustomer.setDateOfBirth(dateOfBirth);
-        newCustomer.setTaxId(registerRequest.getTaxId());
+        newCustomer.setTaxId(taxId);
         customerRepository.save(newCustomer);
 
         //Step 10.5: Create a Portfolio for the new customer, starting balance $0

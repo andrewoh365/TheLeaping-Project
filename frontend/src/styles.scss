@@ -383,6 +383,18 @@ body {
   background-color: #1a1a1a !important;
 }
 
+/* Close the instrument view with the opening animation in reverse: Material opens by
+   fading in (linear) while scaling 0.8 -> 1 (ease-out), both over 150ms. Closing fades
+   out (linear) while scaling back to 0.8 (ease-in), also over 150ms. */
+.instrument-dialog .mdc-dialog--closing .mdc-dialog__surface {
+  transform: scale(0.8);
+  transition: transform 150ms cubic-bezier(0.8, 0, 1, 1); /* time-reversed cubic-bezier(0, 0, 0.2, 1) */
+}
+
+.instrument-dialog .mdc-dialog--closing .mdc-dialog__container {
+  transition: opacity 150ms linear;
+}
+
 .mat-mdc-dialog-content {
   background-color: var(--background-color) !important;
   color: var(--text-color) !important;
@@ -444,3 +456,12 @@ body {
   border-color: color-mix(in srgb, var(--danger-color) 50%, transparent) !important;
 }
 
+/* Stop the page behind an open trade/transfer sheet from scrolling */
+html:has(.trade-drawer.open) {
+  overflow: hidden;
+}
+
+/* Dialog backdrop that matches the trade/transfer sheet dimming */
+.leaping-dim-backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}

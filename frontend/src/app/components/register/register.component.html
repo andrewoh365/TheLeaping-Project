@@ -150,23 +150,6 @@
           </mat-error>
         </mat-form-field>
 
-        <!-- Tax ID Field -->
-        <mat-form-field class="full-width">
-          <mat-label>Tax ID</mat-label>
-          <input
-            matInput
-            type="text"
-            formControlName="taxId"
-            placeholder="Enter your tax ID (e.g., SSN, EIN)"
-          />
-          <mat-error *ngIf="f['taxId'].hasError('required')">
-            Tax ID is required
-          </mat-error>
-          <mat-error *ngIf="f['taxId'].hasError('minlength')">
-            Tax ID must be at least 5 characters
-          </mat-error>
-        </mat-form-field>
-
         <!-- Submit Button -->
         <button
           mat-raised-button

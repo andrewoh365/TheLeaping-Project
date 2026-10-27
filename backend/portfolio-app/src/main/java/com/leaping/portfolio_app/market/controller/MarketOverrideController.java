@@ -23,7 +23,8 @@ import com.leaping.portfolio_app.market.service.MarketOverride;
  * - GET /api/market/override - whether the override is available here and whether it's on
  * - PUT /api/market/override - turn it on or off: {"enabled": true}
  *
- * Only available where trading.market-override.allowed is true (local development).
+ * Any signed-in user can use it, but only where trading.market-override.allowed is true
+ * (local development). Everywhere else it can't be turned on.
  */
 @RestController
 @RequestMapping("/api/market/override")
@@ -45,13 +46,13 @@ public class MarketOverrideController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public OverrideStatus getOverride() {
         return status();
     }
 
     @PutMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> setOverride(@RequestBody OverrideRequest request, Authentication authentication) {
         if (!marketOverride.isAllowed()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)

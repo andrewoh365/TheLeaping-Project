@@ -12,6 +12,32 @@
       </div>
     </div>
 
+    <div class="search-container-14" data-tour="search" (focusin)="searchResultsVisible = true">
+      <div class="icon-search-15">
+        <div class="search-16">
+          <img src="assets/figma/images/vector-17.svg" class="vector-17" alt="Search icon" />
+        </div>
+      </div>
+      <input
+        class="search-input-figma"
+        type="text"
+        [(ngModel)]="searchQuery"
+        (input)="onSearchInput()"
+        placeholder="Search stocks, crypto or currencies..."
+        aria-label="Search instruments to trade"
+      />
+      <div class="search-results-figma" *ngIf="hasSearchResults">
+        <button type="button" class="search-result-figma" *ngFor="let instrument of searchResults" (click)="openInstrumentDialog(instrument)">
+          <div>
+            <strong>{{ instrument.symbol }}</strong>
+            <br>
+            <span>{{ instrument.name }}</span>
+          </div>
+          <small>{{ instrument.instrumentType }}</small>
+        </button>
+      </div>
+    </div>
+
   
     <div class="nav-right-19">
       <div class="market-time-20" [class.market-closed]="!marketStatus?.open">
@@ -57,8 +83,7 @@
       >
         <mat-icon>{{ marketOverride?.enabled ? 'lock_open' : 'schedule' }}</mat-icon>
         <span class="market-override-text">
-          After-hours trading
-          <small>{{ marketOverride?.enabled ? 'On · markets held open' : 'Off · real market hours' }}</small>
+          Market closed override
         </span>
         <span class="market-override-switch" [class.on]="marketOverride?.enabled" aria-hidden="true"></span>
       </button>
@@ -242,10 +267,10 @@
             </div>
 
             <div class="holding-row" *ngFor="let holding of filteredHoldings" [class.row-flash]="changedSymbols.has(holding.instrumentSymbol)">
-              <div class="col-asset-180">
+              <button type="button" class="col-asset-180 instrument-link" [title]="'View ' + holding.instrumentSymbol" (click)="openInstrumentView(holding.instrumentId, holding.instrumentSymbol)">
                 <p class="text-181"><span class="text-rgb-250-250-250">{{ holding.instrumentSymbol }}</span></p>
                 <p class="text-182"><span class="text-rgb-250-250-250">{{ holding.instrumentName }}</span></p>
-              </div>
+              </button>
               <p class="text-183"><span class="text-rgb-250-250-250">{{ holding.quantity | number:'1.2-4' }}</span></p>
               <p class="text-184"><span class="text-rgb-250-250-250">{{ (holding.averageCostUsd || 0) | currency:'USD':'symbol':'1.2-2' }}</span></p>
               <p class="text-185"><span class="text-rgb-250-250-250">{{ (holding.currentPriceUsd || holding.averageCostUsd || 0) | currency:'USD':'symbol':'1.2-2' }}</span></p>
@@ -281,7 +306,14 @@
                 {{ order.submitted_at | date:'MMM d, y' }}
                 <small>{{ order.submitted_at | date:'h:mm a' }}</small>
               </span>
-              <span class="activity-asset">
+              <span
+                class="activity-asset instrument-link"
+                role="link"
+                tabindex="0"
+                [title]="'View ' + order.instrument_symbol"
+                (click)="openInstrumentView(order.instrument_id, order.instrument_symbol, $event)"
+                (keydown.enter)="openInstrumentView(order.instrument_id, order.instrument_symbol, $event)"
+              >
                 <strong>{{ order.instrument_symbol }}</strong>
                 <small>{{ order.instrument_name }}</small>
               </span>
@@ -418,13 +450,13 @@
                 </div>
                 <div class="watchlist-loading" *ngIf="watchlistLoading">Loading {{ activeWatchlistName }}...</div>
                 <div class="watchlist-row" *ngFor="let item of watchlistInstruments">
-                  <div class="watchlist-instrument-cell">
+                  <button type="button" class="watchlist-instrument-cell instrument-link" [title]="'View ' + item.symbol" (click)="openInstrumentView(item.instrumentId, item.symbol)">
                     <span class="watchlist-symbol-mark">{{ item.symbol.slice(0, 1) }}</span>
                     <span class="watchlist-instrument-copy">
                       <strong>{{ item.symbol }}</strong>
                       <small>{{ item.name }}</small>
                     </span>
-                  </div>
+                  </button>
                   <span class="watchlist-type">{{ item.instrumentType }}</span>
                   <span class="watchlist-price watchlist-number">
                     <ng-container *ngIf="getWatchlistQuote(item.symbol) as quote; else quoteUnavailable">
@@ -462,33 +494,7 @@
 
 
     <aside class="node-229 market-sidebar" aria-label="Market information">
-      <div class="search-container-14">
-        <div class="icon-search-15">
-          <div class="search-16">
-            <img src="assets/figma/images/vector-17.svg" class="vector-17" alt="Search icon" />
-          </div>
-        </div>
-        <input
-          class="search-input-figma"
-          type="text"
-          [(ngModel)]="searchQuery"
-          (input)="onSearchInput()"
-          placeholder="Search stocks, crypto or currencies..."
-          aria-label="Search instruments to trade"
-        />
-        <div class="search-results-figma" *ngIf="hasSearchResults">
-          <button type="button" class="search-result-figma" *ngFor="let instrument of searchResults" (click)="openInstrumentDialog(instrument)">
-            <div>
-              <strong>{{ instrument.symbol }}</strong>
-              <br>
-              <span>{{ instrument.name }}</span>
-            </div>
-            <small>{{ instrument.instrumentType }}</small>
-          </button>
-        </div>
-      </div>
-
-      <div class="section-news-230">
+      <div class="section-news-230" data-tour="market-news">
         <div class="section-header-231">
           <p class="text-232"><span class="text-rgb-250-250-250">Market News</span></p>
           <a class="text-233 view-all-link" [href]="newsSearchUrl" target="_blank" rel="noopener noreferrer">
@@ -538,8 +544,8 @@
                 *ngFor="let mover of marketMovers.gainers"
                 [class.tradable]="mover.instrumentId !== null"
                 [disabled]="mover.instrumentId === null"
-                [title]="mover.instrumentId !== null ? 'Trade ' + mover.symbol : mover.name + ' (not available to trade here)'"
-                (click)="openMover(mover)"
+                [title]="mover.instrumentId !== null ? 'View ' + mover.symbol : mover.name + ' (not offered on Leaping)'"
+                (click)="openInstrumentView(mover.instrumentId, mover.symbol)"
               >
                 <div class="mover-left-272">
                   <p class="text-273"><span class="text-rgb-250-250-250">{{ mover.symbol }}</span></p>
@@ -558,8 +564,8 @@
                 *ngFor="let mover of marketMovers.losers"
                 [class.tradable]="mover.instrumentId !== null"
                 [disabled]="mover.instrumentId === null"
-                [title]="mover.instrumentId !== null ? 'Trade ' + mover.symbol : mover.name + ' (not available to trade here)'"
-                (click)="openMover(mover)"
+                [title]="mover.instrumentId !== null ? 'View ' + mover.symbol : mover.name + ' (not offered on Leaping)'"
+                (click)="openInstrumentView(mover.instrumentId, mover.symbol)"
               >
                 <div class="mover-left-292">
                   <p class="text-293"><span class="text-rgb-250-250-250">{{ mover.symbol }}</span></p>
@@ -579,6 +585,8 @@
       </div>
     </aside>
   </div>
+
+  <div class="drawer-scrim" [class.open]="tradePanelOpen || cashPanelOpen" (click)="closePanels()" aria-hidden="true"></div>
 
   <aside class="trade-drawer" [class.open]="tradePanelOpen" aria-label="Trade" data-tour="trade-panel">
     <div class="trade-drawer-header">
@@ -740,7 +748,7 @@
         <h2>{{ cashDirection === 'DEPOSIT' ? 'Deposit cash' : 'Withdraw cash' }}</h2>
         <p>No bank account is connected yet, so this adds to or takes from your cash balance directly.</p>
       </div>
-      <button type="button" class="ghost-figma" (click)="closeCashPanel()" aria-label="Close transfer panel">
+      <button type="button" class="ghost-figma" data-tour="cash-panel-close" (click)="closeCashPanel()" aria-label="Close transfer panel">
         <mat-icon>close</mat-icon>
       </button>
     </div>

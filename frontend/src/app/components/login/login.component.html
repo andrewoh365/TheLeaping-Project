@@ -104,6 +104,26 @@
         </button>
       </form>
 
+      <!-- Quick demo logins (development builds only) -->
+      <div class="demo-logins" *ngIf="demoLogins.length > 0">
+        <div class="demo-divider"><span>or sign in as a demo user</span></div>
+        <div class="demo-grid">
+          <button
+            type="button"
+            class="demo-option"
+            *ngFor="let demo of demoLogins"
+            [class.active]="activeDemo === demo.persona"
+            [disabled]="loading"
+            [attr.aria-label]="'Sign in as ' + demo.persona + ', ' + demo.role"
+            (click)="loginAs(demo)"
+          >
+            <span class="demo-avatar" aria-hidden="true">{{ demo.persona.charAt(0) }}</span>
+            <span class="demo-name">{{ demo.persona }}</span>
+            <span class="demo-role">{{ demo.role }}</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Links -->
       <div class="links">
         <p>Don't have an account? <a routerLink="/register">Register here</a></p>

@@ -11,8 +11,7 @@ package com.leaping.portfolio_app.auth.dto;
  *   "confirmPassword": "SecurePass123!",
  *   "firstName": "John",
  *   "lastName": "Doe",
- *   "dateOfBirth": "1990-05-15",
- *   "taxId": "123456789"
+ *   "dateOfBirth": "1990-05-15"
  * }
  */
 public class RegisterRequest {
@@ -22,7 +21,7 @@ public class RegisterRequest {
     private String firstName;
     private String lastName;
     private String dateOfBirth;      // Format: YYYY-MM-DD
-    private String taxId;            // Unique tax identifier
+    private String taxId;            // Optional. The registration form does not send one.
 
     // Empty constructor (Spring needs this for JSON parsing)
     public RegisterRequest() {

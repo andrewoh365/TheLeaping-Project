@@ -1,169 +1,270 @@
-<app-internal-nav></app-internal-nav>
-
-<div class="clients-page">
-  <header class="clients-header">
-    <div>
-      <h1>Clients</h1>
-      <p>Search and review client accounts for trading operations.</p>
-    </div>
-  </header>
-
-  <!-- SEARCH / FILTERS -->
-  <mat-card class="filter-card">
-    <div class="filter-grid">
-      <mat-form-field appearance="outline">
-        <mat-label> Search clients </mat-label>
-
-        <input
-          matInput
-          type="text"
-          placeholder="Name, email, or client ID"
-          [(ngModel)]="search"
-          (keyup.enter)="applyFilters()"
-        />
-      </mat-form-field>
-
-      <mat-form-field appearance="outline">
-        <mat-label> Status </mat-label>
-
-        <mat-select [(ngModel)]="status">
-          <mat-option value=""> All </mat-option>
-
-          <mat-option value="ACTIVE"> Active </mat-option>
-
-          <mat-option value="INACTIVE"> Inactive </mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <div class="filter-actions">
-        <button
-          mat-flat-button
-          color="primary"
-          type="button"
-          (click)="applyFilters()"
-        >
-          Search
-        </button>
-
-        <button mat-stroked-button type="button" (click)="resetFilters()">
-          Reset
-        </button>
+<app-internal-layout>
+  <div class="ops-page">
+    <!-- PAGE HEADER -->
+    <header class="ops-page-header">
+      <div class="ops-page-heading">
+        <span class="ops-eyebrow">Operations</span>
+        <h1 class="ops-title">Clients</h1>
+        <p class="ops-subtitle">Search and review client accounts.</p>
       </div>
-    </div>
-  </mat-card>
 
-  <!-- LOADING -->
-  <div class="loading-container" *ngIf="loading">
-    <mat-spinner diameter="42"></mat-spinner>
-  </div>
-
-  <!-- ERROR -->
-  <mat-card class="error-card" *ngIf="errorMessage">
-    {{ errorMessage }}
-  </mat-card>
-
-  <!-- CLIENT TABLE -->
-  <mat-card class="table-card" *ngIf="!loading && !errorMessage">
-    <div class="table-header">
-      <div>
-        <h2>Client Accounts</h2>
-
-        <p>
+      <div
+        class="ops-page-actions"
+        *ngIf="!errorMessage && (totalClients > 0 || !loading)"
+      >
+        <span class="ops-pill">
+          <mat-icon aria-hidden="true">group</mat-icon>
           {{ totalClients | number }}
           {{ totalClients === 1 ? "client" : "clients" }}
-        </p>
+        </span>
+      </div>
+    </header>
+
+    <section class="ops-card" aria-label="Client accounts">
+      <!-- SEARCH / FILTERS -->
+      <form
+        class="ops-toolbar clients-toolbar"
+        role="search"
+        aria-label="Filter clients"
+        (ngSubmit)="applyFilters()"
+      >
+        <div class="ops-field clients-search">
+          <label class="ops-field-label" for="clients-search-input">
+            Search
+          </label>
+
+          <div class="ops-search">
+            <mat-icon aria-hidden="true">search</mat-icon>
+
+            <input
+              #searchInput
+              id="clients-search-input"
+              name="search"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              enterkeyhint="search"
+              placeholder="Search by name, email or client ID"
+              [(ngModel)]="search"
+            />
+
+            <button
+              *ngIf="search"
+              type="button"
+              class="ops-search-clear"
+              aria-label="Clear search"
+              title="Clear search"
+              (click)="clearSearch(); searchInput.focus()"
+            >
+              <mat-icon aria-hidden="true">close</mat-icon>
+            </button>
+          </div>
+        </div>
+
+        <div class="ops-field clients-status">
+          <span class="ops-field-label" id="clients-status-label">Status</span>
+
+          <div
+            class="ops-segmented"
+            role="group"
+            aria-labelledby="clients-status-label"
+          >
+            <button
+              *ngFor="let option of statusOptions"
+              type="button"
+              [class.active]="status === option.value"
+              [attr.aria-pressed]="status === option.value"
+              (click)="setStatus(option.value)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="clients-toolbar-actions">
+          <button
+            *ngIf="hasActiveFilters"
+            type="button"
+            class="ops-btn ops-btn--ghost"
+            (click)="resetFilters()"
+          >
+            Reset
+          </button>
+
+          <button type="submit" class="ops-btn ops-btn--primary">
+            <mat-icon aria-hidden="true">search</mat-icon>
+            Search
+          </button>
+        </div>
+      </form>
+
+      <!-- ERROR -->
+      <div
+        class="ops-alert ops-alert--danger"
+        role="alert"
+        *ngIf="errorMessage"
+      >
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+
+        <div class="ops-alert-body">
+          <strong>Something went wrong</strong>
+          <span>{{ errorMessage }}</span>
+        </div>
+
+        <button
+          type="button"
+          class="ops-btn ops-btn--secondary ops-btn--sm"
+          (click)="retry()"
+        >
+          Retry
+        </button>
       </div>
 
-      <mat-paginator
-        *ngIf="totalClients > 0"
-        class="table-paginator table-paginator-top"
-        aria-label="Client table pagination"
+      <!-- LOADING -->
+      <div
+        class="ops-skeleton-rows clients-skeleton"
+        role="status"
+        aria-label="Loading clients"
+        *ngIf="loading"
+      >
+        <div
+          class="ops-skeleton-row"
+          aria-hidden="true"
+          *ngFor="let row of skeletonRows"
+        >
+          <span class="ops-skeleton"></span>
+          <span class="ops-skeleton"></span>
+          <span class="ops-skeleton"></span>
+          <span class="ops-skeleton"></span>
+          <span class="ops-skeleton"></span>
+        </div>
+      </div>
+
+      <!-- CLIENT TABLE -->
+      <div
+        class="ops-table-wrap"
+        *ngIf="!loading && !errorMessage && clients.length > 0"
+      >
+        <table class="ops-table clients-table">
+          <thead>
+            <tr>
+              <th scope="col" class="clients-col-client">Client</th>
+              <th scope="col">Email</th>
+              <th scope="col" class="clients-col-status">Status</th>
+              <th scope="col" class="ops-col-action">
+                <span class="visually-hidden">Open</span>
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr
+              *ngFor="let client of clients; trackBy: trackByClientId"
+              class="is-clickable"
+              tabindex="0"
+              [attr.aria-label]="
+                'Open profile for ' +
+                (fullName(client) || 'unnamed client') +
+                ', client #' +
+                client.clientId
+              "
+              (click)="openClient(client)"
+              (keydown.enter)="openClient(client)"
+            >
+              <td>
+                <div class="ops-entity">
+                  <span class="ops-mark" aria-hidden="true">
+                    {{ clientInitials(client) }}
+                  </span>
+
+                  <div class="ops-cell-stack">
+                    <strong [class.is-unnamed]="!fullName(client)">
+                      {{ fullName(client) || "Unnamed client" }}
+                    </strong>
+                    <span>Client #{{ client.clientId }}</span>
+                  </div>
+                </div>
+              </td>
+
+              <td>
+                <span
+                  class="client-email"
+                  *ngIf="client.email; else noEmail"
+                  [title]="client.email"
+                >
+                  {{ client.email }}
+                </span>
+
+                <ng-template #noEmail>
+                  <span class="ops-muted">—</span>
+                </ng-template>
+              </td>
+
+              <td>
+                <span
+                  class="ops-badge"
+                  [ngClass]="
+                    client.status
+                      ? 'status-' + (client.status | lowercase)
+                      : 'ops-badge--neutral'
+                  "
+                >
+                  {{ client.status ? (client.status | titlecase) : "Unknown" }}
+                </span>
+              </td>
+
+              <td class="ops-col-action">
+                <mat-icon class="ops-row-chevron" aria-hidden="true"
+                  >chevron_right</mat-icon
+                >
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- EMPTY STATE -->
+      <div
+        class="ops-empty"
+        *ngIf="!loading && !errorMessage && clients.length === 0"
+      >
+        <ng-container *ngIf="hasActiveFilters; else noClients">
+          <mat-icon aria-hidden="true">search_off</mat-icon>
+          <strong>No clients found</strong>
+          <span>
+            No client accounts match your search or status filter. Try a
+            different term or clear the filters.
+          </span>
+
+          <button
+            type="button"
+            class="ops-btn ops-btn--secondary ops-btn--sm clients-empty-action"
+            (click)="resetFilters()"
+          >
+            Clear filters
+          </button>
+        </ng-container>
+
+        <ng-template #noClients>
+          <mat-icon aria-hidden="true">group</mat-icon>
+          <strong>No clients yet</strong>
+          <span>
+            Client accounts will appear here as soon as customers register.
+          </span>
+        </ng-template>
+      </div>
+
+      <!-- PAGINATION -->
+      <app-ops-pager
+        *ngIf="!errorMessage && totalClients > 0"
+        itemLabel="clients"
         [length]="totalClients"
         [pageIndex]="pageIndex"
         [pageSize]="pageSize"
         [pageSizeOptions]="[25, 50, 100]"
-        [showFirstLastButtons]="true"
+        [disabled]="loading"
         (page)="changePage($event)"
-      >
-      </mat-paginator>
-    </div>
-
-    <div class="table-wrapper" *ngIf="clients.length > 0">
-      <table mat-table [dataSource]="clients" class="clients-table">
-        <!-- CLIENT ID -->
-        <ng-container matColumnDef="clientId">
-          <th mat-header-cell *matHeaderCellDef>Client ID</th>
-
-          <td mat-cell *matCellDef="let client">
-            {{ client.clientId }}
-          </td>
-        </ng-container>
-
-        <!-- CLIENT NAME -->
-        <ng-container matColumnDef="client">
-          <th mat-header-cell *matHeaderCellDef>Client</th>
-
-          <td mat-cell *matCellDef="let client">
-            <div class="client-name">
-              {{ client.firstName || "" }}
-              {{ client.lastName || "" }}
-            </div>
-          </td>
-        </ng-container>
-
-        <!-- EMAIL -->
-        <ng-container matColumnDef="email">
-          <th mat-header-cell *matHeaderCellDef>Email</th>
-
-          <td mat-cell *matCellDef="let client">
-            {{ client.email || "—" }}
-          </td>
-        </ng-container>
-
-        <!-- STATUS -->
-        <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef>Status</th>
-
-          <td mat-cell *matCellDef="let client">
-            <span
-              class="status-badge"
-              [class.status-active]="client.status === 'ACTIVE'"
-              [class.status-inactive]="client.status === 'INACTIVE'"
-            >
-              {{ client.status || "UNKNOWN" }}
-            </span>
-          </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-
-        <tr
-          mat-row
-          *matRowDef="let row; columns: displayedColumns"
-          class="client-row"
-          (click)="openClient(row)"
-        ></tr>
-      </table>
-    </div>
-
-    <mat-paginator
-      *ngIf="totalClients > 0"
-      class="table-paginator table-paginator-bottom"
-      aria-label="Client table pagination"
-      [length]="totalClients"
-      [pageIndex]="pageIndex"
-      [pageSize]="pageSize"
-      [pageSizeOptions]="[25, 50, 100]"
-      [showFirstLastButtons]="true"
-      (page)="changePage($event)"
-    >
-    </mat-paginator>
-
-    <!-- EMPTY STATE -->
-    <div class="empty-state" *ngIf="clients.length === 0">
-      <h3>No clients found</h3>
-
-      <p>Try changing your search or status filter.</p>
-    </div>
-  </mat-card>
-</div>
+      ></app-ops-pager>
+    </section>
+  </div>
+</app-internal-layout>

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 
 export interface WatchlistResponse {
   watchlistId: number;
@@ -25,6 +25,14 @@ export interface WatchlistNameRequest {
 })
 export class WatchlistService {
   private readonly apiUrl = '/api/watchlists';
+  private readonly changedSubject = new Subject<void>();
+
+  /** Emits when watchlists are changed outside the dashboard (e.g. from the instrument view). */
+  readonly changed$ = this.changedSubject.asObservable();
+
+  notifyChanged(): void {
+    this.changedSubject.next();
+  }
 
   constructor(private http: HttpClient) {}
 

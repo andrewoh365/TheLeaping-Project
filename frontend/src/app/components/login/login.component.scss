@@ -437,3 +437,98 @@
   .login-card { padding: 22px 18px; }
   .auth-glow { width: 80vw; filter: blur(60px); }
 }
+/* ---------- Quick demo logins ---------- */
+
+.demo-logins {
+  margin: 8px 0 20px;
+}
+
+.demo-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: var(--muted-text-color);
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1 1 auto;
+    height: 1px;
+    background: rgba(250, 250, 250, 0.1);
+  }
+}
+
+.demo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.demo-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px 12px;
+  border: 1px solid rgba(250, 250, 250, 0.08);
+  border-radius: 12px;
+  background: rgba(26, 26, 26, 0.55);
+  color: var(--text-color);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-color: var(--secondary-color);
+    background: rgba(0, 171, 104, 0.08);
+    transform: translateY(-1px);
+    outline: none;
+  }
+
+  &.active {
+    border-color: var(--secondary-color);
+    background: rgba(0, 171, 104, 0.12);
+  }
+
+  &:disabled:not(.active) {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.demo-avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+}
+
+.demo-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.demo-role {
+  font-size: 12px;
+  color: var(--muted-text-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-option {
+    transition: none;
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      transform: none;
+    }
+  }
+}
