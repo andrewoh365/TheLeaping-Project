@@ -57,9 +57,9 @@ button {
 
 .top-nav-2 {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 20px;
+  gap: clamp(12px, 2vw, 24px);
   padding: 12px 24px;
   min-height: 68px;
   background: linear-gradient(110deg, #125441, #167059 58%, #145846);
@@ -280,13 +280,49 @@ button {
 
 
 .app-header {
-  display: grid;
-  gap: 1px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .dashboard-brand-mark {
+    display: inline-flex;
+    flex: 0 0 54px;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    height: 54px;
+    color: #f5faf7;
+
+    svg {
+      width: 52px;
+      height: 52px;
+      overflow: visible;
+    }
+
+    .brand-monogram,
+    .brand-trend {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .brand-monogram {
+      stroke: currentColor;
+      stroke-width: 3.4;
+    }
+
+    .brand-trend {
+      stroke: #26d07c;
+      stroke-width: 2.7;
+    }
+  }
 
   strong {
     color: #fafafa;
-    font-size: 30px;
-    letter-spacing: 0.12em;
+    font-size: 36px;
+    line-height: 1;
+    letter-spacing: 0.14em;
+    white-space: nowrap;
   }
 }
 
@@ -297,6 +333,7 @@ button {
   gap: 8px;
   width: min(100%, 400px);
   padding: 8px 14px;
+  margin-top: 8px;
   background-color: transparent;
   border: 1px solid rgba(0, 171, 104, 1);
   border-radius: 8px;
@@ -352,7 +389,9 @@ button {
 }
 
 .nav-right-19 {
-  gap: 24px;
+  justify-content: flex-end;
+  gap: clamp(12px, 2vw, 24px);
+  min-width: 0;
 }
 
 .market-time-20 {
@@ -512,8 +551,11 @@ button {
 }
 
 .quick-actions-row-37 {
+  flex: 1 1 auto;
+  justify-content: flex-end;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .action-btn-buy-38,
@@ -1517,34 +1559,67 @@ button {
   white-space: nowrap;
 }
 
-/* Instrument search lives in the header, next to the logo */
-.top-nav-2 .search-container-14 {
-  justify-self: start;
-  width: min(calc(100% - 24px), 440px);
-  margin-left: 24px;
-  padding: 9px 14px;
-  background-color: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 10px;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+/* Instrument search sits on the same line as Trade, directly to its left. */
+.quick-actions-row-37 .search-container-14 {
+  display: flex;
+  align-items: center;
+  flex: 1 1 280px;
+  gap: 12px;
+  width: auto;
+  max-width: 520px;
+  min-width: 0;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 14px;
+  background-color: rgba(17, 30, 26, 0.88);
+  border: 1px solid rgba(125, 235, 181, 0.34);
+  border-radius: 8px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.2), 0 0 20px rgba(38, 208, 124, 0.08);
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.top-nav-2 .search-container-14:focus-within {
-  background-color: rgba(0, 0, 0, 0.32);
-  border-color: rgba(125, 235, 181, 0.7);
+.quick-actions-row-37 .icon-search-15 {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
 }
 
-.top-nav-2 .search-container-14 .vector-17 {
-  filter: brightness(0) saturate(100%) invert(98%);
-  opacity: 0.8;
+.quick-actions-row-37 .search-16,
+.quick-actions-row-37 .vector-17 {
+  width: 18px;
+  height: 18px;
 }
 
-.top-nav-2 .search-input-figma::placeholder {
-  color: rgba(255, 255, 255, 0.6);
+.quick-actions-row-37 .search-input-figma {
+  min-width: 0;
+  font-size: 15px;
+  line-height: 24px;
 }
 
-.top-nav-2 .search-results-figma {
+.quick-actions-row-37 .search-container-14:hover {
+  border-color: rgba(125, 235, 181, 0.58);
+}
+
+.quick-actions-row-37 .search-container-14:focus-within {
+  background-color: rgba(17, 34, 28, 0.98);
+  border-color: rgba(125, 235, 181, 0.9);
+  box-shadow: 0 0 0 4px rgba(125, 235, 181, 0.12), 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.quick-actions-row-37 .search-container-14 .vector-17 {
+  filter: brightness(0) invert(1);
+  opacity: 0.95;
+}
+
+.quick-actions-row-37 .search-input-figma::placeholder {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.quick-actions-row-37 .search-results-figma {
   z-index: 40;
+  border-radius: 16px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
   /* Long result lists scroll inside the dropdown, not the page */
   max-height: min(420px, calc(100vh - var(--header-h, 74px) - 24px));
@@ -1554,11 +1629,11 @@ button {
   scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
 
-.top-nav-2 .search-results-figma::-webkit-scrollbar {
+.quick-actions-row-37 .search-results-figma::-webkit-scrollbar {
   width: 8px;
 }
 
-.top-nav-2 .search-results-figma::-webkit-scrollbar-thumb {
+.quick-actions-row-37 .search-results-figma::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.25);
   border-radius: 8px;
 }
@@ -1884,21 +1959,18 @@ button {
 @media (max-width: 960px) {
   .top-nav-2 {
     grid-template-columns: auto 1fr;
-    gap: 16px;
+    gap: 12px 16px;
     padding: 16px;
   }
 
-  .nav-left-7,
-  .nav-right-19,
-  .search-container-14 {
-    grid-column: 1 / -1;
+  .top-nav-2 .nav-left-7 {
+    grid-column: 1;
+    grid-row: 1;
   }
 
-  /* Small screens: logo, then status and profile, then a full-width search */
-  .top-nav-2 .search-container-14 {
-    order: 3;
-    width: 100%;
-    margin-left: 0;
+  .top-nav-2 .nav-right-19 {
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .node-29,
@@ -1945,9 +2017,52 @@ button {
     padding: 16px;
   }
 
-  .quick-actions-row-37,
+  .quick-actions-row-37 {
+    flex-wrap: nowrap;
+  }
+
+  .quick-actions-row-37 .search-container-14 {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+
   .trade-mode-toggle-figma {
     flex-wrap: wrap;
+  }
+
+  .top-nav-2 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .top-nav-2 .nav-left-7,
+  .top-nav-2 .nav-right-19 {
+    grid-column: 1;
+  }
+
+  .top-nav-2 .nav-left-7 {
+    grid-row: 1;
+  }
+
+  .top-nav-2 .nav-right-19 {
+    grid-row: 2;
+    justify-content: space-between;
+  }
+
+  .app-header .dashboard-brand-mark {
+    flex-basis: 44px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .app-header .dashboard-brand-mark svg {
+    width: 42px;
+    height: 42px;
+  }
+
+  .app-header strong {
+    font-size: 28px;
   }
 
   .trade-grid-figma,
@@ -2399,15 +2514,73 @@ button {
   color: rgba(255, 120, 130, 1);
 }
 
-.load-more {
-  align-self: center;
-  margin-top: 12px;
-  padding: 8px 16px;
+.activity-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 4px;
+}
+
+.activity-pager-range {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(158, 158, 158, 1);
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-pager-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pager-step,
+.pager-page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
   border: 1px solid rgba(76, 76, 76, 1);
   border-radius: 8px;
   background: transparent;
   color: rgba(250, 250, 250, 1);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
+}
+
+.pager-step mat-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+}
+
+.pager-step:hover:not(:disabled),
+.pager-page:hover:not(:disabled):not(.active) {
+  background-color: rgba(58, 58, 58, 1);
+}
+
+.pager-page.active {
+  border-color: rgba(0, 171, 104, 1);
+  background-color: rgba(0, 171, 104, 0.15);
+  color: rgba(0, 171, 104, 1);
+  cursor: default;
+}
+
+.pager-step:disabled,
+.pager-page:disabled:not(.active) {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pager-gap {
+  min-width: 20px;
+  text-align: center;
+  color: rgba(158, 158, 158, 1);
 }
 
 /* ===== Live updates ===== */

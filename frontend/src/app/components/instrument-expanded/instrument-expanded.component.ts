@@ -340,6 +340,7 @@ export class InstrumentExpandedComponent implements OnInit, OnDestroy {
         this.chartPrices = sampledPrices;
         this.setRangeChange(sampledPrices);
         const latestPrice = prices[prices.length - 1];
+
         if (latestPrice) {
           this.data.price = latestPrice.price;
           this.data.lastUpdated = latestPrice.timestamp;

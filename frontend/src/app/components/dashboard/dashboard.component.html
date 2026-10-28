@@ -2,37 +2,16 @@
   <div class="top-nav-2">
     <div class="nav-left-7">
       <div class="app-header">
+        <span class="dashboard-brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" focusable="false">
+            <path class="brand-monogram" d="M7 4v24h17"></path>
+            <path class="brand-trend" d="m12 21 5-5 4 2 7-9m-5 0h5v5"></path>
+          </svg>
+        </span>
         <strong>LEAPING</strong>
       </div>
     </div>
 
-    <div class="search-container-14" data-tour="search" (focusin)="searchResultsVisible = true">
-      <div class="icon-search-15">
-        <div class="search-16">
-          <img src="assets/figma/images/vector-17.svg" class="vector-17" alt="Search icon" />
-        </div>
-      </div>
-      <input
-        class="search-input-figma"
-        type="text"
-        [(ngModel)]="searchQuery"
-        (input)="onSearchInput()"
-        placeholder="Search stocks, crypto or currencies..."
-        aria-label="Search instruments to trade"
-      />
-      <div class="search-results-figma" *ngIf="hasSearchResults">
-        <button type="button" class="search-result-figma" *ngFor="let instrument of searchResults" (click)="openInstrumentDialog(instrument)">
-          <div>
-            <strong>{{ instrument.symbol }}</strong>
-            <br>
-            <span>{{ instrument.name }}</span>
-          </div>
-          <small>{{ instrument.instrumentType }}</small>
-        </button>
-      </div>
-    </div>
-
-  
     <div class="nav-right-19">
       <div class="market-time-20" [class.market-closed]="!marketStatus?.open">
         <span class="market-dot" aria-hidden="true"></span>
@@ -108,6 +87,31 @@
           </div>
         </div>
         <div class="quick-actions-row-37">
+          <div class="search-container-14" data-tour="search" (focusin)="searchResultsVisible = true">
+            <div class="icon-search-15" aria-hidden="true">
+              <div class="search-16">
+                <img src="assets/figma/images/vector-17.svg" class="vector-17" alt="" />
+              </div>
+            </div>
+            <input
+              class="search-input-figma"
+              type="text"
+              [(ngModel)]="searchQuery"
+              (input)="onSearchInput()"
+              placeholder="Search stocks, crypto or currencies..."
+              aria-label="Search instruments to trade"
+            />
+            <div class="search-results-figma" *ngIf="hasSearchResults">
+              <button type="button" class="search-result-figma" *ngFor="let instrument of searchResults" (click)="openInstrumentDialog(instrument)">
+                <div>
+                  <strong>{{ instrument.symbol }}</strong>
+                  <br>
+                  <span>{{ instrument.name }}</span>
+                </div>
+                <small>{{ instrument.instrumentType }}</small>
+              </button>
+            </div>
+          </div>
           <button type="button" class="action-btn-buy-38 action-btn-trade" data-tour="trade-button" (click)="openTradePanel()">
             <div class="node-39">
               <div class="shopping-cart-40">
@@ -337,9 +341,32 @@
           <div class="empty-state" *ngIf="activityLoading && !activityLoaded">Loading your orders...</div>
           <div class="empty-state error" *ngIf="activityError">{{ activityError }}</div>
 
-          <button type="button" class="load-more" *ngIf="activityHasMore" (click)="loadMoreActivity()" [disabled]="activityLoading">
-            {{ activityLoading ? 'Loading...' : 'Show older orders' }}
-          </button>
+          <nav class="activity-pager" *ngIf="activityLoaded && activityTotal > 0" aria-label="Order history pages">
+            <p class="activity-pager-range">
+              Showing {{ activityRangeStart }}–{{ activityRangeEnd }} of {{ activityTotal }} {{ activityTotal === 1 ? 'order' : 'orders' }}
+            </p>
+            <div class="activity-pager-controls" *ngIf="activityTotalPages > 1">
+              <button type="button" class="pager-step" (click)="goToActivityPage(activityPage - 1)" [disabled]="activityPage === 0 || activityLoading" aria-label="Previous page">
+                <mat-icon aria-hidden="true">chevron_left</mat-icon>
+              </button>
+              <ng-container *ngFor="let link of activityPageLinks">
+                <span class="pager-gap" *ngIf="link === null" aria-hidden="true">…</span>
+                <button
+                  *ngIf="link !== null"
+                  type="button"
+                  class="pager-page"
+                  [class.active]="link === activityPage"
+                  [attr.aria-current]="link === activityPage ? 'page' : null"
+                  [attr.aria-label]="'Page ' + (link + 1)"
+                  [disabled]="activityLoading"
+                  (click)="goToActivityPage(link)"
+                >{{ link + 1 }}</button>
+              </ng-container>
+              <button type="button" class="pager-step" (click)="goToActivityPage(activityPage + 1)" [disabled]="activityPage >= activityTotalPages - 1 || activityLoading" aria-label="Next page">
+                <mat-icon aria-hidden="true">chevron_right</mat-icon>
+              </button>
+            </div>
+          </nav>
         </div>
 
         <div *ngIf="selectedTab === 'watchlist'">
