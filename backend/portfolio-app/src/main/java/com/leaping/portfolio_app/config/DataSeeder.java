@@ -90,12 +90,12 @@ public class DataSeeder implements CommandLineRunner {
      * Create test customers with portfolios and mock holdings
      */
     private void seedTestCustomers() {
-        // ===== Customer 1: Joanna (BRS persona: self-directed investor) =====
+        // ===== Customer 1: Investor (BRS role: self-directed investor) =====
         // Email kept as john.trader@ so existing logins and the login page's quick login keep working.
         User johnUser = createUser(
             "john.trader@example.com",
             "password123",
-            "Joanna",
+            "Investor",
             ""
         );
         
