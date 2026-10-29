@@ -104,7 +104,7 @@
         </button>
       </form>
 
-      <!-- Quick demo logins (development builds only) -->
+      <!-- Quick demo logins, one per dashboard -->
       <div class="demo-logins" *ngIf="demoLogins.length > 0">
         <div class="demo-divider"><span>or sign in as a demo user</span></div>
         <div class="demo-grid">
@@ -112,14 +112,13 @@
             type="button"
             class="demo-option"
             *ngFor="let demo of demoLogins"
-            [class.active]="activeDemo === demo.persona"
+            [class.active]="activeDemo === demo.role"
             [disabled]="loading"
-            [attr.aria-label]="'Sign in as ' + demo.persona + ', ' + demo.role"
+            [attr.aria-label]="'Sign in as ' + demo.role"
             (click)="loginAs(demo)"
           >
-            <span class="demo-avatar" aria-hidden="true">{{ demo.persona.charAt(0) }}</span>
-            <span class="demo-name">{{ demo.persona }}</span>
-            <span class="demo-role">{{ demo.role }}</span>
+            <span class="demo-avatar" aria-hidden="true">{{ demo.role.charAt(0) }}</span>
+            <span class="demo-name">{{ demo.role }}</span>
           </button>
         </div>
       </div>

@@ -25,28 +25,21 @@ import {
 
 import { AuthService } from '../../services/auth.service';
 
-/** A one-click login for one of the BRS personas, mapped to a seeded demo account. */
+/** A one-click login for one of the demo roles, mapped to a seeded demo account. */
 interface DemoLogin {
-  persona: string;
   role: string;
   email: string;
   password: string;
 }
 
 /*
- * Demo accounts for the three BRS personas (section 6). These are the seeded
- * development credentials (DataSeeder and V7__seed_internal_users.sql).
- *
- * Gated on ngDevMode rather than isDevMode(): the Angular CLI replaces ngDevMode
- * with `false` in production builds, so this list is stripped from the bundle
- * entirely instead of merely being hidden at runtime.
+ * Demo accounts for the three BRS roles (section 6), one per dashboard. These
+ * are the seeded demo credentials (DataSeeder and V7__seed_internal_users.sql).
  */
-declare const ngDevMode: boolean | undefined;
-
 const DEMO_LOGINS: DemoLogin[] = [
-  { persona: 'Joanna', role: 'Investor', email: 'john.trader@example.com', password: 'password123' },
-  { persona: 'Priya', role: 'Analyst', email: 'analytics.analyst@leap.local', password: 'Analyst123!' },
-  { persona: 'David', role: 'Operations', email: 'analytics.admin@leap.local', password: 'Admin123!' }
+  { role: 'Investor', email: 'john.trader@example.com', password: 'password123' },
+  { role: 'Analyst', email: 'analytics.analyst@leap.local', password: 'Analyst123!' },
+  { role: 'Operations', email: 'analytics.admin@leap.local', password: 'Admin123!' }
 ];
 
 @Component({
@@ -86,7 +79,7 @@ export class LoginComponent implements OnInit {
   hidePassword = true;
   errorMessage = '';
 
-  readonly demoLogins: DemoLogin[] = typeof ngDevMode === 'undefined' || ngDevMode ? DEMO_LOGINS : [];
+  readonly demoLogins: DemoLogin[] = DEMO_LOGINS;
   activeDemo: string | null = null;
 
   constructor(
@@ -210,12 +203,12 @@ export class LoginComponent implements OnInit {
       });
   }
 
-  /** Fill in a persona's demo credentials and sign in. */
+  /** Fill in a role's demo credentials and sign in. */
   loginAs(demo: DemoLogin): void {
     if (this.loading) {
       return;
     }
-    this.activeDemo = demo.persona;
+    this.activeDemo = demo.role;
     this.loginForm.setValue({ email: demo.email, password: demo.password });
     this.onSubmit();
   }
